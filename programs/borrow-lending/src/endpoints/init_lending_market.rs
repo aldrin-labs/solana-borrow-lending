@@ -1,0 +1,27 @@
+//! Creates a new [`crate::models::LendingMarket`] account which is the base
+//! config that relates reserves (tokens that can be borrowed/lent) to each
+//! other and obligations (borrows) to these reserves.
+
+use crate::prelude::*;
+
+#[derive(Accounts)]
+pub struct InitLendingMarket<'info> {
+    #[account(signer)]
+    pub owner: AccountInfo<'info>,
+    #[account(zero)]
+    pub lending_market: Account<'info, LendingMarket>,
+    pub oracle_program: AccountInfo<'info>,
+}
+
+pub fn handle(
+    ctx: Context<InitLendingMarket>,
+    currency: UniversalAssetCurrency,
+) -> ProgramResult {
+    let accounts = ctx.accounts;
+
+    accounts.lending_market.owner = accounts.owner.key();
+    accounts.lending_market.oracle_program = accounts.oracle_program.key();
+    accounts.lending_market.currency = currency;
+
+    Ok(())
+}

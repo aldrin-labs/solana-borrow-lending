@@ -1,0 +1,27 @@
+[package]
+name = "borrow-lending"
+version = "0.1.0"
+description = "Aldrin implementation of borrow-lending program"
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "borrow_lending"
+
+[features]
+no-entrypoint = []
+no-idl = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.18"
+anchor-spl = "0.18"
+bytemuck = "1.7"
+spl-token = { version = "3.2", features = ["no-entrypoint"] }
+uint = "0.9"
+shrinkwraprs = "0.3"
+# we use any version which means the selected version is
+# going to be compatible with anchor-lang
+borsh = "*"
+
