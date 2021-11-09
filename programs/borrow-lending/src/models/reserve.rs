@@ -186,6 +186,21 @@ impl Reserve {
         Ok(collateral_amount)
     }
 
+    /// Funder wants to get back their liquidity by giving over collateral
+    /// tokens. Calculate how much liquidity they should get and burn the
+    /// tokens. Must be called in conjunction with
+    /// [`anchor_spl::token::burn`].
+    pub fn redeem_collateral(&mut self, collateral_amount: u64) -> Result<u64> {
+        let collateral_exchange_rate = self.collateral_exchange_rate()?;
+        let liquidity_amount = collateral_exchange_rate
+            .collateral_to_liquidity(collateral_amount)?;
+
+        self.collateral.burn(collateral_amount)?;
+        self.liquidity.withdraw(liquidity_amount)?;
+
+        Ok(liquidity_amount)
+    }
+
     pub fn collateral_exchange_rate(&self) -> Result<CollateralExchangeRate> {
         let total_liquidity = self.liquidity.total_supply()?;
         self.collateral.exchange_rate(total_liquidity)
@@ -272,6 +287,18 @@ impl ReserveLiquidity {
             .try_into()
     }
 
+    pub fn withdraw(&mut self, liquidity_amount: u64) -> Result<()> {
+        if liquidity_amount > self.available_amount {
+            msg!("Withdraw amount cannot exceed available amount");
+            return Err(ProgramError::InsufficientFunds.into());
+        }
+        self.available_amount = self
+            .available_amount
+            .checked_sub(liquidity_amount)
+            .ok_or(ErrorCode::MathOverflow)?;
+        Ok(())
+    }
+
     fn compound_interest(
         &mut self,
         current_borrow_rate: Rate,
@@ -325,6 +352,14 @@ impl ReserveCollateral {
 
         Ok(CollateralExchangeRate(rate))
     }
+
+    pub fn burn(&mut self, collateral_amount: u64) -> Result<()> {
+        self.mint_total_supply = self
+            .mint_total_supply
+            .checked_sub(collateral_amount)
+            .ok_or(ErrorCode::MathOverflow)?;
+        Ok(())
+    }
 }
 
 impl CollateralExchangeRate {
@@ -333,6 +368,15 @@ impl CollateralExchangeRate {
         liquidity_amount: u64,
     ) -> Result<u64> {
         self.0.try_mul(liquidity_amount)?.try_round_u64()
+    }
+
+    pub fn collateral_to_liquidity(
+        &self,
+        collateral_amount: u64,
+    ) -> Result<u64> {
+        Decimal::from(collateral_amount)
+            .try_div(self.0)?
+            .try_round_u64()
     }
 }
 

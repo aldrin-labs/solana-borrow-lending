@@ -42,7 +42,7 @@ pub mod consts {
 #[error]
 pub enum ErrorCode {
     #[msg("Provided owner does not match the market owner")]
-    InvalidMarketOwner,
+    InvalidMarketOwner, // 300
     #[msg("Operation would result in an overflow")]
     MathOverflow,
     #[msg("Provided configuration isn't in the right format or range")]
@@ -55,10 +55,6 @@ pub enum ErrorCode {
     InvalidOracleDataLayout,
     #[msg("Provided amount is in invalid range")]
     InvalidAmount,
-    #[msg("Provided accounts don't satisfy requirements")]
-    InvalidAccountInput,
-    #[msg("Operation cannot be performed due to insufficient funds")]
-    InsufficientFunds,
     #[msg("Reserve account needs to be refreshed")]
     ReserveStale,
 }
@@ -66,15 +62,29 @@ pub enum ErrorCode {
 pub mod err {
     use super::*;
 
-    pub fn acc(msg: impl AsRef<str>) -> ErrorCode {
+    pub fn acc(msg: impl AsRef<str>) -> ProgramError {
         msg!("[InvalidAccountInput] {}", msg.as_ref());
 
-        ErrorCode::InvalidAccountInput
+        ProgramError::InvalidAccountData
     }
 
-    pub fn reserve_stale() -> ErrorCode {
+    pub fn reserve_stale() -> ProgramError {
         msg!("[ReserveStale] Account needs to be refreshed");
 
-        ErrorCode::ReserveStale
+        ErrorCode::ReserveStale.into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anchor_lang::solana_program::program_error::ProgramError;
+
+    #[test]
+    fn test_error_conversion() {
+        assert_eq!(
+            ProgramError::Custom(300),
+            ErrorCode::InvalidMarketOwner.into()
+        );
     }
 }

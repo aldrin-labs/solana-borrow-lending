@@ -13,6 +13,10 @@ import {
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { setOraclePriceSlot } from "./pyth";
 import { refreshReserveInstruction } from "./refresh-reserve";
+import {
+  depositReserveLiquidity,
+  DepositReserveLiquidityAccounts,
+} from "./deposit-reserve-liquidity";
 
 export function test(
   program: Program<BorrowLending>,
@@ -20,12 +24,14 @@ export function test(
   owner: Keypair,
   shmemProgramId: PublicKey
 ) {
-  describe("deposit_reserve_liquidity", () => {
+  describe("redeem_reserve_collateral", () => {
     const market = Keypair.generate();
     const config = reserveConfig();
+    const depositedLiquidity = 50;
 
     let lendingMarketPda: PublicKey,
-      accounts: InitReserveAccounts,
+      reserveAccounts: InitReserveAccounts,
+      depositAccounts: DepositReserveLiquidityAccounts,
       lendingMarketBumpSeed: number;
 
     before("initialize lending market", async () => {
@@ -37,7 +43,7 @@ export function test(
     });
 
     before("initialize reserve", async () => {
-      accounts = await initReserve(
+      reserveAccounts = await initReserve(
         program,
         provider.connection,
         shmemProgramId,
@@ -56,21 +62,33 @@ export function test(
         provider.connection,
         shmemProgramId,
         owner,
-        accounts.oraclePrice.publicKey,
-        await provider.connection.getSlot()
+        reserveAccounts.oraclePrice.publicKey,
+        (await provider.connection.getSlot()) + 2
       );
     });
 
-    it("fails if provided with reserve liquidity wallet as source wallet");
+    beforeEach("deposit liquidity", async () => {
+      depositAccounts = await depositReserveLiquidity(
+        program,
+        reserveAccounts,
+        lendingMarketPda,
+        lendingMarketBumpSeed,
+        depositedLiquidity
+      );
+    });
+
+    it("fails if destination liquidity wallet equals reserve liquidity wallet");
+    it("fails if source collateral wallet equals reserve collateral wallet");
 
     it("fails if reserve stale", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
       const refreshReserve = false;
       await expect(
-        depositReserveLiquidity(
+        redeemReserveCollateral(
           program,
-          accounts,
+          reserveAccounts,
+          depositAccounts,
           lendingMarketPda,
           lendingMarketBumpSeed,
           50,
@@ -85,9 +103,10 @@ export function test(
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
-        depositReserveLiquidity(
+        redeemReserveCollateral(
           program,
-          accounts,
+          reserveAccounts,
+          depositAccounts,
           lendingMarketPda,
           lendingMarketBumpSeed,
           0
@@ -97,115 +116,94 @@ export function test(
       expect(stdCapture.restore()).to.contain("amount provided cannot be zero");
     });
 
-    it("deposits liquidity and gets collateral", async () => {
-      const liquidityAmount = 50;
+    it("redeems collateral and receives liquidity", async () => {
+      const collateralAmount = 200;
 
       const oldReserveInfo = await program.account.reserve.fetch(
-        accounts.reserve.publicKey
+        reserveAccounts.reserve.publicKey
       );
       const oldCollateralMintInfo =
-        await accounts.reserveCollateralMint.getMintInfo();
-      const oldLiquidityMintInfo = await accounts.liquidityMint.getMintInfo();
+        await reserveAccounts.reserveCollateralMint.getMintInfo();
 
-      const { destinationCollateralWallet } = await depositReserveLiquidity(
+      await redeemReserveCollateral(
         program,
-        accounts,
+        reserveAccounts,
+        depositAccounts,
         lendingMarketPda,
         lendingMarketBumpSeed,
-        liquidityAmount
+        collateralAmount
       );
 
       const reserveInfo = await program.account.reserve.fetch(
-        accounts.reserve.publicKey
+        reserveAccounts.reserve.publicKey
       );
       expect(reserveInfo.lastUpdate.stale).to.be.true;
       expect(reserveInfo.liquidity.availableAmount.toNumber()).to.eq(
-        oldReserveInfo.liquidity.availableAmount.toNumber() + liquidityAmount
-      );
-      expect(reserveInfo.collateral.mintTotalSupply.toNumber()).to.eq(
-        oldCollateralMintInfo.supply.toNumber() +
-          liquidityAmount * ONE_LIQ_TO_COL_INITIAL_PRICE
+        oldReserveInfo.liquidity.availableAmount.toNumber() -
+          collateralAmount / ONE_LIQ_TO_COL_INITIAL_PRICE
       );
 
       const collateralMintInfo =
-        await accounts.reserveCollateralMint.getMintInfo();
+        await reserveAccounts.reserveCollateralMint.getMintInfo();
       expect(collateralMintInfo.supply.toNumber()).to.eq(
-        reserveInfo.collateral.mintTotalSupply.toNumber()
+        oldCollateralMintInfo.supply.toNumber() - collateralAmount
+      );
+      expect(reserveInfo.collateral.mintTotalSupply.toNumber()).to.eq(
+        collateralMintInfo.supply.toNumber()
       );
 
-      const liquidityMintInfo = await accounts.liquidityMint.getMintInfo();
-      expect(
-        liquidityMintInfo.supply.sub(oldLiquidityMintInfo.supply).toNumber()
-      ).to.eq(
-        reserveInfo.liquidity.availableAmount.toNumber() -
-          oldReserveInfo.liquidity.availableAmount.toNumber()
-      );
-
-      const destinationCollateralWalletInfo =
-        await accounts.reserveCollateralMint.getAccountInfo(
-          destinationCollateralWallet
+      const redeemDestinationWallet =
+        await reserveAccounts.liquidityMint.getAccountInfo(
+          depositAccounts.sourceLiquidityWallet
         );
-      expect(destinationCollateralWalletInfo.amount.toNumber()).to.eq(
-        liquidityAmount * ONE_LIQ_TO_COL_INITIAL_PRICE
+      expect(redeemDestinationWallet.amount.toNumber()).to.eq(
+        collateralAmount / ONE_LIQ_TO_COL_INITIAL_PRICE
       );
+
+      const redeemSourceWallet =
+        await reserveAccounts.reserveCollateralMint.getAccountInfo(
+          depositAccounts.destinationCollateralWallet
+        );
+      expect(redeemSourceWallet.amount.toNumber()).to.eq(50);
     });
   });
 }
 
-export interface DepositReserveLiquidityAccounts {
-  funder: Keypair;
-  sourceLiquidityWallet: PublicKey;
-  destinationCollateralWallet: PublicKey;
-}
-
-export async function depositReserveLiquidity(
+export async function redeemReserveCollateral(
   program: Program<BorrowLending>,
-  accounts: InitReserveAccounts,
+  reserveAccounts: InitReserveAccounts,
+  depositAccounts: DepositReserveLiquidityAccounts,
   lendingMarketPda: PublicKey,
   lendingMarketBumpSeed: number,
-  liquidityAmount: number,
+  collateralAmount: number,
   refreshReserve: boolean = true
-): Promise<DepositReserveLiquidityAccounts> {
-  const funder = Keypair.generate();
-  const sourceLiquidityWallet = await accounts.liquidityMint.createAccount(
-    funder.publicKey
-  );
-  await accounts.liquidityMint.mintTo(
-    sourceLiquidityWallet,
-    accounts.liquidityMintAuthority,
-    [],
-    50
-  );
-  const destinationCollateralWallet =
-    await accounts.reserveCollateralMint.createAccount(funder.publicKey);
-
-  await program.rpc.depositReserveLiquidity(
+) {
+  await program.rpc.redeemReserveCollateral(
     lendingMarketBumpSeed,
-    new BN(liquidityAmount),
+    new BN(collateralAmount),
     {
       accounts: {
-        funder: funder.publicKey,
+        funder: depositAccounts.funder.publicKey,
         lendingMarketPda,
-        reserve: accounts.reserve.publicKey,
-        reserveCollateralMint: accounts.reserveCollateralMint.publicKey,
-        reserveLiquidityWallet: accounts.reserveLiquidityWallet.publicKey,
-        sourceLiquidityWallet,
-        destinationCollateralWallet,
+        reserve: reserveAccounts.reserve.publicKey,
+        reserveCollateralMint: reserveAccounts.reserveCollateralMint.publicKey,
+        reserveLiquidityWallet:
+          reserveAccounts.reserveLiquidityWallet.publicKey,
+        destinationLiquidityWallet: depositAccounts.sourceLiquidityWallet,
+        sourceCollateralWallet: depositAccounts.destinationCollateralWallet,
         tokenProgram: TOKEN_PROGRAM_ID,
         clock: web3.SYSVAR_CLOCK_PUBKEY,
       },
-      signers: [funder],
+      signers: [depositAccounts.funder],
       instructions: refreshReserve
         ? [
             refreshReserveInstruction(
               program,
-              accounts.reserve.publicKey,
-              accounts.oraclePrice.publicKey
+              reserveAccounts.reserve.publicKey,
+              reserveAccounts.oraclePrice.publicKey
             ),
           ]
         : [],
     }
   );
-
-  return { funder, sourceLiquidityWallet, destinationCollateralWallet };
 }

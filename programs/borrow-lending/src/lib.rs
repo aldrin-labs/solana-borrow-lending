@@ -57,4 +57,16 @@ pub mod borrow_lending {
             liquidity_amount,
         )
     }
+
+    pub fn redeem_reserve_collateral(
+        ctx: Context<RedeemReserveCollateral>,
+        lending_market_bump_seed: u8,
+        collateral_amount: u64,
+    ) -> ProgramResult {
+        endpoints::redeem_reserve_collateral::handle(
+            ctx,
+            lending_market_bump_seed,
+            collateral_amount,
+        )
+    }
 }

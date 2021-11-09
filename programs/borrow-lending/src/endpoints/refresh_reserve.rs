@@ -7,7 +7,7 @@ pub struct RefreshReserve<'info> {
     pub reserve: Account<'info, Reserve>,
     #[account(
         constraint = oracle_price.key() == reserve.liquidity.oracle
-            @ ErrorCode::InvalidAccountInput,
+            @ ProgramError::InvalidAccountData,
     )]
     pub oracle_price: AccountInfo<'info>,
     pub clock: Sysvar<'info, Clock>,

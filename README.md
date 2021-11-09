@@ -93,5 +93,10 @@ and run the tests:
 ./test.sh
 ```
 
+When debugging or working on a new feature, use
+[mocha's `only`][mocha-exclusive-tests] functionality to avoid running all tests
+every time.
+
 [desmos-borrow-rate]: https://www.desmos.com/calculator/1002gfizz0
 [compound-interest-formula]: https://en.wikipedia.org/wiki/Compound_interest#Periodic_compounding
+[mocha-exclusive-tests]: https://mochajs.org/#exclusive-tests
