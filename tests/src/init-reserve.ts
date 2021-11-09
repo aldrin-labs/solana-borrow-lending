@@ -29,17 +29,18 @@ import {
 } from "./pyth";
 
 export interface InitReserveAccounts {
-  reserve: Keypair;
+  destinationCollateralWallet: Keypair;
   liquidityMint: Token;
   liquidityMintAuthority: Keypair;
-  oracleProduct: Keypair;
   oraclePrice: Keypair;
-  sourceLiquidityWallet: PublicKey;
-  reserveCollateralMint: Keypair;
-  reserveLiquidityWallet: Keypair;
+  oracleProduct: Keypair;
+  reserve: Keypair;
+  reserveCollateralMint: Token;
+  reserveCollateralMintAuthority: Keypair;
   reserveCollateralWallet: Keypair;
   reserveLiquidityFeeRecvWallet: Keypair;
-  destinationCollateralWallet: Keypair;
+  reserveLiquidityWallet: Keypair;
+  sourceLiquidityWallet: PublicKey;
 }
 
 export function test(
@@ -60,7 +61,7 @@ export function test(
       );
     });
 
-    it("cannot have 0 liquidity", async () => {
+    it("must init with at least some liquidity", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
       // this should make the program fail
@@ -78,7 +79,7 @@ export function test(
           liquidityAmount,
           reserveConfig()
         )
-      ).to.be.eventually.rejected;
+      ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain(
         "must be initialized with liquidity"
@@ -105,7 +106,7 @@ export function test(
           liquidityAmount,
           config
         )
-      ).to.be.eventually.rejected;
+      ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain("must be in range [0, 100]");
     });
@@ -165,6 +166,9 @@ export function test(
       );
 
       expect(reserveAccount.lendingMarket).to.deep.eq(market.publicKey);
+      expect(reserveAccount.liquidity.availableAmount.toNumber()).to.eq(
+        liquidityAmount.toNumber()
+      );
       // TODO: check the rest reserve account
       // TODO: check token accounts
     });
@@ -380,16 +384,22 @@ async function createReserveAccounts(
   ]);
 
   return {
-    reserve,
+    destinationCollateralWallet,
     liquidityMint,
     liquidityMintAuthority,
-    oracleProduct,
     oraclePrice,
-    sourceLiquidityWallet,
-    reserveCollateralMint,
-    reserveLiquidityWallet,
+    oracleProduct,
+    reserve,
+    reserveCollateralMint: new Token(
+      connection,
+      reserveCollateralMint.publicKey,
+      TOKEN_PROGRAM_ID,
+      owner
+    ),
+    reserveCollateralMintAuthority: reserveCollateralMint,
     reserveCollateralWallet,
     reserveLiquidityFeeRecvWallet,
-    destinationCollateralWallet,
+    reserveLiquidityWallet,
+    sourceLiquidityWallet,
   };
 }

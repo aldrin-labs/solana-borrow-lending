@@ -33,7 +33,7 @@ export function test(program: Program<BorrowLending>) {
 
       await expect(
         setLendingMarketOwner(program, wrongOwner, market, newOwner.publicKey)
-      ).to.eventually.be.rejected;
+      ).to.be.rejected;
 
       stdCapture.restore();
     });

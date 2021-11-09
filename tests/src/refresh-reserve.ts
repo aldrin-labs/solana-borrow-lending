@@ -1,10 +1,15 @@
-import { Program, BN, Provider, web3 } from "@project-serum/anchor";
+import { Program, BN, Provider } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
-import { PublicKey, Keypair } from "@solana/web3.js";
+import {
+  PublicKey,
+  Keypair,
+  SYSVAR_CLOCK_PUBKEY,
+  TransactionInstruction,
+} from "@solana/web3.js";
 import { expect } from "chai";
 import { initLendingMarket, findLendingMarketPda } from "./init-lending-market";
 import { CaptureStdoutAndStderr, wadToBN, waitForCommit } from "./helpers";
-import { setOraclePriceSlot, uploadOraclePrice } from "./pyth";
+import { setOraclePriceSlot } from "./pyth";
 import {
   initReserve,
   InitReserveAccounts,
@@ -58,7 +63,7 @@ export function test(
           accounts.reserve.publicKey,
           Keypair.generate().publicKey
         )
-      ).to.eventually.be.rejected;
+      ).to.be.rejected;
 
       stdCapture.restore();
     });
@@ -81,7 +86,7 @@ export function test(
           accounts.reserve.publicKey,
           accounts.oraclePrice.publicKey
         )
-      ).to.eventually.be.rejected;
+      ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain("is stale");
     });
@@ -146,9 +151,23 @@ export async function refreshReserve(
     accounts: {
       reserve,
       oraclePrice,
-      clock: web3.SYSVAR_CLOCK_PUBKEY,
+      clock: SYSVAR_CLOCK_PUBKEY,
     },
   });
 
   return program.account.reserve.fetch(reserve);
+}
+
+export function refreshReserveInstruction(
+  program: Program<BorrowLending>,
+  reserve: PublicKey,
+  oraclePrice: PublicKey
+): TransactionInstruction {
+  return program.instruction.refreshReserve({
+    accounts: {
+      reserve,
+      oraclePrice,
+      clock: SYSVAR_CLOCK_PUBKEY,
+    },
+  });
 }
