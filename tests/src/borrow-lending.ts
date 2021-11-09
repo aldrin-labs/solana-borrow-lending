@@ -11,6 +11,7 @@ import { test as testInitLendingMarket } from "./init-lending-market";
 import { test as testSetLendingMarketOwner } from "./set-lending-market-owner";
 import { test as testInitReserve } from "./init-reserve";
 import { test as testRefreshReserve } from "./refresh-reserve";
+import { test as testDepositReserveLiquidity } from "./deposit-reserve-liquidity";
 import { readFile } from "fs/promises";
 
 describe("borrow-lending", () => {
@@ -60,4 +61,5 @@ describe("borrow-lending", () => {
   testSetLendingMarketOwner(program);
   testInitReserve(program, provider, payer, shmemProgram.publicKey);
   testRefreshReserve(program, provider, payer, shmemProgram.publicKey);
+  testDepositReserveLiquidity(program, provider, payer, shmemProgram.publicKey);
 });

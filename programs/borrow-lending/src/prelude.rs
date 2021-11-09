@@ -59,4 +59,22 @@ pub enum ErrorCode {
     InvalidAccountInput,
     #[msg("Operation cannot be performed due to insufficient funds")]
     InsufficientFunds,
+    #[msg("Reserve account needs to be refreshed")]
+    ReserveStale,
+}
+
+pub mod err {
+    use super::*;
+
+    pub fn acc(msg: impl AsRef<str>) -> ErrorCode {
+        msg!("[InvalidAccountInput] {}", msg.as_ref());
+
+        ErrorCode::InvalidAccountInput
+    }
+
+    pub fn reserve_stale() -> ErrorCode {
+        msg!("[ReserveStale] Account needs to be refreshed");
+
+        ErrorCode::ReserveStale
+    }
 }

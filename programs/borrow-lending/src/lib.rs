@@ -45,4 +45,16 @@ pub mod borrow_lending {
     pub fn refresh_reserve(ctx: Context<RefreshReserve>) -> ProgramResult {
         endpoints::refresh_reserve::handle(ctx)
     }
+
+    pub fn deposit_reserve_liquidity(
+        ctx: Context<DepositReserveLiquidity>,
+        lending_market_bump_seed: u8,
+        liquidity_amount: u64,
+    ) -> ProgramResult {
+        endpoints::deposit_reserve_liquidity::handle(
+            ctx,
+            lending_market_bump_seed,
+            liquidity_amount,
+        )
+    }
 }
