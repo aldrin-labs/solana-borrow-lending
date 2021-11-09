@@ -43,7 +43,7 @@ pub struct InitReserve<'info> {
     #[account(
         mut,
         constraint = source_liquidity_wallet.amount >= liquidity_amount
-            @ ErrorCode::InsufficientFunds,
+            @ ProgramError::InsufficientFunds,
     )]
     pub source_liquidity_wallet: Account<'info, TokenAccount>,
     /// In exchange for the deposited initial liquidity, the owner gets
@@ -57,7 +57,7 @@ pub struct InitReserve<'info> {
         zero,
         constraint = source_liquidity_wallet.key() !=
             reserve_liquidity_wallet.key()
-            @ ErrorCode::InvalidAccountInput,
+            @ ProgramError::InvalidAccountData,
     )]
     pub reserve_liquidity_wallet: AccountInfo<'info>,
     pub reserve_liquidity_mint: Account<'info, Mint>,
