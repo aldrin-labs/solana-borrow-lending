@@ -10,6 +10,7 @@ import { BorrowLending } from "../../target/types/borrow_lending";
 import { test as testInitLendingMarket } from "./init-lending-market";
 import { test as testSetLendingMarketOwner } from "./set-lending-market-owner";
 import { test as testInitReserve } from "./init-reserve";
+import { test as testRefreshReserve } from "./refresh-reserve";
 import { readFile } from "fs/promises";
 
 describe("borrow-lending", () => {
@@ -27,7 +28,7 @@ describe("borrow-lending", () => {
     shmem: shmemProgram.publicKey.toString(),
   });
 
-  it("airdrops SOL", async () => {
+  before("airdrop SOL", async () => {
     await provider.connection.confirmTransaction(
       await provider.connection.requestAirdrop(
         provider.wallet.publicKey,
@@ -42,7 +43,7 @@ describe("borrow-lending", () => {
     );
   });
 
-  it("deploys shmem", async () => {
+  before("deploy shmem", async () => {
     const programBin = await readFile(
       "tests/localnet-deps/target/deploy/shmem.so"
     );
@@ -58,4 +59,5 @@ describe("borrow-lending", () => {
   testInitLendingMarket(program);
   testSetLendingMarketOwner(program);
   testInitReserve(program, provider, payer, shmemProgram.publicKey);
+  testRefreshReserve(program, provider, payer, shmemProgram.publicKey);
 });

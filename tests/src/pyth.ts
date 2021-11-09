@@ -1,5 +1,14 @@
 import { PublicKey, Transaction, Keypair, Connection } from "@solana/web3.js";
 import { numberToU64 } from "./helpers";
+import { readFileSync } from "fs";
+
+export const oracleProductBin = () =>
+  readFileSync("tests/fixtures/srm_usd_product.bin");
+export const oracleProductBinByteLen = oracleProductBin().length;
+
+export const oraclePriceBin = () =>
+  readFileSync("tests/fixtures/srm_usd_price.bin");
+export const oraclePriceBinBinByteLen = oraclePriceBin().length;
 
 export async function uploadOracleProduct(
   connection: Connection,
@@ -7,13 +16,13 @@ export async function uploadOracleProduct(
   payer: Keypair,
   productAccount: PublicKey,
   priceAccount: PublicKey,
-  productBin: Readonly<Buffer>
+  productBin: Buffer = oracleProductBin()
 ) {
   // check out the `crate::models::pyth::Product` struct, we are targeting the
   // `px_acc` field here
   const offset = 16;
   productBin.set(priceAccount.toBytes(), offset);
-  await shmemUpload(
+  await shmemOverwrite(
     connection,
     shmemProgramId,
     payer,
@@ -28,16 +37,36 @@ export async function uploadOraclePrice(
   payer: Keypair,
   priceAccount: PublicKey,
   slot: number,
-  priceBin: Buffer
+  priceBin: Buffer = oraclePriceBin()
 ) {
-  // check out the `crate::models::pyth::Price` struct, we are targeting the
-  // `valid_slot` field here
-  const offset = 40;
-  priceBin.set(numberToU64(slot), offset);
-  await shmemUpload(connection, shmemProgramId, payer, priceAccount, priceBin);
+  setOraclePriceBinSlot(priceBin, slot);
+  await shmemOverwrite(
+    connection,
+    shmemProgramId,
+    payer,
+    priceAccount,
+    priceBin
+  );
 }
 
-async function shmemUpload(
+export async function setOraclePriceSlot(
+  connection: Connection,
+  shmemProgramId: PublicKey,
+  payer: Keypair,
+  priceAccount: PublicKey,
+  slot: number
+) {
+  await shmemSet(
+    connection,
+    shmemProgramId,
+    payer,
+    priceAccount,
+    oraclePriceBinValidSlotOffset,
+    numberToU64(slot)
+  );
+}
+
+async function shmemOverwrite(
   connection: Connection,
   shmemProgramId: PublicKey,
   payer: Keypair,
@@ -60,19 +89,44 @@ async function shmemUpload(
       Math.min(offset + MAX_DATA_SIZE_PER_TRANSACTION, data.byteLength)
     );
 
-    const tx = new Transaction();
-    tx.add({
-      keys: [
-        {
-          pubkey: account,
-          isSigner: false,
-          isWritable: true,
-        },
-      ],
-      programId: shmemProgramId,
-      data: Buffer.concat([numberToU64(offset), transactionData]),
-    });
-
-    await connection.sendTransaction(tx, [payer]);
+    await shmemSet(
+      connection,
+      shmemProgramId,
+      payer,
+      account,
+      offset,
+      transactionData
+    );
   }
+}
+
+async function shmemSet(
+  connection: Connection,
+  shmemProgramId: PublicKey,
+  payer: Keypair,
+  account: PublicKey,
+  offset: number,
+  data: Buffer
+) {
+  const tx = new Transaction();
+  tx.add({
+    keys: [
+      {
+        pubkey: account,
+        isSigner: false,
+        isWritable: true,
+      },
+    ],
+    programId: shmemProgramId,
+    data: Buffer.concat([numberToU64(offset), data]),
+  });
+
+  await connection.sendTransaction(tx, [payer]);
+}
+
+// check out the `crate::models::pyth::Price` struct, we are targeting the
+// `valid_slot` field here
+const oraclePriceBinValidSlotOffset = 40;
+function setOraclePriceBinSlot(bin: Buffer, slot: number) {
+  bin.set(numberToU64(slot), oraclePriceBinValidSlotOffset);
 }

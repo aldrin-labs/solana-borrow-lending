@@ -41,4 +41,8 @@ pub mod borrow_lending {
             config,
         )
     }
+
+    pub fn refresh_reserve(ctx: Context<RefreshReserve>) -> ProgramResult {
+        endpoints::refresh_reserve::handle(ctx)
+    }
 }

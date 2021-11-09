@@ -20,8 +20,13 @@ import {
   numberToWad,
   waitForCommit,
 } from "./helpers";
-import { uploadOraclePrice, uploadOracleProduct } from "./pyth";
-import { readFileSync } from "fs";
+import {
+  oraclePriceBinBinByteLen,
+  oracleProductBinByteLen,
+  setOraclePriceSlot,
+  uploadOraclePrice,
+  uploadOracleProduct,
+} from "./pyth";
 
 export interface InitReserveAccounts {
   reserve: Keypair;
@@ -37,9 +42,6 @@ export interface InitReserveAccounts {
   destinationCollateralWallet: Keypair;
 }
 
-const oracleProductBin = readFileSync("tests/fixtures/srm_usd_product.bin");
-const oraclePriceBin = readFileSync("tests/fixtures/srm_usd_price.bin");
-
 export function test(
   program: Program<BorrowLending>,
   provider: Provider,
@@ -50,7 +52,7 @@ export function test(
     const market = Keypair.generate();
     let lendingMarketPda, lendingMarketBumpSeed;
 
-    it("initializes lending market", async () => {
+    before("initialize lending market", async () => {
       await initLendingMarket(program, owner, market, shmemProgramId);
       [lendingMarketPda, lendingMarketBumpSeed] = await findLendingMarketPda(
         program.programId,
@@ -63,7 +65,6 @@ export function test(
 
       // this should make the program fail
       const liquidityAmount = new BN(0);
-      const config = { conf: reserveConfig() };
 
       await expect(
         initReserve(
@@ -75,7 +76,7 @@ export function test(
           lendingMarketPda,
           lendingMarketBumpSeed,
           liquidityAmount,
-          config
+          reserveConfig()
         )
       ).to.be.eventually.rejected;
 
@@ -88,7 +89,7 @@ export function test(
       const stdCapture = new CaptureStdoutAndStderr();
 
       const liquidityAmount = new BN(10);
-      const config = { conf: reserveConfig() };
+      const config = reserveConfig();
       // this should make the endpoint fail
       config.conf.liquidationBonus.percent = 120;
 
@@ -117,7 +118,6 @@ export function test(
       const stdCapture = new CaptureStdoutAndStderr();
 
       const liquidityAmount = new BN(10);
-      const config = { conf: reserveConfig() };
 
       const [accounts, finalize] = await prepareInitReserve(
         program,
@@ -128,16 +128,15 @@ export function test(
         lendingMarketPda,
         lendingMarketBumpSeed,
         liquidityAmount,
-        config
+        reserveConfig()
       );
 
-      await uploadOraclePrice(
+      await setOraclePriceSlot(
         provider.connection,
         shmemProgramId,
         owner,
         accounts.oraclePrice.publicKey,
-        (await provider.connection.getSlot()) - 10, // put it into the past
-        oraclePriceBin
+        (await provider.connection.getSlot()) - 10 // put it into the past
       );
       await waitForCommit();
 
@@ -148,7 +147,6 @@ export function test(
 
     it("initializes all accounts, transfers liquidity and mints collateral", async () => {
       const liquidityAmount = new BN(10);
-      const config = { conf: reserveConfig() };
 
       const accounts = await initReserve(
         program,
@@ -159,7 +157,7 @@ export function test(
         lendingMarketPda,
         lendingMarketBumpSeed,
         liquidityAmount,
-        config
+        reserveConfig()
       );
 
       const reserveAccount = await program.account.reserve.fetch(
@@ -182,7 +180,7 @@ export async function initReserve(
   lendingMarketPda: PublicKey,
   lendingMarketBumpSeed: number,
   liquidityAmount: BN,
-  config: unknown // IDL is not great with types
+  config: ReserveConfig
 ): Promise<InitReserveAccounts> {
   const [accounts, finalize] = await prepareInitReserve(
     program,
@@ -211,7 +209,7 @@ export async function prepareInitReserve(
   lendingMarketPda: PublicKey,
   lendingMarketBumpSeed: number,
   liquidityAmount: BN,
-  config: unknown // IDL is not great with types
+  config: ReserveConfig
 ): Promise<[InitReserveAccounts, Finalize]> {
   const accounts = await createReserveAccounts(
     connection,
@@ -225,16 +223,14 @@ export async function prepareInitReserve(
     shmemProgramId,
     owner,
     accounts.oracleProduct.publicKey,
-    accounts.oraclePrice.publicKey,
-    oracleProductBin
+    accounts.oraclePrice.publicKey
   );
   await uploadOraclePrice(
     connection,
     shmemProgramId,
     owner,
     accounts.oraclePrice.publicKey,
-    (await connection.getSlot()) + 2, // go bit into future so that finalize can be called within next ~second
-    oraclePriceBin
+    (await connection.getSlot()) + 2 // go bit into future so that finalize can be called within next ~second
   );
   await waitForCommit();
 
@@ -254,19 +250,39 @@ export async function prepareInitReserve(
   ];
 }
 
-export function reserveConfig() {
-  return {
-    optimalUtilizationRate: { percent: 50 },
-    loanToValueRatio: { percent: 5 },
-    liquidationBonus: { percent: 2 },
-    liquidationThreshold: { percent: 10 },
-    minBorrowRate: 1,
-    optimalBorrowRate: 5,
-    maxBorrowRate: 10,
+type PercentInt = { percent: number };
+type ReserveConfig = {
+  conf: {
+    optimalUtilizationRate: PercentInt;
+    loanToValueRatio: PercentInt;
+    liquidationBonus: PercentInt;
+    liquidationThreshold: PercentInt;
+    minBorrowRate: number;
+    optimalBorrowRate: number;
+    maxBorrowRate: number;
     fees: {
-      borrowFee: { wad: numberToWad(0.01) },
-      flashLoanFee: { wad: numberToWad(0.001) },
-      hostFee: { percent: 2 },
+      borrowFee: unknown;
+      hostFee: unknown;
+      flashLoanFee: unknown;
+    };
+  };
+};
+
+export function reserveConfig(): ReserveConfig {
+  return {
+    conf: {
+      optimalUtilizationRate: { percent: 50 },
+      loanToValueRatio: { percent: 5 },
+      liquidationBonus: { percent: 2 },
+      liquidationThreshold: { percent: 10 },
+      minBorrowRate: 1,
+      optimalBorrowRate: 5,
+      maxBorrowRate: 10,
+      fees: {
+        borrowFee: { wad: numberToWad(0.01) },
+        flashLoanFee: { wad: numberToWad(0.001) },
+        hostFee: { percent: 2 },
+      },
     },
   };
 }
@@ -279,12 +295,12 @@ async function rpcInitReserve(
   lendingMarketPda: PublicKey,
   lendingMarketBumpSeed: number,
   liquidityAmount: BN,
-  config: unknown // IDL is not great with types
+  config: ReserveConfig
 ) {
   await program.rpc.initReserve(
     lendingMarketBumpSeed,
     liquidityAmount,
-    config as any,
+    config as any, // IDL is not very good with types
     {
       accounts: {
         owner: owner.publicKey,
@@ -350,8 +366,8 @@ async function createReserveAccounts(
 
   // prepare empty oracle stub accounts
   await createProgramAccounts(connection, shmemProgramId, owner, [
-    { keypair: oracleProduct, space: oracleProductBin.byteLength },
-    { keypair: oraclePrice, space: oraclePriceBin.byteLength },
+    { keypair: oracleProduct, space: oracleProductBinByteLen },
+    { keypair: oraclePrice, space: oraclePriceBinBinByteLen },
   ]);
 
   // prepare empty token accounts and mint account

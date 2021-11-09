@@ -38,8 +38,8 @@ pub struct InitReserve<'info> {
             @ ErrorCode::InvalidOracleConfig,
     )]
     pub oracle_price: AccountInfo<'info>,
-    // /// From what wallet will liquidity tokens be transferred to the reserve
-    // /// wallet for the initial liquidity amount.
+    /// From what wallet will liquidity tokens be transferred to the reserve
+    /// wallet for the initial liquidity amount.
     #[account(
         mut,
         constraint = source_liquidity_wallet.amount >= liquidity_amount
