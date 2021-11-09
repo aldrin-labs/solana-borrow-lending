@@ -4,6 +4,10 @@ pub use crate::models::*;
 pub use anchor_lang::prelude::*;
 
 pub mod consts {
+    use anchor_lang::solana_program::clock::{
+        DEFAULT_TICKS_PER_SECOND, DEFAULT_TICKS_PER_SLOT, SECONDS_PER_DAY,
+    };
+
     /// Scale of precision.
     pub const SCALE: usize = 18;
 
@@ -25,6 +29,14 @@ pub mod consts {
     pub const INITIAL_COLLATERAL_RATIO: u64 = 5;
 
     pub const INITIAL_COLLATERAL_RATE: u64 = INITIAL_COLLATERAL_RATIO * WAD;
+
+    /// The compound interest is calculated by defining the period to be one
+    /// slot. However, the borrow rate is defined as per year. So we estimate
+    /// the number of slots a year to use in our math.
+    pub const SLOTS_PER_YEAR: u64 = DEFAULT_TICKS_PER_SECOND
+        / DEFAULT_TICKS_PER_SLOT
+        * SECONDS_PER_DAY
+        * 365;
 }
 
 #[error]

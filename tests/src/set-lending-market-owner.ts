@@ -7,13 +7,16 @@ import { CaptureStdoutAndStderr } from "./helpers";
 
 export function test(program: Program<BorrowLending>) {
   describe("set_lending_market_owner", () => {
-    it("sets new lending market owner", async () => {
-      const owner = Keypair.generate();
-      const newOwner = Keypair.generate();
-      const market = Keypair.generate();
-      const oracle = Keypair.generate();
+    const oracle = Keypair.generate();
+    const owner = Keypair.generate();
+    const market = Keypair.generate();
 
+    before("initialize lending market", async () => {
       await initLendingMarket(program, owner, market, oracle.publicKey);
+    });
+
+    it("sets new lending market owner", async () => {
+      const newOwner = Keypair.generate();
 
       await setLendingMarketOwner(program, owner, market, newOwner.publicKey);
       const marketInfo = await program.account.lendingMarket.fetch(
@@ -25,13 +28,8 @@ export function test(program: Program<BorrowLending>) {
     it("cannot set new lending market owner if not current owner", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const owner = Keypair.generate();
       const wrongOwner = Keypair.generate();
       const newOwner = Keypair.generate();
-      const market = Keypair.generate();
-      const oracle = Keypair.generate();
-
-      await initLendingMarket(program, owner, market, oracle.publicKey);
 
       await expect(
         setLendingMarketOwner(program, wrongOwner, market, newOwner.publicKey)

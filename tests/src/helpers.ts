@@ -28,10 +28,30 @@ export class CaptureStdoutAndStderr {
   }
 }
 
+type Wad = [BN, BN, BN];
+const ONE_WAD = new BN(10).pow(new BN(18));
+
 export function numberToWad(n: number): [BN, BN, BN] {
-  // TODO
-  const WAD = 1_000_000_000_000_000_000;
-  return [new BN(0), new BN(0), new BN(0)];
+  if (n < 0) {
+    throw new Error("Wad mustn't be negative");
+  }
+
+  const wad = n < 1 ? ONE_WAD.div(new BN(1 / n)) : ONE_WAD.mul(new BN(n));
+  const bytes = wad.toArray("le", 3 * 8);
+  const nextU64 = () => new BN(bytes.splice(0, 8), "le");
+
+  return [nextU64(), nextU64(), nextU64()];
+}
+
+export function wadToBN(wad: Wad): BN {
+  return new BN(
+    [
+      ...wad[0].toArray("le", 8),
+      ...wad[1].toArray("le", 8),
+      ...wad[2].toArray("le", 8),
+    ],
+    "le"
+  );
 }
 
 export function numberToU64(n: number): Buffer {
