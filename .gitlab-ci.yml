@@ -1,0 +1,31 @@
+stages:
+  - build_and_test
+
+variables:
+  RUST_VERSION: "1.56.1"
+  SOLANA_VERSION: "1.8.2"
+
+build_and_test:
+  stage: build_and_test
+  # https://hub.docker.com/r/cimg/rust/tags
+  image: "cimg/rust:${RUST_VERSION}-node"
+  cache:
+    key: binaries-cache
+    paths:
+      - target
+      # TODO: export the shmem program to another repo
+      - tests/localnet-deps/target
+  artifacts:
+    paths:
+      - target/deploy/borrow_lending.so
+      - target/idl/borrow_lending.json
+    expire_in: 6 months
+  script:
+    # TODO: export the solana CLI installation into a docker image in our own
+    # registery
+    - sh -c "$(curl -sSfL https://release.solana.com/v${SOLANA_VERSION}/install)"
+    - export PATH="/home/circleci/.local/share/solana/install/active_release/bin:$PATH"
+
+    - npm i
+
+    - ./test.sh
