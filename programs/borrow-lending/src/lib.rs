@@ -69,4 +69,12 @@ pub mod borrow_lending {
             collateral_amount,
         )
     }
+
+    /// Creates a new obligation with up to 10 possible different reserves from
+    /// which to borrow or to which to deposit.
+    pub fn init_obligation_r10(ctx: Context<InitObligation>) -> ProgramResult {
+        assert_eq!(10, consts::MAX_OBLIGATION_RESERVES);
+
+        endpoints::init_obligation::handle(ctx)
+    }
 }

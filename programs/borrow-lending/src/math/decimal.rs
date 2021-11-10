@@ -19,12 +19,10 @@ use crate::prelude::*;
 use std::{convert::TryFrom, fmt};
 
 mod custom_u192 {
-    use anchor_lang::{AnchorDeserialize, AnchorSerialize};
     use uint::construct_uint;
 
     // U192 with 192 bits consisting of 3 x 64-bit words
     construct_uint! {
-        #[derive(AnchorSerialize, AnchorDeserialize)]
         pub struct U192(3);
     }
 }
@@ -32,27 +30,14 @@ mod custom_u192 {
 pub use custom_u192::U192;
 
 /// Large decimal values, precise to 18 digits
-#[derive(
-    AnchorSerialize,
-    AnchorDeserialize,
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    PartialEq,
-    PartialOrd,
-    Eq,
-    Ord,
-)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Decimal(pub U192);
 
 impl Decimal {
-    /// One
     pub fn one() -> Self {
         Self(Self::wad())
     }
 
-    /// Zero
     pub fn zero() -> Self {
         Self(U192::zero())
     }
@@ -78,12 +63,10 @@ impl Decimal {
         Ok(u128::try_from(self.0).map_err(|_| ErrorCode::MathOverflow)?)
     }
 
-    /// Create decimal from scaled value
     pub fn from_scaled_val(scaled_val: u128) -> Self {
         Self(U192::from(scaled_val))
     }
 
-    /// Round scaled decimal to u64
     pub fn try_round_u64(&self) -> Result<u64> {
         let rounded_val = Self::half_wad()
             .checked_add(self.0)
@@ -93,7 +76,6 @@ impl Decimal {
         Ok(u64::try_from(rounded_val).map_err(|_| ErrorCode::MathOverflow)?)
     }
 
-    /// Ceiling scaled decimal to u64
     pub fn try_ceil_u64(&self) -> Result<u64> {
         let ceil_val = Self::wad()
             .checked_sub(U192::from(1u64))
@@ -105,7 +87,6 @@ impl Decimal {
         Ok(u64::try_from(ceil_val).map_err(|_| ErrorCode::MathOverflow)?)
     }
 
-    /// Floor scaled decimal to u64
     pub fn try_floor_u64(&self) -> Result<u64> {
         let ceil_val = self
             .0

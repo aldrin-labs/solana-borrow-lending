@@ -1,10 +1,11 @@
-import { Program, BN, Provider, web3 } from "@project-serum/anchor";
+import { Program, BN, Provider } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
 import {
   PublicKey,
   Keypair,
   SYSVAR_RENT_PUBKEY,
   Connection,
+  SYSVAR_CLOCK_PUBKEY,
 } from "@solana/web3.js";
 import { expect } from "chai";
 import {
@@ -17,7 +18,7 @@ import { initLendingMarket, findLendingMarketPda } from "./init-lending-market";
 import {
   CaptureStdoutAndStderr,
   createProgramAccounts,
-  numberToWad,
+  numberTou192,
   waitForCommit,
 } from "./helpers";
 import {
@@ -283,8 +284,8 @@ export function reserveConfig(): ReserveConfig {
       optimalBorrowRate: 5,
       maxBorrowRate: 10,
       fees: {
-        borrowFee: { wad: numberToWad(0.01) },
-        flashLoanFee: { wad: numberToWad(0.001) },
+        borrowFee: { u192: numberTou192(0.01) },
+        flashLoanFee: { u192: numberTou192(0.001) },
         hostFee: { percent: 2 },
       },
     },
@@ -325,7 +326,7 @@ async function rpcInitReserve(
         reserveCollateralWallet: accounts.reserveCollateralWallet.publicKey,
         rent: SYSVAR_RENT_PUBKEY,
         tokenProgram: TOKEN_PROGRAM_ID,
-        clock: web3.SYSVAR_CLOCK_PUBKEY,
+        clock: SYSVAR_CLOCK_PUBKEY,
       },
       signers: [owner, accounts.reserve],
       instructions: [

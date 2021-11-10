@@ -25,12 +25,10 @@ use crate::prelude::*;
 use std::{convert::TryFrom, fmt};
 
 mod custom_u128 {
-    use anchor_lang::{AnchorDeserialize, AnchorSerialize};
     use uint::construct_uint;
 
     // U128 with 128 bits consisting of 2 x 64-bit words
     construct_uint! {
-        #[derive(AnchorSerialize, AnchorDeserialize)]
         pub struct U128(2);
     }
 }
@@ -38,18 +36,7 @@ mod custom_u128 {
 pub use custom_u128::U128;
 
 /// Small decimal values, precise to 18 digits
-#[derive(
-    AnchorSerialize,
-    AnchorDeserialize,
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    PartialEq,
-    PartialOrd,
-    Eq,
-    Ord,
-)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Rate(pub U128);
 
 impl Rate {

@@ -1,5 +1,6 @@
 stages:
   - build_and_test
+  - pages
 
 variables:
   RUST_VERSION: "1.56.1"
@@ -16,10 +17,10 @@ build_and_test:
       # TODO: export the shmem program to another repo
       - tests/localnet-deps/target
   artifacts:
+    # TODO: upon merging to develop or main, keep artifacts for ~6 months
     paths:
       - target/deploy/borrow_lending.so
       - target/idl/borrow_lending.json
-    expire_in: 6 months
   script:
     # TODO: export the solana CLI installation into a docker image in our own
     # registery
@@ -27,5 +28,20 @@ build_and_test:
     - export PATH="/home/circleci/.local/share/solana/install/active_release/bin:$PATH"
 
     - npm i
-
     - ./test.sh
+
+
+pages:
+  # We generate docs.rs style documentation for the codebase and publish it as
+  # gitlab pages for the repository. This only happens on merge to develop
+  # branch.
+  stage: pages
+  image: "cimg/rust:${RUST_VERSION}-node"
+  artifacts:
+    paths:
+      - public
+  script:
+    - cargo doc --lib --no-deps
+    - cp -r target/doc public
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'

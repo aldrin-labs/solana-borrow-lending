@@ -1,13 +1,13 @@
 mod common;
 mod decimal;
 mod rate;
-mod wad;
+mod sdecimal;
 
 use crate::prelude::*;
 pub use common::*;
 pub use decimal::*;
 pub use rate::*;
-pub use wad::*;
+pub use sdecimal::*;
 
 /// Number in range [0; 100]
 #[derive(

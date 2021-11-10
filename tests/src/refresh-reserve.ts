@@ -8,7 +8,7 @@ import {
 } from "@solana/web3.js";
 import { expect } from "chai";
 import { initLendingMarket, findLendingMarketPda } from "./init-lending-market";
-import { CaptureStdoutAndStderr, wadToBN, waitForCommit } from "./helpers";
+import { CaptureStdoutAndStderr, u192ToBN, waitForCommit } from "./helpers";
 import { setOraclePriceSlot } from "./pyth";
 import {
   initReserve,
@@ -95,11 +95,11 @@ export function test(
       const reserveBeforeRefresh = await program.account.reserve.fetch(
         accounts.reserve.publicKey
       );
-      const initialCumulativeBorrowRate = wadToBN(
-        (reserveBeforeRefresh.liquidity.cumulativeBorrowRate as any).wad
+      const initialCumulativeBorrowRate = u192ToBN(
+        (reserveBeforeRefresh.liquidity.cumulativeBorrowRate as any).u192
       );
-      const initialBorrowedAmount = wadToBN(
-        (reserveBeforeRefresh.liquidity.borrowedAmount as any).wad
+      const initialBorrowedAmount = u192ToBN(
+        (reserveBeforeRefresh.liquidity.borrowedAmount as any).u192
       );
 
       const slot = await provider.connection.getSlot();
@@ -125,16 +125,16 @@ export function test(
         .and.lessThanOrEqual(currentSlot); // should be very fresh
 
       // this starts at 1, so even though nothing is borrowed, it's growing
-      const cumulativeBorrowRateWithAccruedInterest = wadToBN(
-        (reserve.liquidity.cumulativeBorrowRate as any).wad
+      const cumulativeBorrowRateWithAccruedInterest = u192ToBN(
+        (reserve.liquidity.cumulativeBorrowRate as any).u192
       );
       expect(
         cumulativeBorrowRateWithAccruedInterest.gt(initialCumulativeBorrowRate)
       ).to.be.true;
 
       // nothing is borrowed in this test
-      const borrowedAmountWithAccruedInterest = wadToBN(
-        (reserve.liquidity.borrowedAmount as any).wad
+      const borrowedAmountWithAccruedInterest = u192ToBN(
+        (reserve.liquidity.borrowedAmount as any).u192
       );
       expect(borrowedAmountWithAccruedInterest.eq(initialBorrowedAmount)).to.be
         .true;
