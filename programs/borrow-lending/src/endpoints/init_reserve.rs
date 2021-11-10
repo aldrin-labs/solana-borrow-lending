@@ -25,7 +25,7 @@ pub struct InitReserve<'info> {
     pub lending_market_pda: AccountInfo<'info>,
     #[account(has_one = owner @ ErrorCode::InvalidMarketOwner)]
     pub lending_market: Box<Account<'info, LendingMarket>>,
-    /// Create a new reserve config which is linked to the lending market.
+    /// Create a new reserve config which is linked to a lending market.
     #[account(zero)]
     pub reserve: Box<Account<'info, Reserve>>,
     #[account(

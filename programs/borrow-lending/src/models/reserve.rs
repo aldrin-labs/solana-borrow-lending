@@ -57,17 +57,18 @@ pub struct InputReserveConfig {
     AnchorSerialize, AnchorDeserialize, Clone, Debug, Default, PartialEq,
 )]
 pub struct ReserveFees {
-    /// Fee assessed on [`BorrowObligationLiquidity`], expressed as a Wad. Must
-    /// be between 0 and 10^18, such that 10^18 = 1.
+    /// Fee assessed on [`crate::endpoints::BorrowObligationLiquidity`],
+    /// expressed as a Wad. Must be between 0 and 10^18, such that 10^18 =
+    /// 1.
     ///
     /// # Examples
     /// 1% = 10_000_000_000_000_000
     /// 0.01% (1 basis point) = 100_000_000_000_000
     /// 0.00001% (Aave borrow fee) = 100_000_000_000
-    pub borrow_fee: Wads,
+    pub borrow_fee: SDecimal,
     /// Fee for flash loan, expressed as a Wad.
     /// 0.3% (Aave flash loan fee) = 3_000_000_000_000_000
-    pub flash_loan_fee: Wads,
+    pub flash_loan_fee: SDecimal,
     /// Amount of fee going to host account, if provided in liquidate and repay
     pub host_fee: PercentageInt,
 }
@@ -82,11 +83,11 @@ pub struct ReserveLiquidity {
     pub available_amount: u64,
     /// How much liquidity (with precision on 18 digit) is currently borrowed.
     /// The total liquidity supply is `borrowed_amount` + `available_amount`.
-    pub borrowed_amount: Wads,
+    pub borrowed_amount: SDecimal,
     /// TODO: explain how this works
-    pub cumulative_borrow_rate: Wads,
+    pub cumulative_borrow_rate: SDecimal,
     /// Reserve liquidity market price in universal asset currency
-    pub market_price: Wads,
+    pub market_price: SDecimal,
 }
 
 impl Default for ReserveLiquidity {
@@ -102,7 +103,7 @@ impl Default for ReserveLiquidity {
             supply: Pubkey::default(),
             fee_receiver: Pubkey::default(),
             oracle: Pubkey::default(),
-            market_price: Wads::default(),
+            market_price: Decimal::zero().into(),
         }
     }
 }
@@ -113,7 +114,7 @@ impl Default for ReserveLiquidity {
 pub struct ReserveCollateral {
     pub mint: Pubkey,
     /// Used for exchange rate calculation. Copy of the value from the
-    /// [`anchor_spl::token::MintAccount`] which allows us to avoid including
+    /// [`anchor_spl::token::Mint`] which allows us to avoid including
     /// that account in some transactions to save space.
     pub mint_total_supply: u64,
     pub supply: Pubkey,

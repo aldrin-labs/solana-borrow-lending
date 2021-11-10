@@ -1,11 +1,11 @@
 //! TODO: write docs for this and refer to code from where the structs were
 //! copied
 //!
-//! https://pyth.network
+//! <https://pyth.network>
 //!
-//! https://github.com/project-serum/anchor/blob/master/tests/pyth/programs/pyth
-//! https://github.com/pyth-network/pyth-client-rs
-//! https://github.com/solana-labs/solana-program-library/blob/master/borrow-lending/program/src/pyth.rs
+//! <https://github.com/project-serum/anchor/blob/master/tests/pyth/programs/pyth>
+//! <https://github.com/pyth-network/pyth-client-rs>
+//! <https://github.com/solana-labs/solana-program-library/blob/master/borrow-lending/program/src/pyth.rs>
 
 use crate::prelude::*;
 use bytemuck::{cast_slice, from_bytes, try_cast_slice, Pod, Zeroable};

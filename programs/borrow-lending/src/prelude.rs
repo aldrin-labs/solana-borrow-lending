@@ -37,6 +37,16 @@ pub mod consts {
         / DEFAULT_TICKS_PER_SLOT
         * SECONDS_PER_DAY
         * 365;
+
+    /// How many borrows from unique reserves + collaterals to unique reserves
+    /// can an obligation have at most.
+    ///
+    /// It'd be amazing to have this as const generic type. However, before that
+    /// can be done, three things have to be implemented upstream:
+    /// - <https://github.com/project-serum/anchor/issues/617>
+    /// - <https://github.com/project-serum/anchor/issues/632>
+    /// - borsh "const-generics" feature must be exported
+    pub const MAX_OBLIGATION_RESERVES: usize = 10;
 }
 
 #[error]
