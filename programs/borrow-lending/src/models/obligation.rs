@@ -1,4 +1,6 @@
 use crate::prelude::*;
+use std::cmp::Ordering;
+use std::convert::{TryFrom, TryInto};
 
 #[account]
 pub struct Obligation {
@@ -22,21 +24,25 @@ pub struct Obligation {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq)]
 pub enum ObligationReserve {
     Empty,
-    /// Deposited collateral
-    Collateral {
-        deposit_reserve: Pubkey,
-        deposited_amount: u64,
-        market_value: SDecimal,
-    },
-    /// Borrowed liquidity
-    Liquidity {
-        borrow_reserve: Pubkey,
-        /// Borrow rate used for calculating interest.
-        cumulative_borrow_rate: SDecimal,
-        /// Amount of liquidity borrowed plus interest.
-        borrowed_amount: SDecimal,
-        market_value: SDecimal,
-    },
+    Collateral { inner: ObligationCollateral },
+    Liquidity { inner: ObligationLiquidity },
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq)]
+pub struct ObligationCollateral {
+    pub deposit_reserve: Pubkey,
+    pub deposited_amount: u64,
+    pub market_value: SDecimal,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq)]
+pub struct ObligationLiquidity {
+    pub borrow_reserve: Pubkey,
+    /// Borrow rate used for calculating interest.
+    pub cumulative_borrow_rate: SDecimal,
+    /// Amount of liquidity borrowed plus interest.
+    pub borrowed_amount: SDecimal,
+    pub market_value: SDecimal,
 }
 
 impl Default for ObligationReserve {
@@ -60,5 +66,34 @@ impl Default for Obligation {
             allowed_borrow_value: Decimal::zero().into(),
             unhealthy_borrow_value: Decimal::zero().into(),
         }
+    }
+}
+
+impl ObligationLiquidity {
+    pub fn accrue_interest(
+        &mut self,
+        cumulative_borrow_rate: Decimal,
+    ) -> Result<()> {
+        let prev_cumulative_borrow_rate: Decimal =
+            self.cumulative_borrow_rate.into();
+        match cumulative_borrow_rate.cmp(&prev_cumulative_borrow_rate) {
+            Ordering::Less => {
+                msg!("Interest rate cannot be negative");
+                return Err(ErrorCode::NegativeInterestRate.into());
+            }
+            Ordering::Equal => {}
+            Ordering::Greater => {
+                let compounded_interest_rate: Rate = cumulative_borrow_rate
+                    .try_div(prev_cumulative_borrow_rate)?
+                    .try_into()?;
+
+                self.borrowed_amount = Rate::try_from(self.borrowed_amount)?
+                    .try_mul(compounded_interest_rate)?
+                    .into();
+                self.cumulative_borrow_rate = cumulative_borrow_rate.into();
+            }
+        }
+
+        Ok(())
     }
 }

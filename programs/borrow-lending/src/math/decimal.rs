@@ -53,8 +53,10 @@ impl Decimal {
     }
 
     /// Create scaled decimal from percent value
-    pub fn from_percent(percent: u8) -> Self {
-        Self(U192::from(percent as u64 * consts::PERCENT_SCALER))
+    pub fn from_percent(percent: impl Into<PercentageInt>) -> Self {
+        Self(U192::from(
+            percent.into().percent as u64 * consts::PERCENT_SCALER,
+        ))
     }
 
     /// Return raw scaled value if it fits within u128

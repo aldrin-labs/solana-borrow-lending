@@ -223,7 +223,7 @@ impl Reserve {
     pub fn current_borrow_rate(&self) -> Result<Rate> {
         let utilization_rate = self.liquidity.utilization_rate()?;
         let optimal_utilization_rate =
-            Rate::from_percent(self.config.optimal_utilization_rate.into());
+            Rate::from_percent(self.config.optimal_utilization_rate);
         let low_utilization = utilization_rate < optimal_utilization_rate;
 
         // if R_u < R*_u
@@ -378,6 +378,13 @@ impl CollateralExchangeRate {
         Decimal::from(collateral_amount)
             .try_div(self.0)?
             .try_round_u64()
+    }
+
+    pub fn decimal_collateral_to_liquidity(
+        &self,
+        collateral_amount: Decimal,
+    ) -> Result<Decimal> {
+        collateral_amount.try_div(self.0)
     }
 }
 
