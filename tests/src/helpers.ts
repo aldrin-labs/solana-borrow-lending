@@ -31,7 +31,7 @@ export class CaptureStdoutAndStderr {
 export type U192 = [BN, BN, BN];
 const ONE_WAD = new BN(10).pow(new BN(18));
 
-export function numberTou192(n: number): U192 {
+export function numberToU192(n: number): U192 {
   if (n < 0) {
     throw new Error("Wad mustn't be negative");
   }
@@ -43,7 +43,10 @@ export function numberTou192(n: number): U192 {
   return [nextU64(), nextU64(), nextU64()];
 }
 
-export function u192ToBN(u192: U192 | BN[]): BN {
+export function u192ToBN(u192: U192 | BN[] | { u192: U192 | BN[] }): BN {
+  // flatten the input
+  u192 = Array.isArray(u192) ? u192 : u192.u192;
+
   if (u192.length !== 3) {
     throw new Error("u192 must have exactly 3 u64 BN");
   }

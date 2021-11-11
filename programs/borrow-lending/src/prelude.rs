@@ -71,6 +71,12 @@ pub enum ErrorCode {
     MissingReserveAccount,
     #[msg("Interest rate cannot be negative")]
     NegativeInterestRate,
+    #[msg("Provided accounts must belong to the same market")]
+    LendingMarketMismatch,
+    #[msg("Reserve cannot be used as a collateral")]
+    ReserveCollateralDisabled,
+    #[msg("Number of reserves associated with a single obligation is limited")]
+    ObligationReserveLimit,
 }
 
 pub mod err {
@@ -86,6 +92,24 @@ pub mod err {
         msg!("[ReserveStale] Account needs to be refreshed");
 
         ErrorCode::ReserveStale.into()
+    }
+
+    pub fn cannot_use_as_collateral() -> ProgramError {
+        msg!(
+            "[ReserveCollateralDisabled] This reserve was configured to not \
+            be used as a collateral"
+        );
+
+        ErrorCode::ReserveCollateralDisabled.into()
+    }
+
+    pub fn market_mismatch() -> ProgramError {
+        msg!(
+            "[LendingMarketMismatch] All accounts must belong to the same \
+            lending market"
+        );
+
+        ErrorCode::LendingMarketMismatch.into()
     }
 }
 

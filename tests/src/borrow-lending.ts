@@ -15,6 +15,7 @@ import { test as testDepositReserveLiquidity } from "./deposit-reserve-liquidity
 import { test as testRedeemReserveCollateral } from "./redeem-reserve-collateral";
 import { test as testInitObligation } from "./init-obligation";
 import { test as testRefreshObligation } from "./refresh-obligation";
+import { test as testDepositObligationCollateral } from "./deposit-obligation-collateral";
 import { readFile } from "fs/promises";
 
 describe("borrow-lending", () => {
@@ -68,4 +69,10 @@ describe("borrow-lending", () => {
   testRedeemReserveCollateral(program, provider, payer, shmemProgram.publicKey);
   testInitObligation(program, payer, shmemProgram.publicKey);
   testRefreshObligation(program, provider, payer, shmemProgram.publicKey);
+  testDepositObligationCollateral(
+    program,
+    provider,
+    payer,
+    shmemProgram.publicKey
+  );
 });

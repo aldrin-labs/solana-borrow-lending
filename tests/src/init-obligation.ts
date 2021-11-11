@@ -52,14 +52,10 @@ export function test(
       expect(obligationInfo.lastUpdate.stale).to.be.true;
       expect(obligationInfo.lendingMarket).to.deep.eq(market.publicKey);
       expect(obligationInfo.owner).to.deep.eq(owner.publicKey);
-      expect(u192ToBN(obligationInfo.borrowedValue.u192).toNumber()).to.eq(0);
-      expect(u192ToBN(obligationInfo.depositedValue.u192).toNumber()).to.eq(0);
-      expect(u192ToBN(obligationInfo.allowedBorrowValue.u192).toNumber()).to.eq(
-        0
-      );
-      expect(
-        u192ToBN(obligationInfo.unhealthyBorrowValue.u192).toNumber()
-      ).to.eq(0);
+      expect(u192ToBN(obligationInfo.borrowedValue).toNumber()).to.eq(0);
+      expect(u192ToBN(obligationInfo.depositedValue).toNumber()).to.eq(0);
+      expect(u192ToBN(obligationInfo.allowedBorrowValue).toNumber()).to.eq(0);
+      expect(u192ToBN(obligationInfo.unhealthyBorrowValue).toNumber()).to.eq(0);
     });
   });
 }

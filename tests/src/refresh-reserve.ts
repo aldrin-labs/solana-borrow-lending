@@ -96,10 +96,10 @@ export function test(
         accounts.reserve.publicKey
       );
       const initialCumulativeBorrowRate = u192ToBN(
-        (reserveBeforeRefresh.liquidity.cumulativeBorrowRate as any).u192
+        reserveBeforeRefresh.liquidity.cumulativeBorrowRate
       );
       const initialBorrowedAmount = u192ToBN(
-        (reserveBeforeRefresh.liquidity.borrowedAmount as any).u192
+        reserveBeforeRefresh.liquidity.borrowedAmount
       );
 
       const slot = await provider.connection.getSlot();
@@ -126,7 +126,7 @@ export function test(
 
       // this starts at 1, so even though nothing is borrowed, it's growing
       const cumulativeBorrowRateWithAccruedInterest = u192ToBN(
-        (reserve.liquidity.cumulativeBorrowRate as any).u192
+        reserve.liquidity.cumulativeBorrowRate
       );
       expect(
         cumulativeBorrowRateWithAccruedInterest.gt(initialCumulativeBorrowRate)
@@ -134,7 +134,7 @@ export function test(
 
       // nothing is borrowed in this test
       const borrowedAmountWithAccruedInterest = u192ToBN(
-        (reserve.liquidity.borrowedAmount as any).u192
+        reserve.liquidity.borrowedAmount
       );
       expect(borrowedAmountWithAccruedInterest.eq(initialBorrowedAmount)).to.be
         .true;

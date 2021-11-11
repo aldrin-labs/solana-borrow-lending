@@ -1,5 +1,7 @@
 # borrow-lending
 
+* [View Rust docs][project-rust-docs]
+
 ## Design
 <details>
 <summary markdown="span">Diagram illustrating endpoints-accounts relationship</summary>
@@ -69,6 +71,7 @@ R_b =
 We define the compound interest period to equal one slot. To get the `i`
 parameter of the standard [compound interest formula][compound-interest-formula]
 we divide borrow rate by the number of slots per year:
+
 ```math
 R_i = (1 + \dfrac{R_b}{S_a})^{S_e}
 \tag{4}
@@ -100,3 +103,4 @@ every time.
 [desmos-borrow-rate]: https://www.desmos.com/calculator/1002gfizz0
 [compound-interest-formula]: https://en.wikipedia.org/wiki/Compound_interest#Periodic_compounding
 [mocha-exclusive-tests]: https://mochajs.org/#exclusive-tests
+[project-rust-docs]: https://crypto_project.gitlab.io/defi/borrow-lending/borrow_lending
