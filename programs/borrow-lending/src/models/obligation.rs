@@ -69,6 +69,46 @@ impl Default for Obligation {
     }
 }
 
+impl Obligation {
+    pub fn deposit(
+        &mut self,
+        reserve_key: Pubkey,
+        collateral_amount: u64,
+    ) -> Result<()> {
+        let mut first_empty = None;
+        for (i, reserve) in self.reserves.iter_mut().enumerate() {
+            match reserve {
+                ObligationReserve::Empty if first_empty.is_none() => {
+                    first_empty = Some(i);
+                }
+                ObligationReserve::Collateral { ref mut inner }
+                    if inner.deposit_reserve == reserve_key =>
+                {
+                    inner.deposit(collateral_amount)?;
+                    return Ok(());
+                }
+                _ => (),
+            };
+        }
+
+        if let Some(i) = first_empty {
+            let mut collateral = ObligationCollateral::new(reserve_key);
+            collateral.deposit(collateral_amount)?;
+            self.reserves[i] =
+                ObligationReserve::Collateral { inner: collateral };
+
+            Ok(())
+        } else {
+            msg!(
+                "Cannot add another reserve because limit of {} \
+                has been reached",
+                self.reserves.len()
+            );
+            Err(ErrorCode::ObligationReserveLimit.into())
+        }
+    }
+}
+
 impl ObligationLiquidity {
     pub fn accrue_interest(
         &mut self,
@@ -93,6 +133,25 @@ impl ObligationLiquidity {
                 self.cumulative_borrow_rate = cumulative_borrow_rate.into();
             }
         }
+
+        Ok(())
+    }
+}
+
+impl ObligationCollateral {
+    fn new(deposit_reserve: Pubkey) -> Self {
+        Self {
+            deposit_reserve,
+            market_value: Decimal::zero().into(),
+            deposited_amount: 0,
+        }
+    }
+
+    fn deposit(&mut self, collateral_amount: u64) -> Result<()> {
+        self.deposited_amount = self
+            .deposited_amount
+            .checked_add(collateral_amount)
+            .ok_or(ErrorCode::MathOverflow)?;
 
         Ok(())
     }

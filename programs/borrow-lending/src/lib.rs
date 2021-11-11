@@ -83,4 +83,11 @@ pub mod borrow_lending {
     ) -> ProgramResult {
         endpoints::refresh_obligation::handle(ctx)
     }
+
+    pub fn deposit_obligation_collateral(
+        ctx: Context<DepositObligationCollateral>,
+        collateral_amount: u64,
+    ) -> ProgramResult {
+        endpoints::deposit_obligation_collateral::handle(ctx, collateral_amount)
+    }
 }

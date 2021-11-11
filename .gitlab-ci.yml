@@ -5,6 +5,8 @@ stages:
 variables:
   RUST_VERSION: "1.56.1"
   SOLANA_VERSION: "1.8.2"
+  PANDOC_VERSION: "2.16.1"
+  KATEX_VERSION: "0.13.9"
 
 build_and_test:
   stage: build_and_test
@@ -21,13 +23,14 @@ build_and_test:
     paths:
       - target/deploy/borrow_lending.so
       - target/idl/borrow_lending.json
-  script:
+  before_script:
     # TODO: export the solana CLI installation into a docker image in our own
     # registery
     - sh -c "$(curl -sSfL https://release.solana.com/v${SOLANA_VERSION}/install)"
     - export PATH="/home/circleci/.local/share/solana/install/active_release/bin:$PATH"
 
     - npm i
+  script:
     - ./test.sh
 
 
@@ -40,8 +43,19 @@ pages:
   artifacts:
     paths:
       - public
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+  before_script:
+    - wget "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
+    - sudo dpkg -i "pandoc-${PANDOC_VERSION}-1-amd64.deb"
+    - cargo install pandoc-katex
   script:
     - cargo doc --lib --no-deps
     - cp -r target/doc public
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "develop"'
+    # generates public index html file from README
+    - node bin/prepareReadme.js |
+      pandoc -t html --standalone --filter pandoc-katex
+      --css "https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.css"
+      --css https://pandoc.org/demo/pandoc.css
+      --metadata title="Program borrow-lending"
+      -o public/index.html

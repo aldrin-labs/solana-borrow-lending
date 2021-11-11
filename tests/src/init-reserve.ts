@@ -18,7 +18,7 @@ import { initLendingMarket, findLendingMarketPda } from "./init-lending-market";
 import {
   CaptureStdoutAndStderr,
   createProgramAccounts,
-  numberTou192,
+  numberToU192,
   waitForCommit,
 } from "./helpers";
 import {
@@ -37,7 +37,6 @@ export interface InitReserveAccounts {
   oracleProduct: Keypair;
   reserve: Keypair;
   reserveCollateralMint: Token;
-  reserveCollateralMintAuthority: Keypair;
   reserveCollateralWallet: Keypair;
   reserveLiquidityFeeRecvWallet: Keypair;
   reserveLiquidityWallet: Keypair;
@@ -185,7 +184,7 @@ export async function initReserve(
   lendingMarketPda: PublicKey,
   lendingMarketBumpSeed: number,
   liquidityAmount: BN,
-  config: ReserveConfig
+  config: ReserveConfig = reserveConfig()
 ): Promise<InitReserveAccounts> {
   const [accounts, finalize] = await prepareInitReserve(
     program,
@@ -284,8 +283,8 @@ export function reserveConfig(): ReserveConfig {
       optimalBorrowRate: 5,
       maxBorrowRate: 10,
       fees: {
-        borrowFee: { u192: numberTou192(0.01) },
-        flashLoanFee: { u192: numberTou192(0.001) },
+        borrowFee: { u192: numberToU192(0.01) },
+        flashLoanFee: { u192: numberToU192(0.001) },
         hostFee: { percent: 2 },
       },
     },
@@ -397,7 +396,6 @@ async function createReserveAccounts(
       TOKEN_PROGRAM_ID,
       owner
     ),
-    reserveCollateralMintAuthority: reserveCollateralMint,
     reserveCollateralWallet,
     reserveLiquidityFeeRecvWallet,
     reserveLiquidityWallet,
