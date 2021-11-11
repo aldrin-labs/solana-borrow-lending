@@ -166,7 +166,7 @@ unsafe impl Pod for Product {}
 
 impl PartialEq<Pubkey> for AccKey {
     fn eq(&self, pubkey: &Pubkey) -> bool {
-        &self.val == pubkey.as_ref()
+        self.val == pubkey.as_ref()
     }
 }
 
@@ -254,8 +254,7 @@ impl TryFrom<&Product> for UniversalAssetCurrency {
 
 impl Price {
     pub fn calculate_market_price(&self, clock: &Clock) -> Result<Decimal> {
-        let slots_elapsed =
-            clock.slot.checked_sub(self.valid_slot).unwrap_or(0);
+        let slots_elapsed = clock.slot.saturating_sub(self.valid_slot);
         if slots_elapsed >= consts::ORACLE_STALE_AFTER_SLOTS_ELAPSED {
             msg!(
                 "Oracle price at slot {} is stale ({} slots behind)",

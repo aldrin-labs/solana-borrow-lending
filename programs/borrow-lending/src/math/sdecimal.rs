@@ -46,6 +46,12 @@ impl From<SDecimal> for Decimal {
     }
 }
 
+impl From<&mut SDecimal> for Decimal {
+    fn from(dec: &mut SDecimal) -> Self {
+        Self(U192(dec.u192))
+    }
+}
+
 impl From<Decimal> for SDecimal {
     fn from(dec: Decimal) -> Self {
         Self { u192: dec.0 .0 }

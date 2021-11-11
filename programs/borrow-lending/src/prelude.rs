@@ -67,6 +67,10 @@ pub enum ErrorCode {
     InvalidAmount,
     #[msg("Reserve account needs to be refreshed")]
     ReserveStale,
+    #[msg("A reserve accounts linked to an obligation was not provided")]
+    MissingReserveAccount,
+    #[msg("Interest rate cannot be negative")]
+    NegativeInterestRate,
 }
 
 pub mod err {

@@ -36,3 +36,9 @@ impl From<PercentageInt> for u8 {
         p.percent
     }
 }
+
+impl From<u8> for PercentageInt {
+    fn from(p: u8) -> Self {
+        Self { percent: p }
+    }
+}

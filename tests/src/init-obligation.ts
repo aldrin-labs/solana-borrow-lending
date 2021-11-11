@@ -21,20 +21,29 @@ export function test(
     it("fails if lending market doesn't exist", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
+      const obligation = Keypair.generate();
       const nonExistingMarket = Keypair.generate();
 
       await expect(
-        initObligationR10(program, owner, nonExistingMarket.publicKey)
+        initObligationR10(
+          program,
+          owner,
+          nonExistingMarket.publicKey,
+          obligation
+        )
       ).to.be.rejected;
 
       stdCapture.restore();
     });
 
     it("initializes obligation accounts", async () => {
-      const { obligationInfo } = await initObligationR10(
+      const obligation = Keypair.generate();
+
+      const obligationInfo = await initObligationR10(
         program,
         owner,
-        market.publicKey
+        market.publicKey,
+        obligation
       );
 
       expect(obligationInfo.reserves).to.deep.eq(
@@ -58,10 +67,9 @@ export function test(
 export async function initObligationR10(
   program: Program<BorrowLending>,
   owner: Keypair,
-  lendingMarket: PublicKey
+  lendingMarket: PublicKey,
+  obligation: Keypair
 ) {
-  const obligation = Keypair.generate();
-
   await program.rpc.initObligationR10({
     accounts: {
       owner: owner.publicKey,
@@ -75,10 +83,5 @@ export async function initObligationR10(
     signers: [owner, obligation],
   });
 
-  return {
-    obligation,
-    obligationInfo: await program.account.obligation.fetch(
-      obligation.publicKey
-    ),
-  };
+  return program.account.obligation.fetch(obligation.publicKey);
 }

@@ -77,4 +77,10 @@ pub mod borrow_lending {
 
         endpoints::init_obligation::handle(ctx)
     }
+
+    pub fn refresh_obligation(
+        ctx: Context<RefreshObligation>,
+    ) -> ProgramResult {
+        endpoints::refresh_obligation::handle(ctx)
+    }
 }
