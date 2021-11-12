@@ -19,8 +19,6 @@ pub struct WithdrawObligationCollateral<'info> {
             @ err::market_mismatch(),
         constraint = !reserve.last_update.is_stale(clock.slot).unwrap_or(true)
             @ err::reserve_stale(),
-        constraint = 0u8 != reserve.config.loan_to_value_ratio.into()
-            @ err::cannot_use_as_collateral(),
     )]
     pub reserve: Box<Account<'info, Reserve>>,
     #[account(
@@ -68,7 +66,7 @@ pub fn handle(
         return Err(ErrorCode::ObligationCollateralEmpty.into());
     }
 
-    let withdraw_amount = if accounts.obligation.has_no_borrows() {
+    let withdraw_amount = if accounts.obligation.has_borrows() {
         // if there are no borrows then withdraw max deposited amount
         collateral.deposited_amount.min(collateral_amount)
     } else if accounts.obligation.deposited_value.to_dec() == Decimal::zero() {

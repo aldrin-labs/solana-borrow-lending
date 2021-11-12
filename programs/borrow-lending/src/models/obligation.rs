@@ -99,13 +99,22 @@ impl Obligation {
         }
     }
 
-    pub fn has_no_borrows(&self) -> bool {
+    pub fn has_borrows(&self) -> bool {
         self.reserves
             .iter()
             .find(|reserve| {
                 matches!(reserve, ObligationReserve::Liquidity { inner: _ })
             })
-            .is_none()
+            .is_some()
+    }
+
+    pub fn has_deposits(&self) -> bool {
+        self.reserves
+            .iter()
+            .find(|reserve| {
+                matches!(reserve, ObligationReserve::Collateral { inner: _ })
+            })
+            .is_some()
     }
 
     pub fn max_withdraw_value(&self) -> Result<Decimal> {
