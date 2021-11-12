@@ -81,6 +81,10 @@ pub enum ErrorCode {
     ObligationReserveLimit,
     #[msg("No collateral deposited in obligation")]
     ObligationCollateralEmpty,
+    #[msg("No deposited value in collateral")]
+    ObligationDepositsZero,
+    #[msg("Cannot withdraw more than allowed amount of collateral")]
+    WithdrawTooLarge,
 }
 
 pub mod err {
