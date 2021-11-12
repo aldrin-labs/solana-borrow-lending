@@ -1,3 +1,8 @@
+//! Action which allows the borrower to withdraw their deposited collateral.
+//! They can only withdraw as much collateral as not to go under a threshold
+//! with respect to their borrowed funds. See eq. (7) for a formula which limits
+//! how much collateral can be withdrawn.
+
 use crate::prelude::*;
 use anchor_spl::token::{self, Token};
 
@@ -27,11 +32,13 @@ pub struct WithdrawObligationCollateral<'info> {
     )]
     pub lending_market_pda: AccountInfo<'info>,
     #[account(
+        mut,
         constraint = source_collateral_wallet.key() == reserve.collateral.supply
             @ err::acc("Source col. wallet must eq. reserve's col. supply"),
     )]
     pub source_collateral_wallet: AccountInfo<'info>,
     #[account(
+        mut,
         constraint = destination_collateral_wallet.key() !=
             reserve.collateral.supply @ err::acc("Dest. col. wallet mustn't \
             eq. reserve's col. supply"),
@@ -66,7 +73,7 @@ pub fn handle(
         return Err(ErrorCode::ObligationCollateralEmpty.into());
     }
 
-    let withdraw_amount = if accounts.obligation.has_borrows() {
+    let withdraw_amount = if !accounts.obligation.has_borrows() {
         // if there are no borrows then withdraw max deposited amount
         collateral.deposited_amount.min(collateral_amount)
     } else if accounts.obligation.deposited_value.to_dec() == Decimal::zero() {

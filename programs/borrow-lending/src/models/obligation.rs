@@ -117,6 +117,7 @@ impl Obligation {
             .is_some()
     }
 
+    // ref. eq. (7)
     pub fn max_withdraw_value(&self) -> Result<Decimal> {
         let required_deposit_value = self
             .borrowed_value
