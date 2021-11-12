@@ -99,15 +99,16 @@ impl Obligation {
         }
     }
 
-    pub fn has_no_borrows(&self) -> bool {
+    pub fn has_borrows(&self) -> bool {
         self.reserves
             .iter()
             .find(|reserve| {
                 matches!(reserve, ObligationReserve::Liquidity { inner: _ })
             })
-            .is_none()
+            .is_some()
     }
 
+    // ref. eq. (7)
     pub fn max_withdraw_value(&self) -> Result<Decimal> {
         let required_deposit_value = self
             .borrowed_value
