@@ -90,4 +90,16 @@ pub mod borrow_lending {
     ) -> ProgramResult {
         endpoints::deposit_obligation_collateral::handle(ctx, collateral_amount)
     }
+
+    pub fn withdraw_obligation_collateral(
+        ctx: Context<WithdrawObligationCollateral>,
+        lending_market_bump_seed: u8,
+        collateral_amount: u64,
+    ) -> ProgramResult {
+        endpoints::withdraw_obligation_collateral::handle(
+            ctx,
+            lending_market_bump_seed,
+            collateral_amount,
+        )
+    }
 }

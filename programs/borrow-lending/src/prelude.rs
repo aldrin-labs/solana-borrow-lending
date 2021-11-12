@@ -67,6 +67,8 @@ pub enum ErrorCode {
     InvalidAmount,
     #[msg("Reserve account needs to be refreshed")]
     ReserveStale,
+    #[msg("Obligation account needs to be refreshed")]
+    ObligationStale,
     #[msg("A reserve accounts linked to an obligation was not provided")]
     MissingReserveAccount,
     #[msg("Interest rate cannot be negative")]
@@ -77,6 +79,8 @@ pub enum ErrorCode {
     ReserveCollateralDisabled,
     #[msg("Number of reserves associated with a single obligation is limited")]
     ObligationReserveLimit,
+    #[msg("No collateral deposited in obligation")]
+    ObligationCollateralEmpty,
 }
 
 pub mod err {
@@ -92,6 +96,12 @@ pub mod err {
         msg!("[ReserveStale] Account needs to be refreshed");
 
         ErrorCode::ReserveStale.into()
+    }
+
+    pub fn obligation_stale() -> ProgramError {
+        msg!("[ObligationStale] Account needs to be refreshed");
+
+        ErrorCode::ObligationStale.into()
     }
 
     pub fn cannot_use_as_collateral() -> ProgramError {

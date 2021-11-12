@@ -70,6 +70,23 @@ impl Default for Obligation {
 }
 
 impl Obligation {
+    pub fn get_collateral(
+        &self,
+        key: Pubkey,
+    ) -> Option<(usize, &ObligationCollateral)> {
+        self.reserves
+            .iter()
+            .enumerate()
+            .find_map(|(index, col)| match col {
+                ObligationReserve::Collateral { ref inner }
+                    if inner.deposit_reserve == key =>
+                {
+                    Some((index, inner))
+                }
+                _ => None,
+            })
+    }
+
     pub fn deposit(
         &mut self,
         reserve_key: Pubkey,
