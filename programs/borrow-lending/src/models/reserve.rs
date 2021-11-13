@@ -123,6 +123,14 @@ pub struct ReserveCollateral {
 #[derive(Clone, Copy, Debug)]
 pub struct CollateralExchangeRate(Rate);
 
+#[derive(Debug)]
+pub struct FeesCalculation {
+    /// Loan origination fee
+    pub borrow_fee: u64,
+    /// Host fee portion of origination fee
+    pub host_fee: u64,
+}
+
 impl Validate for ReserveConfig {
     fn validate(&self) -> Result<()> {
         if *self.optimal_utilization_rate > 100 {
@@ -260,6 +268,31 @@ impl Reserve {
             Ok(normalized_rate.try_mul(rate_range)?.try_add(min_rate)?)
         }
     }
+
+    pub fn borrow_amount_with_fees(
+        &self,
+        borrow_amount: u64,
+        max_borrow_value: Decimal,
+    ) -> Result<(Decimal, FeesCalculation)> {
+        let decimals = 10u64
+            .checked_pow(self.liquidity.mint_decimals as u32)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        let fees =
+            self.config.fees.borrow_fees(Decimal::from(borrow_amount))?;
+
+        let borrow_amount =
+            Decimal::from(borrow_amount).try_add(fees.borrow_fee.into())?;
+        let borrow_value = borrow_amount
+            .try_mul(self.liquidity.market_price.to_dec())?
+            .try_div(decimals)?;
+        if borrow_value > max_borrow_value {
+            msg!("Borrow value cannot exceed maximum borrow value");
+            return Err(ErrorCode::BorrowTooLarge.into());
+        }
+
+        Ok((borrow_amount, fees))
+    }
 }
 
 impl ReserveLiquidity {
@@ -322,6 +355,27 @@ impl ReserveLiquidity {
             Rate::try_from(self.cumulative_borrow_rate)?
                 .try_mul(compounded_interest_rate)?
                 .into();
+
+        Ok(())
+    }
+
+    /// Subtract borrow amount from available liquidity and add to borrows.
+    pub fn borrow(&mut self, borrow_decimal: Decimal) -> Result<()> {
+        let borrow_amount = borrow_decimal.try_floor_u64()?;
+        if borrow_amount > self.available_amount {
+            msg!("Borrow amount cannot exceed available amount");
+            return Err(ProgramError::InsufficientFunds.into());
+        }
+
+        self.available_amount = self
+            .available_amount
+            .checked_sub(borrow_amount)
+            .ok_or(ErrorCode::MathOverflow)?;
+        self.borrowed_amount = self
+            .borrowed_amount
+            .to_dec()
+            .try_add(borrow_decimal)?
+            .into();
 
         Ok(())
     }
@@ -393,5 +447,59 @@ impl InputReserveConfig {
         let Self { conf } = self;
         conf.validate()?;
         Ok(conf)
+    }
+}
+
+impl ReserveFees {
+    /// Calculate the owner and host fees on borrow
+    fn borrow_fees(&self, borrow_amount: Decimal) -> Result<FeesCalculation> {
+        self.calculate(borrow_amount, Rate::try_from(self.borrow_fee)?)
+    }
+
+    fn calculate(
+        &self,
+        amount: Decimal,
+        borrow_fee_rate: Rate,
+    ) -> Result<FeesCalculation> {
+        let host_fee_rate = Rate::from_percent(self.host_fee);
+
+        if borrow_fee_rate > Rate::zero() && amount > Decimal::zero() {
+            let need_to_assess_host_fee = host_fee_rate > Rate::zero();
+            let minimum_fee = if need_to_assess_host_fee {
+                2 // 1 token to owner, 1 to host
+            } else {
+                1 // 1 token to owner, nothing else
+            };
+
+            // Calculate fee to be added to borrow: fee = max(amount * rate,
+            // minimum_fee)
+            let borrow_fee = amount
+                .try_mul(borrow_fee_rate)?
+                .try_round_u64()?
+                .max(minimum_fee);
+
+            if Decimal::from(borrow_fee) >= amount {
+                msg!(
+                    "Borrow amount is too small to receive liquidity after fees"
+                );
+                return Err(ErrorCode::BorrowTooSmall.into());
+            }
+
+            let host_fee = if need_to_assess_host_fee {
+                host_fee_rate.try_mul(borrow_fee)?.try_round_u64()?.max(1)
+            } else {
+                0
+            };
+
+            Ok(FeesCalculation {
+                borrow_fee,
+                host_fee,
+            })
+        } else {
+            Ok(FeesCalculation {
+                borrow_fee: 0,
+                host_fee: 0,
+            })
+        }
     }
 }

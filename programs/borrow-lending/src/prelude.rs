@@ -1,5 +1,5 @@
 pub use crate::accounts::*;
-pub use crate::err::{self, ErrorCode};
+pub use crate::err::{self, Error, ErrorCode, Result};
 pub use crate::math::*;
 pub use crate::models::*;
 pub use anchor_lang::prelude::*;

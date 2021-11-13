@@ -54,8 +54,8 @@ pub struct BorrowObligationLiquidity<'info> {
     pub clock: Sysvar<'info, Clock>,
 }
 
-pub fn handle(
-    ctx: Context<BorrowObligationLiquidity>,
+pub fn handle<'info>(
+    ctx: Context<'_, '_, '_, 'info, BorrowObligationLiquidity<'info>>,
     lending_market_bump_seed: u8,
     liquidity_amount: u64,
 ) -> ProgramResult {
@@ -66,15 +66,70 @@ pub fn handle(
         return Err(ErrorCode::InvalidAmount.into());
     }
 
+    let remaining_borrow_value =
+        accounts.obligation.remaining_borrow_value()?;
+    if remaining_borrow_value == Decimal::zero() {
+        msg!("Remaining borrow value is zero");
+        return Err(ErrorCode::BorrowTooLarge.into());
+    }
+
+    // borrow amount will be liquidity_amount plus fees
+    let (
+        borrow_amount,
+        FeesCalculation {
+            borrow_fee,
+            host_fee,
+        },
+    ) = accounts
+        .reserve
+        .borrow_amount_with_fees(liquidity_amount, remaining_borrow_value)?;
+
+    // marks the funds including fees as borrowed
+    accounts.reserve.liquidity.borrow(borrow_amount)?;
+
+    // and takes note of that in the obligation
+    accounts
+        .obligation
+        .borrow(accounts.reserve.key(), borrow_amount)?;
+
+    accounts.reserve.last_update.mark_stale();
+    accounts.obligation.last_update.mark_stale();
+
     let pda_seeds = &[
         &accounts.reserve.lending_market.to_bytes()[..],
         &[lending_market_bump_seed],
     ];
+
+    let mut owner_fee = borrow_fee;
+    if let Some(host_fee_receiver) = ctx.remaining_accounts.iter().next() {
+        if host_fee > 0 {
+            owner_fee = owner_fee
+                .checked_sub(host_fee)
+                .ok_or(ErrorCode::MathOverflow)?;
+
+            token::transfer(
+                accounts
+                    .into_pay_host_fee_context(host_fee_receiver)
+                    .with_signer(&[&pda_seeds[..]]),
+                host_fee,
+            )?;
+        }
+    }
+
+    if owner_fee > 0 {
+        token::transfer(
+            accounts
+                .into_pay_fee_context()
+                .with_signer(&[&pda_seeds[..]]),
+            owner_fee,
+        )?;
+    }
+
     token::transfer(
         accounts
             .into_borrow_liquidity_context()
             .with_signer(&[&pda_seeds[..]]),
-        borrow_amount,
+        liquidity_amount,
     )?;
 
     Ok(())
@@ -87,6 +142,31 @@ impl<'info> BorrowObligationLiquidity<'info> {
         let cpi_accounts = token::Transfer {
             from: self.source_liquidity_wallet.clone(),
             to: self.destination_liquidity_wallet.clone(),
+            authority: self.lending_market_pda.clone(),
+        };
+        let cpi_program = self.token_program.to_account_info();
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+
+    pub fn into_pay_fee_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
+        let cpi_accounts = token::Transfer {
+            from: self.source_liquidity_wallet.clone(),
+            to: self.fee_receiver.clone(),
+            authority: self.lending_market_pda.clone(),
+        };
+        let cpi_program = self.token_program.to_account_info();
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+
+    pub fn into_pay_host_fee_context(
+        &self,
+        host_fee_receiver: &AccountInfo<'info>,
+    ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
+        let cpi_accounts = token::Transfer {
+            from: self.source_liquidity_wallet.clone(),
+            to: host_fee_receiver.clone(),
             authority: self.lending_market_pda.clone(),
         };
         let cpi_program = self.token_program.to_account_info();

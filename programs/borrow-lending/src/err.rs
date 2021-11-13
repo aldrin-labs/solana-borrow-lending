@@ -36,6 +36,10 @@ pub enum ErrorCode {
     ObligationDepositsZero,
     #[msg("Cannot withdraw more than allowed amount of collateral")]
     WithdrawTooLarge,
+    #[msg("Cannot borrow that amount of liquidity against this obligation")]
+    BorrowTooLarge,
+    #[msg("Not enough liquidity borrowed to cover the fees")]
+    BorrowTooSmall,
 }
 
 pub fn acc(msg: impl AsRef<str>) -> ProgramError {

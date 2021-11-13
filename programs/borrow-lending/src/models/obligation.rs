@@ -186,9 +186,63 @@ impl Obligation {
             Err(ErrorCode::ObligationReserveLimit.into())
         }
     }
+
+    pub fn borrow(
+        &mut self,
+        reserve_key: Pubkey,
+        liquidity_amount: Decimal,
+    ) -> Result<()> {
+        let mut first_empty = None;
+        for (i, reserve) in self.reserves.iter_mut().enumerate() {
+            match reserve {
+                ObligationReserve::Empty if first_empty.is_none() => {
+                    first_empty = Some(i);
+                }
+                ObligationReserve::Liquidity { ref mut inner }
+                    if inner.borrow_reserve == reserve_key =>
+                {
+                    inner.borrow(liquidity_amount)?;
+                    return Ok(());
+                }
+                _ => (),
+            };
+        }
+
+        if let Some(i) = first_empty {
+            let mut liquidity = ObligationLiquidity::new(reserve_key);
+            liquidity.borrow(liquidity_amount)?;
+            self.reserves[i] =
+                ObligationReserve::Liquidity { inner: liquidity };
+
+            Ok(())
+        } else {
+            msg!(
+                "Cannot add another reserve because limit of {} \
+                has been reached",
+                self.reserves.len()
+            );
+            Err(ErrorCode::ObligationReserveLimit.into())
+        }
+    }
+
+    /// Calculate the maximum liquidity value that can be borrowed
+    pub fn remaining_borrow_value(&self) -> Result<Decimal> {
+        self.allowed_borrow_value
+            .to_dec()
+            .try_sub(self.borrowed_value.to_dec())
+    }
 }
 
 impl ObligationLiquidity {
+    fn new(borrow_reserve: Pubkey) -> Self {
+        Self {
+            borrow_reserve,
+            market_value: Decimal::zero().into(),
+            borrowed_amount: Decimal::zero().into(),
+            cumulative_borrow_rate: Decimal::one().into(),
+        }
+    }
+
     pub fn accrue_interest(
         &mut self,
         cumulative_borrow_rate: Decimal,
@@ -213,6 +267,12 @@ impl ObligationLiquidity {
             }
         }
 
+        Ok(())
+    }
+
+    fn borrow(&mut self, borrow_amount: Decimal) -> Result<()> {
+        self.borrowed_amount =
+            self.borrowed_amount.to_dec().try_add(borrow_amount)?.into();
         Ok(())
     }
 }

@@ -104,8 +104,8 @@ pub mod borrow_lending {
         )
     }
 
-    pub fn borrow_obligation_liquidity(
-        ctx: Context<BorrowObligationLiquidity>,
+    pub fn borrow_obligation_liquidity<'info>(
+        ctx: Context<'_, '_, '_, 'info, BorrowObligationLiquidity<'info>>,
         lending_market_bump_seed: u8,
         liquidity_amount: u64,
     ) -> ProgramResult {
