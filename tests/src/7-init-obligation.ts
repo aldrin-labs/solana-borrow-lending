@@ -1,8 +1,8 @@
-import { Program, Provider } from "@project-serum/anchor";
+import { Program } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
 import { PublicKey, Keypair, SYSVAR_CLOCK_PUBKEY } from "@solana/web3.js";
 import { expect } from "chai";
-import { initLendingMarket } from "./init-lending-market";
+import { initLendingMarket } from "./1-init-lending-market";
 import { CaptureStdoutAndStderr, u192ToBN, waitForCommit } from "./helpers";
 
 export function test(

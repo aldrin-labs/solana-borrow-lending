@@ -2,17 +2,16 @@ import { Program, Provider, BN, web3 } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
 import { PublicKey, Keypair } from "@solana/web3.js";
 import { expect } from "chai";
-import { findLendingMarketPda, initLendingMarket } from "./init-lending-market";
+import {
+  findLendingMarketPda,
+  initLendingMarket,
+} from "./1-init-lending-market";
 import { CaptureStdoutAndStderr, waitForCommit } from "./helpers";
 import { ONE_LIQ_TO_COL_INITIAL_PRICE } from "./consts";
-import {
-  initReserve,
-  InitReserveAccounts,
-  reserveConfig,
-} from "./init-reserve";
+import { initReserve, InitReserveAccounts } from "./3-init-reserve";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { setOraclePriceSlot } from "./pyth";
-import { refreshReserveInstruction } from "./refresh-reserve";
+import { refreshReserveInstruction } from "./4-refresh-reserve";
 
 export function test(
   program: Program<BorrowLending>,
@@ -22,7 +21,6 @@ export function test(
 ) {
   describe("deposit_reserve_liquidity", () => {
     const market = Keypair.generate();
-    const config = reserveConfig();
 
     let lendingMarketPda: PublicKey,
       accounts: InitReserveAccounts,
@@ -45,8 +43,7 @@ export function test(
         market.publicKey,
         lendingMarketPda,
         lendingMarketBumpSeed,
-        new BN(50),
-        config
+        new BN(50)
       );
       await waitForCommit();
     });

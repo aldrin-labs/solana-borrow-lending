@@ -8,10 +8,10 @@ import {
   SYSVAR_CLOCK_PUBKEY,
 } from "@solana/web3.js";
 import { expect } from "chai";
-import { initLendingMarket } from "./init-lending-market";
+import { initLendingMarket } from "./1-init-lending-market";
 import { CaptureStdoutAndStderr, u192ToBN, waitForCommit } from "./helpers";
-import { initObligationR10 } from "./init-obligation";
-import { refreshReserveInstruction } from "./refresh-reserve";
+import { initObligationR10 } from "./7-init-obligation";
+import { refreshReserveInstruction } from "./4-refresh-reserve";
 
 export function test(
   program: Program<BorrowLending>,

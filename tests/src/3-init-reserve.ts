@@ -14,7 +14,10 @@ import {
   MintLayout,
   AccountLayout,
 } from "@solana/spl-token";
-import { initLendingMarket, findLendingMarketPda } from "./init-lending-market";
+import {
+  initLendingMarket,
+  findLendingMarketPda,
+} from "./1-init-lending-market";
 import {
   CaptureStdoutAndStderr,
   createProgramAccounts,

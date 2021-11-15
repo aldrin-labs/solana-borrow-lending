@@ -2,7 +2,7 @@ import { Program } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
 import { PublicKey, Keypair } from "@solana/web3.js";
 import { expect } from "chai";
-import { initLendingMarket } from "./init-lending-market";
+import { initLendingMarket } from "./1-init-lending-market";
 import { CaptureStdoutAndStderr } from "./helpers";
 
 export function test(program: Program<BorrowLending>) {

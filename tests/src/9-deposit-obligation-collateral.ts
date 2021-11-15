@@ -1,20 +1,28 @@
 import { Program, Provider, BN } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
-import { PublicKey, Keypair, SYSVAR_CLOCK_PUBKEY } from "@solana/web3.js";
+import {
+  PublicKey,
+  Keypair,
+  SYSVAR_CLOCK_PUBKEY,
+  Connection,
+} from "@solana/web3.js";
 import { expect } from "chai";
-import { findLendingMarketPda, initLendingMarket } from "./init-lending-market";
-import { CaptureStdoutAndStderr, u192ToBN, waitForCommit } from "./helpers";
+import {
+  findLendingMarketPda,
+  initLendingMarket,
+} from "./1-init-lending-market";
+import { CaptureStdoutAndStderr, u192ToBN } from "./helpers";
 import { ONE_LIQ_TO_COL_INITIAL_PRICE } from "./consts";
 import {
   initReserve,
   InitReserveAccounts,
   reserveConfig,
-} from "./init-reserve";
+} from "./3-init-reserve";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { setOraclePriceSlot } from "./pyth";
-import { refreshReserveInstruction } from "./refresh-reserve";
-import { initObligationR10 } from "./init-obligation";
-import { depositReserveLiquidity } from "./deposit-reserve-liquidity";
+import { refreshReserveInstruction } from "./4-refresh-reserve";
+import { initObligationR10 } from "./7-init-obligation";
+import { depositReserveLiquidity } from "./5-deposit-reserve-liquidity";
 
 export function test(
   program: Program<BorrowLending>,
@@ -59,30 +67,28 @@ export function test(
     });
 
     before("mint reserve collateral for borrower", async () => {
-      sourceCollateralWallet =
-        await reserveAccounts.reserveCollateralMint.createAccount(
-          borrower.publicKey
-        );
-
-      await refreshOracleSlotValidity();
-
-      const depositAccounts = await depositReserveLiquidity(
+      sourceCollateralWallet = await createCollateralWalletWithCollateral(
         program,
+        provider.connection,
+        owner,
+        shmemProgramId,
         reserveAccounts,
         lendingMarketPda,
         lendingMarketBumpSeed,
-        sourceCollateralWalletAmount / ONE_LIQ_TO_COL_INITIAL_PRICE
-      );
-      await reserveAccounts.reserveCollateralMint.transfer(
-        depositAccounts.destinationCollateralWallet,
-        sourceCollateralWallet,
-        depositAccounts.funder,
-        [],
+        borrower.publicKey,
         sourceCollateralWalletAmount
       );
     });
 
-    beforeEach("refresh oracle slot validity", refreshOracleSlotValidity);
+    beforeEach("refresh oracle slot validity", async () => {
+      await setOraclePriceSlot(
+        provider.connection,
+        shmemProgramId,
+        owner,
+        reserveAccounts.oraclePrice.publicKey,
+        (await provider.connection.getSlot()) + 10
+      );
+    });
 
     it("fails if borrower doesn't match obligation owner", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
@@ -318,19 +324,6 @@ export function test(
       expect(u192ToBN(obligationInfo.allowedBorrowValue).toNumber()).to.eq(0);
       expect(u192ToBN(obligationInfo.unhealthyBorrowValue).toNumber()).to.eq(0);
     });
-
-    async function refreshOracleSlotValidity() {
-      // allows us to make more operations before calling the endpoint
-      const intoTheFuture = 10;
-
-      await setOraclePriceSlot(
-        provider.connection,
-        shmemProgramId,
-        owner,
-        reserveAccounts.oraclePrice.publicKey,
-        (await provider.connection.getSlot()) + intoTheFuture
-      );
-    }
   });
 }
 
@@ -365,4 +358,44 @@ export async function depositObligationCollateral(
         ]
       : [],
   });
+}
+
+export async function createCollateralWalletWithCollateral(
+  program: Program<BorrowLending>,
+  connection: Connection,
+  payer: Keypair,
+  shmemProgramId: PublicKey,
+  reserveAccounts: InitReserveAccounts,
+  lendingMarketPda: PublicKey,
+  lendingMarketBumpSeed: number,
+  owner: PublicKey,
+  collateralAmount: number
+): Promise<PublicKey> {
+  const sourceCollateralWallet =
+    await reserveAccounts.reserveCollateralMint.createAccount(owner);
+
+  await setOraclePriceSlot(
+    connection,
+    shmemProgramId,
+    payer,
+    reserveAccounts.oraclePrice.publicKey,
+    (await connection.getSlot()) + 10
+  );
+
+  const depositAccounts = await depositReserveLiquidity(
+    program,
+    reserveAccounts,
+    lendingMarketPda,
+    lendingMarketBumpSeed,
+    collateralAmount / ONE_LIQ_TO_COL_INITIAL_PRICE
+  );
+  await reserveAccounts.reserveCollateralMint.transfer(
+    depositAccounts.destinationCollateralWallet,
+    sourceCollateralWallet,
+    depositAccounts.funder,
+    [],
+    collateralAmount
+  );
+
+  return sourceCollateralWallet;
 }

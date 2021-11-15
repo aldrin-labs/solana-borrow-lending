@@ -7,14 +7,13 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 import { expect } from "chai";
-import { initLendingMarket, findLendingMarketPda } from "./init-lending-market";
+import {
+  initLendingMarket,
+  findLendingMarketPda,
+} from "./1-init-lending-market";
 import { CaptureStdoutAndStderr, u192ToBN, waitForCommit } from "./helpers";
 import { setOraclePriceSlot } from "./pyth";
-import {
-  initReserve,
-  InitReserveAccounts,
-  reserveConfig,
-} from "./init-reserve";
+import { initReserve, InitReserveAccounts } from "./3-init-reserve";
 
 export function test(
   program: Program<BorrowLending>,
@@ -25,7 +24,6 @@ export function test(
   describe("refresh_reserve", () => {
     const market = Keypair.generate();
     const liquidityAmount = 50;
-    const config = reserveConfig();
 
     let lendingMarketPda: PublicKey,
       accounts: InitReserveAccounts,
@@ -48,8 +46,7 @@ export function test(
         market.publicKey,
         lendingMarketPda,
         lendingMarketBumpSeed,
-        new BN(liquidityAmount),
-        config
+        new BN(liquidityAmount)
       );
       await waitForCommit();
     });
