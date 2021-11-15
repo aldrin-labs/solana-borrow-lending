@@ -39,7 +39,8 @@ pub struct WithdrawObligationCollateral<'info> {
             @ err::acc("Source col. wallet must eq. reserve's col. supply"),
     )]
     pub source_collateral_wallet: AccountInfo<'info>,
-    /// Any kind of token wallet with the same mint as source collateral wallet.
+    /// Any kind of token wallet with the same mint as source collateral
+    /// wallet.
     #[account(
         mut,
         constraint = destination_collateral_wallet.key() !=
@@ -81,7 +82,7 @@ pub fn handle(
     }
 
     let withdraw_amount = if !accounts.obligation.has_borrows() {
-        // if there are no borrows then withdraw max deposited amount
+        // if there are no borrows then withdraw up to all deposited amount
         collateral.deposited_amount.min(collateral_amount)
     } else if accounts.obligation.deposited_value.to_dec() == Decimal::zero() {
         // unlikely situation as if there's no deposited value then there won't

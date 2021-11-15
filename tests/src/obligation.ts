@@ -94,4 +94,43 @@ export class Obligation {
       }
     );
   }
+
+  public async withdrawCollateral(
+    reserve: Reserve,
+    destinationCollateralWallet: PublicKey,
+    collateralAmount: number,
+    refreshReserve: boolean = true,
+    refreshObligation: boolean = true,
+    sign: boolean = true
+  ) {
+    const instructions = [];
+
+    if (refreshReserve) {
+      instructions.push(reserve.refreshInstruction());
+    }
+
+    if (refreshObligation) {
+      instructions.push(this.refreshInstruction([reserve]));
+    }
+
+    await this.market.program.rpc.withdrawObligationCollateral(
+      this.market.bumpSeed,
+      new BN(collateralAmount),
+      {
+        accounts: {
+          lendingMarketPda: this.market.pda,
+          reserve: reserve.id,
+          obligation: this.id,
+          borrower: this.borrower.publicKey,
+          destinationCollateralWallet,
+          sourceCollateralWallet:
+            reserve.accounts.reserveCollateralWallet.publicKey,
+          clock: SYSVAR_CLOCK_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        },
+        signers: sign ? [this.borrower] : [],
+        instructions,
+      }
+    );
+  }
 }

@@ -31,7 +31,7 @@ export function test(
       obligation = await market.addObligation();
     });
 
-    before("mint reserve collateral for borrower", async () => {
+    before("gift reserve collateral to borrower", async () => {
       sourceCollateralWallet =
         await reserve.createCollateralWalletWithCollateral(
           obligation.borrower.publicKey,
