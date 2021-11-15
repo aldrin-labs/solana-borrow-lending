@@ -1,27 +1,25 @@
 import { Program } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
-import { PublicKey, Keypair } from "@solana/web3.js";
+import { Keypair } from "@solana/web3.js";
 import { expect } from "chai";
-import { initLendingMarket } from "./1-init-lending-market";
 import { CaptureStdoutAndStderr } from "./helpers";
+import { LendingMarket } from "./lending-market";
 
 export function test(program: Program<BorrowLending>) {
   describe("set_lending_market_owner", () => {
     const oracle = Keypair.generate();
     const owner = Keypair.generate();
-    const market = Keypair.generate();
+    let market: LendingMarket;
 
     before("initialize lending market", async () => {
-      await initLendingMarket(program, owner, market, oracle.publicKey);
+      market = await LendingMarket.init(program, owner, oracle.publicKey);
     });
 
     it("sets new lending market owner", async () => {
       const newOwner = Keypair.generate();
 
-      await setLendingMarketOwner(program, owner, market, newOwner.publicKey);
-      const marketInfo = await program.account.lendingMarket.fetch(
-        market.publicKey
-      );
+      await market.setOwner(newOwner);
+      const marketInfo = await market.fetch();
       expect(marketInfo.owner).to.deep.eq(newOwner.publicKey);
     });
 
@@ -29,29 +27,12 @@ export function test(program: Program<BorrowLending>) {
       const stdCapture = new CaptureStdoutAndStderr();
 
       const wrongOwner = Keypair.generate();
-      const newOwner = Keypair.generate();
+      market.owner = wrongOwner;
 
-      await expect(
-        setLendingMarketOwner(program, wrongOwner, market, newOwner.publicKey)
-      ).to.be.rejected;
+      const newOwner = Keypair.generate();
+      await expect(market.setOwner(newOwner)).to.be.rejected;
 
       stdCapture.restore();
     });
-  });
-}
-
-export async function setLendingMarketOwner(
-  program: Program<BorrowLending>,
-  currentOwner: Keypair,
-  market: Keypair,
-  newOwner: PublicKey
-) {
-  await program.rpc.setLendingMarketOwner({
-    accounts: {
-      owner: currentOwner.publicKey,
-      lendingMarket: market.publicKey,
-      newOwner: newOwner,
-    },
-    signers: [currentOwner],
   });
 }

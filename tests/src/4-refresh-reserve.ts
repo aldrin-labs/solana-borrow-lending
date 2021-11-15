@@ -1,66 +1,39 @@
-import { Program, BN, Provider } from "@project-serum/anchor";
+import { Program, Provider } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
-import {
-  PublicKey,
-  Keypair,
-  SYSVAR_CLOCK_PUBKEY,
-  TransactionInstruction,
-} from "@solana/web3.js";
+import { PublicKey, Keypair } from "@solana/web3.js";
 import { expect } from "chai";
-import {
-  initLendingMarket,
-  findLendingMarketPda,
-} from "./1-init-lending-market";
 import { CaptureStdoutAndStderr, u192ToBN, waitForCommit } from "./helpers";
-import { setOraclePriceSlot } from "./pyth";
-import { initReserve, InitReserveAccounts } from "./3-init-reserve";
+import { LendingMarket } from "./lending-market";
+import { Reserve } from "./reserve";
 
 export function test(
   program: Program<BorrowLending>,
-  provider: Provider,
   owner: Keypair,
   shmemProgramId: PublicKey
 ) {
   describe("refresh_reserve", () => {
-    const market = Keypair.generate();
     const liquidityAmount = 50;
 
-    let lendingMarketPda: PublicKey,
-      accounts: InitReserveAccounts,
-      lendingMarketBumpSeed: number;
+    let market: LendingMarket, reserve: Reserve;
 
     before("initialize lending market", async () => {
-      await initLendingMarket(program, owner, market, shmemProgramId);
-      [lendingMarketPda, lendingMarketBumpSeed] = await findLendingMarketPda(
-        program.programId,
-        market.publicKey
-      );
+      market = await LendingMarket.init(program, owner, shmemProgramId);
     });
 
     before("initialize reserve", async () => {
-      accounts = await initReserve(
-        program,
-        provider.connection,
-        shmemProgramId,
-        owner,
-        market.publicKey,
-        lendingMarketPda,
-        lendingMarketBumpSeed,
-        new BN(liquidityAmount)
-      );
+      reserve = await market.addReserve(liquidityAmount);
       await waitForCommit();
     });
 
     it("fails if oracle price accounts mismatch", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      await expect(
-        refreshReserve(
-          program,
-          accounts.reserve.publicKey,
-          Keypair.generate().publicKey
-        )
-      ).to.be.rejected;
+      const originalOraclePrice = reserve.accounts.oraclePrice;
+      reserve.accounts.oraclePrice = Keypair.generate();
+
+      await expect(reserve.refresh()).to.be.rejected;
+
+      reserve.accounts.oraclePrice = originalOraclePrice;
 
       stdCapture.restore();
     });
@@ -68,62 +41,38 @@ export function test(
     it("fails if oracle price is outdated", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      await setOraclePriceSlot(
-        provider.connection,
-        shmemProgramId,
-        owner,
-        accounts.oraclePrice.publicKey,
-        (await provider.connection.getSlot()) - 10 // put it into the past
-      );
+      await reserve.refreshOraclePrice(-10); // put it into the past
       await waitForCommit();
 
-      await expect(
-        refreshReserve(
-          program,
-          accounts.reserve.publicKey,
-          accounts.oraclePrice.publicKey
-        )
-      ).to.be.rejected;
+      await expect(reserve.refresh()).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain("is stale");
     });
 
     it("refreshes reserve last updated and accrues interest", async () => {
-      const reserveBeforeRefresh = await program.account.reserve.fetch(
-        accounts.reserve.publicKey
-      );
+      const reserveInfoBeforeRefresh = await reserve.fetch();
       const initialCumulativeBorrowRate = u192ToBN(
-        reserveBeforeRefresh.liquidity.cumulativeBorrowRate
+        reserveInfoBeforeRefresh.liquidity.cumulativeBorrowRate
       );
       const initialBorrowedAmount = u192ToBN(
-        reserveBeforeRefresh.liquidity.borrowedAmount
+        reserveInfoBeforeRefresh.liquidity.borrowedAmount
       );
 
-      const slot = await provider.connection.getSlot();
-      await setOraclePriceSlot(
-        provider.connection,
-        shmemProgramId,
-        owner,
-        accounts.oraclePrice.publicKey,
-        slot + 2 // make sure oracle isn't in the past
-      );
+      reserve.refreshOraclePrice(2);
       await waitForCommit();
 
-      const reserve = await refreshReserve(
-        program,
-        accounts.reserve.publicKey,
-        accounts.oraclePrice.publicKey
-      );
+      await reserve.refresh();
+      const reserveInfo = await reserve.fetch();
 
-      const currentSlot = await provider.connection.getSlot();
-      expect(reserve.lastUpdate.stale).to.be.false;
-      expect(reserve.lastUpdate.slot.toNumber())
+      const currentSlot = await market.connection.getSlot();
+      expect(reserveInfo.lastUpdate.stale).to.be.false;
+      expect(reserveInfo.lastUpdate.slot.toNumber())
         .to.be.greaterThanOrEqual(currentSlot - 2)
         .and.lessThanOrEqual(currentSlot); // should be very fresh
 
       // this starts at 1, so even though nothing is borrowed, it's growing
       const cumulativeBorrowRateWithAccruedInterest = u192ToBN(
-        reserve.liquidity.cumulativeBorrowRate
+        reserveInfo.liquidity.cumulativeBorrowRate
       );
       expect(
         cumulativeBorrowRateWithAccruedInterest.gt(initialCumulativeBorrowRate)
@@ -131,40 +80,10 @@ export function test(
 
       // nothing is borrowed in this test
       const borrowedAmountWithAccruedInterest = u192ToBN(
-        reserve.liquidity.borrowedAmount
+        reserveInfo.liquidity.borrowedAmount
       );
       expect(borrowedAmountWithAccruedInterest.eq(initialBorrowedAmount)).to.be
         .true;
     });
-  });
-}
-
-export async function refreshReserve(
-  program: Program<BorrowLending>,
-  reserve: PublicKey,
-  oraclePrice: PublicKey
-) {
-  await program.rpc.refreshReserve({
-    accounts: {
-      reserve,
-      oraclePrice,
-      clock: SYSVAR_CLOCK_PUBKEY,
-    },
-  });
-
-  return program.account.reserve.fetch(reserve);
-}
-
-export function refreshReserveInstruction(
-  program: Program<BorrowLending>,
-  reserve: PublicKey,
-  oraclePrice: PublicKey
-): TransactionInstruction {
-  return program.instruction.refreshReserve({
-    accounts: {
-      reserve,
-      oraclePrice,
-      clock: SYSVAR_CLOCK_PUBKEY,
-    },
   });
 }

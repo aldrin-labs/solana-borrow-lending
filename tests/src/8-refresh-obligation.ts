@@ -1,46 +1,31 @@
-import { Program, Provider } from "@project-serum/anchor";
+import { Program } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
-import {
-  PublicKey,
-  Transaction,
-  TransactionInstruction,
-  Keypair,
-  SYSVAR_CLOCK_PUBKEY,
-} from "@solana/web3.js";
+import { PublicKey, Keypair } from "@solana/web3.js";
 import { expect } from "chai";
-import { initLendingMarket } from "./1-init-lending-market";
-import { CaptureStdoutAndStderr, u192ToBN, waitForCommit } from "./helpers";
-import { initObligationR10 } from "./7-init-obligation";
-import { refreshReserveInstruction } from "./4-refresh-reserve";
+import { waitForCommit } from "./helpers";
+import { LendingMarket } from "./lending-market";
+import { Obligation } from "./obligation";
 
 export function test(
   program: Program<BorrowLending>,
-  provider: Provider,
   owner: Keypair,
   shmemProgramId: PublicKey
 ) {
   describe("refresh_obligation", () => {
-    const market = Keypair.generate();
-    const borrower = Keypair.generate();
-    const obligation = Keypair.generate();
+    let market: LendingMarket, obligation: Obligation;
 
     before("initialize lending market", async () => {
-      await initLendingMarket(program, owner, market, shmemProgramId);
-      await waitForCommit();
+      market = await LendingMarket.init(program, owner, shmemProgramId);
     });
 
     before("initialize obligation", async () => {
-      await initObligationR10(program, borrower, market.publicKey, obligation);
+      obligation = await market.addObligation();
       await waitForCommit();
     });
 
     it("refreshes empty obligation", async () => {
-      const obligationInfo = await refreshObligation(
-        program,
-        provider,
-        obligation.publicKey,
-        []
-      );
+      await obligation.refresh([]);
+      const obligationInfo = await obligation.fetch();
       expect(obligationInfo.lastUpdate.stale).to.be.false;
     });
 
@@ -51,39 +36,5 @@ export function test(
     // TODO: we can add these tests once we can deposit liquidity
     it("fails if deposited liquidity account is missing");
     it("refreshes liquidity market value and accrues interest");
-  });
-}
-
-export async function refreshObligation(
-  program: Program<BorrowLending>,
-  provider: Provider,
-  obligation: PublicKey,
-  reserves: Array<{ pubkey: PublicKey; oraclePrice: PublicKey }>
-) {
-  const tx = new Transaction();
-  tx.add(refreshObligationInstruction(program, obligation, reserves));
-  await provider.send(tx);
-
-  return program.account.obligation.fetch(obligation);
-}
-
-export function refreshObligationInstruction(
-  program: Program<BorrowLending>,
-  obligation: PublicKey,
-  reserves: Array<{ pubkey: PublicKey; oraclePrice: PublicKey }>
-): TransactionInstruction {
-  return program.instruction.refreshObligation({
-    accounts: {
-      obligation,
-      clock: SYSVAR_CLOCK_PUBKEY,
-    },
-    remainingAccounts: reserves.map(({ pubkey }) => ({
-      pubkey,
-      isSigner: false,
-      isWritable: false,
-    })),
-    instructions: reserves.map(({ pubkey, oraclePrice }) =>
-      refreshReserveInstruction(program, pubkey, oraclePrice)
-    ),
   });
 }

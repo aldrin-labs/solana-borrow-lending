@@ -1,132 +1,77 @@
-import { Program, Provider, BN } from "@project-serum/anchor";
+import { Program } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
-import {
-  PublicKey,
-  Keypair,
-  SYSVAR_CLOCK_PUBKEY,
-  Connection,
-} from "@solana/web3.js";
+import { PublicKey, Keypair } from "@solana/web3.js";
 import { expect } from "chai";
-import {
-  findLendingMarketPda,
-  initLendingMarket,
-} from "./1-init-lending-market";
 import { CaptureStdoutAndStderr, u192ToBN } from "./helpers";
-import { ONE_LIQ_TO_COL_INITIAL_PRICE } from "./consts";
-import {
-  initReserve,
-  InitReserveAccounts,
-  reserveConfig,
-} from "./3-init-reserve";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { setOraclePriceSlot } from "./pyth";
-import { refreshReserveInstruction } from "./4-refresh-reserve";
-import { initObligationR10 } from "./7-init-obligation";
-import { depositReserveLiquidity } from "./5-deposit-reserve-liquidity";
+import { LendingMarket } from "./lending-market";
+import { Obligation } from "./obligation";
+import { Reserve } from "./reserve";
 
 export function test(
   program: Program<BorrowLending>,
-  provider: Provider,
   owner: Keypair,
   shmemProgramId: PublicKey
 ) {
   describe("deposit_obligation_collateral", () => {
-    const market = Keypair.generate();
-    const borrower = Keypair.generate();
-    const obligation = Keypair.generate();
-
     let sourceCollateralWalletAmount = 30;
-    let lendingMarketPda: PublicKey,
-      reserveAccounts: InitReserveAccounts,
-      lendingMarketBumpSeed: number,
+    let market: LendingMarket,
+      obligation: Obligation,
+      reserve: Reserve,
       sourceCollateralWallet: PublicKey;
 
     before("initialize lending market", async () => {
-      await initLendingMarket(program, owner, market, shmemProgramId);
-      [lendingMarketPda, lendingMarketBumpSeed] = await findLendingMarketPda(
-        program.programId,
-        market.publicKey
-      );
-    });
-
-    before("initialize reserve", async () => {
-      reserveAccounts = await initReserve(
-        program,
-        provider.connection,
-        shmemProgramId,
-        owner,
-        market.publicKey,
-        lendingMarketPda,
-        lendingMarketBumpSeed,
-        new BN(50)
-      );
+      market = await LendingMarket.init(program, owner, shmemProgramId);
     });
 
     before("initialize obligation", async () => {
-      await initObligationR10(program, borrower, market.publicKey, obligation);
+      reserve = await market.addReserve(50);
+    });
+
+    before("initialize obligation", async () => {
+      obligation = await market.addObligation();
     });
 
     before("mint reserve collateral for borrower", async () => {
-      sourceCollateralWallet = await createCollateralWalletWithCollateral(
-        program,
-        provider.connection,
-        owner,
-        shmemProgramId,
-        reserveAccounts,
-        lendingMarketPda,
-        lendingMarketBumpSeed,
-        borrower.publicKey,
-        sourceCollateralWalletAmount
-      );
+      sourceCollateralWallet =
+        await reserve.createCollateralWalletWithCollateral(
+          obligation.borrower.publicKey,
+          sourceCollateralWalletAmount
+        );
     });
 
     beforeEach("refresh oracle slot validity", async () => {
-      await setOraclePriceSlot(
-        provider.connection,
-        shmemProgramId,
-        owner,
-        reserveAccounts.oraclePrice.publicKey,
-        (await provider.connection.getSlot()) + 10
-      );
+      await reserve.refreshOraclePrice(10);
     });
 
     it("fails if borrower doesn't match obligation owner", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
+      const originalBorrower = obligation.borrower;
+      obligation.borrower = Keypair.generate();
+
       await expect(
-        depositObligationCollateral(
-          program,
-          Keypair.generate(),
-          obligation.publicKey,
-          sourceCollateralWallet,
-          reserveAccounts,
-          10
-        )
+        obligation.depositCollateral(reserve, sourceCollateralWallet, 10)
       ).to.be.rejected;
+
+      obligation.borrower = originalBorrower;
 
       expect(stdCapture.restore()).to.contain("owner is not allowed");
     });
 
     it("fails if obligation and reserve market mismatch", async () => {
-      const differentMarket = Keypair.generate();
-      const differentMarketObligation = Keypair.generate();
-      await initLendingMarket(program, owner, differentMarket, shmemProgramId);
-      await initObligationR10(
+      const differentMarket = await LendingMarket.init(
         program,
-        borrower,
-        differentMarket.publicKey,
-        differentMarketObligation
+        owner,
+        shmemProgramId
       );
+      const differentMarketObligation = await differentMarket.addObligation();
 
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
-        depositObligationCollateral(
-          program,
-          borrower,
-          differentMarketObligation.publicKey,
+        differentMarketObligation.depositCollateral(
+          reserve,
           sourceCollateralWallet,
-          reserveAccounts,
           10
         )
       ).to.be.rejected;
@@ -141,12 +86,9 @@ export function test(
 
       const refreshReserve = false;
       await expect(
-        depositObligationCollateral(
-          program,
-          borrower,
-          obligation.publicKey,
+        obligation.depositCollateral(
+          reserve,
           sourceCollateralWallet,
-          reserveAccounts,
           10,
           refreshReserve
         )
@@ -156,29 +98,17 @@ export function test(
     });
 
     it("fails if loan to value ratio is zero", async () => {
-      const config = reserveConfig();
+      const config = Reserve.defaultConfig();
       config.conf.loanToValueRatio.percent = 0;
-      const reserveAccounts = await initReserve(
-        program,
-        provider.connection,
-        shmemProgramId,
-        owner,
-        market.publicKey,
-        lendingMarketPda,
-        lendingMarketBumpSeed,
-        new BN(10),
-        config
-      );
+
+      const differentReserve = await market.addReserve(10, config);
 
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
-        depositObligationCollateral(
-          program,
-          borrower,
-          obligation.publicKey,
+        obligation.depositCollateral(
+          differentReserve,
           sourceCollateralWallet,
-          reserveAccounts,
           10
         )
       ).to.be.rejected;
@@ -190,12 +120,9 @@ export function test(
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
-        depositObligationCollateral(
-          program,
-          borrower,
-          obligation.publicKey,
-          reserveAccounts.reserveCollateralWallet.publicKey,
-          reserveAccounts,
+        obligation.depositCollateral(
+          reserve,
+          reserve.accounts.reserveCollateralWallet.publicKey,
           10
         )
       ).to.be.rejected;
@@ -211,19 +138,12 @@ export function test(
       // temporarily use a wrong settings which will not match the data stored
       // in the reserve account, but remember the correct settings so that we
       // can restore to it after the test
-      const trueReserveCollateralWallet =
-        reserveAccounts.reserveCollateralWallet;
-      reserveAccounts.reserveCollateralWallet = Keypair.generate();
+      const originalReserveCollateralWallet =
+        reserve.accounts.reserveCollateralWallet;
+      reserve.accounts.reserveCollateralWallet = Keypair.generate();
 
       await expect(
-        depositObligationCollateral(
-          program,
-          borrower,
-          obligation.publicKey,
-          sourceCollateralWallet,
-          reserveAccounts,
-          10
-        )
+        obligation.depositCollateral(reserve, sourceCollateralWallet, 10)
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain(
@@ -231,21 +151,15 @@ export function test(
       );
 
       // restore the original settings
-      reserveAccounts.reserveCollateralWallet = trueReserveCollateralWallet;
+      reserve.accounts.reserveCollateralWallet =
+        originalReserveCollateralWallet;
     });
 
     it("fails if collateral amount is zero", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
-        depositObligationCollateral(
-          program,
-          borrower,
-          obligation.publicKey,
-          sourceCollateralWallet,
-          reserveAccounts,
-          0
-        )
+        obligation.depositCollateral(reserve, sourceCollateralWallet, 0)
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain(
@@ -257,14 +171,7 @@ export function test(
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
-        depositObligationCollateral(
-          program,
-          borrower,
-          obligation.publicKey,
-          sourceCollateralWallet,
-          reserveAccounts,
-          1000
-        )
+        obligation.depositCollateral(reserve, sourceCollateralWallet, 1000)
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain("insufficient funds");
@@ -275,12 +182,9 @@ export function test(
 
       const sign = false;
       await expect(
-        depositObligationCollateral(
-          program,
-          borrower,
-          obligation.publicKey,
+        obligation.depositCollateral(
+          reserve,
           sourceCollateralWallet,
-          reserveAccounts,
           10,
           true,
           sign
@@ -291,19 +195,10 @@ export function test(
     });
 
     it("deposits collateral", async () => {
-      await depositObligationCollateral(
-        program,
-        borrower,
-        obligation.publicKey,
-        sourceCollateralWallet,
-        reserveAccounts,
-        10
-      );
+      await obligation.depositCollateral(reserve, sourceCollateralWallet, 10);
       sourceCollateralWalletAmount -= 10;
 
-      const obligationInfo = await program.account.obligation.fetch(
-        obligation.publicKey
-      );
+      const obligationInfo = await obligation.fetch();
       expect(obligationInfo.lastUpdate.stale).to.be.true;
 
       const reserves = obligationInfo.reserves as any[];
@@ -312,9 +207,7 @@ export function test(
         new Array(9).fill(undefined).map(() => ({ empty: {} }))
       );
 
-      expect(newCollateral.depositReserve).to.deep.eq(
-        reserveAccounts.reserve.publicKey
-      );
+      expect(newCollateral.depositReserve).to.deep.eq(reserve.id);
       expect(newCollateral.depositedAmount.toNumber()).to.eq(10);
 
       // we need to refresh the obligation for these values to recalculate
@@ -325,77 +218,4 @@ export function test(
       expect(u192ToBN(obligationInfo.unhealthyBorrowValue).toNumber()).to.eq(0);
     });
   });
-}
-
-export async function depositObligationCollateral(
-  program: Program<BorrowLending>,
-  borrower: Keypair,
-  obligation: PublicKey,
-  sourceCollateralWallet: PublicKey,
-  accounts: InitReserveAccounts,
-  collateralAmount: number,
-  refreshReserve: boolean = true,
-  sign: boolean = true
-) {
-  await program.rpc.depositObligationCollateral(new BN(collateralAmount), {
-    accounts: {
-      borrower: borrower.publicKey,
-      obligation,
-      sourceCollateralWallet,
-      reserve: accounts.reserve.publicKey,
-      destinationCollateralWallet: accounts.reserveCollateralWallet.publicKey,
-      clock: SYSVAR_CLOCK_PUBKEY,
-      tokenProgram: TOKEN_PROGRAM_ID,
-    },
-    signers: sign ? [borrower] : [],
-    instructions: refreshReserve
-      ? [
-          refreshReserveInstruction(
-            program,
-            accounts.reserve.publicKey,
-            accounts.oraclePrice.publicKey
-          ),
-        ]
-      : [],
-  });
-}
-
-export async function createCollateralWalletWithCollateral(
-  program: Program<BorrowLending>,
-  connection: Connection,
-  payer: Keypair,
-  shmemProgramId: PublicKey,
-  reserveAccounts: InitReserveAccounts,
-  lendingMarketPda: PublicKey,
-  lendingMarketBumpSeed: number,
-  owner: PublicKey,
-  collateralAmount: number
-): Promise<PublicKey> {
-  const sourceCollateralWallet =
-    await reserveAccounts.reserveCollateralMint.createAccount(owner);
-
-  await setOraclePriceSlot(
-    connection,
-    shmemProgramId,
-    payer,
-    reserveAccounts.oraclePrice.publicKey,
-    (await connection.getSlot()) + 10
-  );
-
-  const depositAccounts = await depositReserveLiquidity(
-    program,
-    reserveAccounts,
-    lendingMarketPda,
-    lendingMarketBumpSeed,
-    collateralAmount / ONE_LIQ_TO_COL_INITIAL_PRICE
-  );
-  await reserveAccounts.reserveCollateralMint.transfer(
-    depositAccounts.destinationCollateralWallet,
-    sourceCollateralWallet,
-    depositAccounts.funder,
-    [],
-    collateralAmount
-  );
-
-  return sourceCollateralWallet;
 }

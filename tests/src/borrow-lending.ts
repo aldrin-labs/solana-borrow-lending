@@ -64,22 +64,12 @@ describe("borrow-lending", () => {
 
   testInitLendingMarket(program);
   testSetLendingMarketOwner(program);
-  testInitReserve(program, provider, payer, shmemProgram.publicKey);
-  testRefreshReserve(program, provider, payer, shmemProgram.publicKey);
-  testDepositReserveLiquidity(program, provider, payer, shmemProgram.publicKey);
-  testRedeemReserveCollateral(program, provider, payer, shmemProgram.publicKey);
+  testInitReserve(program, payer, shmemProgram.publicKey);
+  testRefreshReserve(program, payer, shmemProgram.publicKey);
+  testDepositReserveLiquidity(program, payer, shmemProgram.publicKey);
+  testRedeemReserveCollateral(program, payer, shmemProgram.publicKey);
   testInitObligation(program, payer, shmemProgram.publicKey);
-  testRefreshObligation(program, provider, payer, shmemProgram.publicKey);
-  testDepositObligationCollateral(
-    program,
-    provider,
-    payer,
-    shmemProgram.publicKey
-  );
-  testWithdrawObligationCollateral(
-    program,
-    provider,
-    payer,
-    shmemProgram.publicKey
-  );
+  testRefreshObligation(program, payer, shmemProgram.publicKey);
+  testDepositObligationCollateral(program, payer, shmemProgram.publicKey);
+  testWithdrawObligationCollateral(program, payer, shmemProgram.publicKey);
 });
