@@ -15,17 +15,15 @@ pub struct WithdrawObligationCollateral<'info> {
         mut,
         constraint = borrower.key() == obligation.owner
             @ ProgramError::IllegalOwner,
-        constraint = !obligation.last_update.is_stale(clock.slot).unwrap_or(true)
-            @ err::obligation_stale(),
+        constraint = !obligation.is_stale(&clock) @ err::obligation_stale(),
     )]
     pub obligation: Box<Account<'info, Obligation>>,
+    /// The reserve whose collateral is deposited in the obligation and should
+    /// be withdrawn.
     #[account(
         constraint = reserve.lending_market == obligation.lending_market
             @ err::market_mismatch(),
-        constraint = !reserve.last_update.is_stale(clock.slot).unwrap_or(true)
-            @ err::reserve_stale(),
-        constraint = 0u8 != reserve.config.loan_to_value_ratio.into()
-            @ err::cannot_use_as_collateral(),
+        constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
     pub reserve: Box<Account<'info, Reserve>>,
     #[account(
@@ -33,12 +31,15 @@ pub struct WithdrawObligationCollateral<'info> {
         bump = lending_market_bump_seed,
     )]
     pub lending_market_pda: AccountInfo<'info>,
+    /// The reserve's collateral supply wallet where BLp stores all deposited
+    /// collateral from all borrowers.
     #[account(
         mut,
         constraint = source_collateral_wallet.key() == reserve.collateral.supply
             @ err::acc("Source col. wallet must eq. reserve's col. supply"),
     )]
     pub source_collateral_wallet: AccountInfo<'info>,
+    /// Any kind of token wallet with the same mint as source collateral wallet.
     #[account(
         mut,
         constraint = destination_collateral_wallet.key() !=
@@ -46,6 +47,10 @@ pub struct WithdrawObligationCollateral<'info> {
             eq. reserve's col. supply"),
     )]
     pub destination_collateral_wallet: AccountInfo<'info>,
+    /// We don't need to check that the provided token account is correct
+    /// because the source collateral wallet is defined in the reserve config
+    /// and the collateral transfer will fail if this isn't the token program
+    /// owning it.
     pub token_program: Program<'info, Token>,
     pub clock: Sysvar<'info, Clock>,
 }
