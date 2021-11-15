@@ -115,4 +115,11 @@ pub mod borrow_lending {
             liquidity_amount,
         )
     }
+
+    pub fn repay_obligation_liquidity(
+        ctx: Context<RepayObligationLiquidity>,
+        liquidity_amount: u64,
+    ) -> ProgramResult {
+        endpoints::repay_obligation_liquidity::handle(ctx, liquidity_amount)
+    }
 }

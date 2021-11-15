@@ -131,6 +131,14 @@ pub struct FeesCalculation {
     pub host_fee: u64,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct RepayCalculation {
+    /// Amount of liquidity that is settled from the obligation. TODO: explain
+    /// better
+    pub settle_amount: Decimal,
+    pub repay_amount: u64,
+}
+
 impl Validate for ReserveConfig {
     fn validate(&self) -> Result<()> {
         if *self.optimal_utilization_rate > 100 {
@@ -293,6 +301,20 @@ impl Reserve {
 
         Ok((borrow_amount, fees))
     }
+
+    pub fn calculate_repay(
+        &self,
+        repay_amount: u64,
+        borrowed_amount: Decimal,
+    ) -> Result<RepayCalculation> {
+        let settle_amount = Decimal::from(repay_amount).min(borrowed_amount);
+        let repay_amount = settle_amount.try_ceil_u64()?;
+
+        Ok(RepayCalculation {
+            settle_amount,
+            repay_amount,
+        })
+    }
 }
 
 impl ReserveLiquidity {
@@ -330,6 +352,24 @@ impl ReserveLiquidity {
             .available_amount
             .checked_sub(liquidity_amount)
             .ok_or(ErrorCode::MathOverflow)?;
+        Ok(())
+    }
+
+    /// Add repay amount to available liquidity and subtract settle amount from
+    /// total borrows.
+    pub fn repay(&mut self, repay_calc: RepayCalculation) -> ProgramResult {
+        let RepayCalculation {
+            repay_amount,
+            settle_amount,
+        } = repay_calc;
+
+        self.available_amount = self
+            .available_amount
+            .checked_add(repay_amount)
+            .ok_or(ErrorCode::MathOverflow)?;
+        self.borrowed_amount =
+            self.borrowed_amount.to_dec().try_sub(settle_amount)?.into();
+
         Ok(())
     }
 

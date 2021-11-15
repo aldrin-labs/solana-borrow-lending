@@ -149,6 +149,23 @@ impl Obligation {
             })
     }
 
+    pub fn get_liquidity(
+        &self,
+        key: Pubkey,
+    ) -> Option<(usize, &ObligationLiquidity)> {
+        self.reserves
+            .iter()
+            .enumerate()
+            .find_map(|(index, reserve)| match reserve {
+                ObligationReserve::Liquidity { ref inner }
+                    if inner.borrow_reserve == key =>
+                {
+                    Some((index, inner))
+                }
+                _ => None,
+            })
+    }
+
     pub fn deposit(
         &mut self,
         reserve_key: Pubkey,
@@ -225,6 +242,35 @@ impl Obligation {
         }
     }
 
+    /// Repay liquidity and remove it from borrows if zeroed out
+    pub fn repay(
+        &mut self,
+        settle_amount: Decimal,
+        liquidity_index: usize,
+    ) -> ProgramResult {
+        match &mut self.reserves[liquidity_index] {
+            ObligationReserve::Liquidity { inner: liquidity }
+                if liquidity.borrowed_amount.to_dec() == settle_amount =>
+            {
+                self.reserves[liquidity_index] = ObligationReserve::Empty;
+                Ok(())
+            }
+            ObligationReserve::Liquidity {
+                inner: mut liquidity,
+            } => {
+                liquidity.repay(settle_amount)?;
+                Ok(())
+            }
+            _ => {
+                msg!(
+                    "Expected a liquidity at index {}, aborting",
+                    liquidity_index
+                );
+                Err(ProgramError::InvalidArgument.into())
+            }
+        }
+    }
+
     /// Calculate the maximum liquidity value that can be borrowed
     pub fn remaining_borrow_value(&self) -> Result<Decimal> {
         self.allowed_borrow_value
@@ -270,9 +316,17 @@ impl ObligationLiquidity {
         Ok(())
     }
 
+    fn repay(&mut self, settle_amount: Decimal) -> Result<()> {
+        self.borrowed_amount =
+            self.borrowed_amount.to_dec().try_sub(settle_amount)?.into();
+
+        Ok(())
+    }
+
     fn borrow(&mut self, borrow_amount: Decimal) -> Result<()> {
         self.borrowed_amount =
             self.borrowed_amount.to_dec().try_add(borrow_amount)?.into();
+
         Ok(())
     }
 }
