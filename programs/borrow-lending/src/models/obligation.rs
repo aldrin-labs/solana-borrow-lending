@@ -247,6 +247,7 @@ impl ObligationLiquidity {
         }
     }
 
+    /// ref. eq. (6)
     pub fn accrue_interest(
         &mut self,
         cumulative_borrow_rate: Decimal,

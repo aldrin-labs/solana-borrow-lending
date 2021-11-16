@@ -31,27 +31,31 @@ build_and_test:
 
     - npm i
   script:
-    - ./test.sh
+    - ./bin/test.sh
 
 
-pages:
-  # We generate docs.rs style documentation for the codebase and publish it as
-  # gitlab pages for the repository. This only happens on merge to develop
-  # branch.
-  stage: pages
+# We generate docs.rs style documentation for the codebase and publish it as
+# gitlab pages for the repository.
+#
+# This runs automatically on develop branch, or can be manually triggered on
+# any other branch.
+.pages_job:
   image: "cimg/rust:${RUST_VERSION}-node"
+  cache:
+    key: pages-cache
+    paths:
+      - target
   artifacts:
     paths:
       - public
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "develop"'
   before_script:
     - wget "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
     - sudo dpkg -i "pandoc-${PANDOC_VERSION}-1-amd64.deb"
     - cargo install pandoc-katex
   script:
-    - cargo doc --lib --no-deps
+    - cargo doc --lib --no-deps --document-private-items
     - cp -r target/doc public
+    - cp -r docs public/docs
     # generates public index html file from README
     - node bin/prepareReadme.js |
       pandoc -t html --standalone --filter pandoc-katex
@@ -59,3 +63,22 @@ pages:
       --css https://pandoc.org/demo/pandoc.css
       --metadata title="Program borrow-lending"
       -o public/index.html
+
+# This job publishes pages to
+# https://crypto_project.gitlab.io/defi/borrow-lending
+pages_index:
+  extends: .pages_job
+  stage: pages
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+
+# This job creates artifacts which can be browsed as static website, but does
+# _not_ update https://crypto_project.gitlab.io/defi/borrow-lending
+pages_manual:
+  extends: .pages_job
+  stage: pages
+  when: manual
+  except:
+    - main
+    - develop
