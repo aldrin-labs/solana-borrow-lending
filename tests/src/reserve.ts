@@ -2,6 +2,7 @@ import {
   createProgramAccounts,
   numberToU192,
   PercentInt,
+  U192,
   waitForCommit,
 } from "./helpers";
 import { Program, BN } from "@project-serum/anchor";
@@ -44,9 +45,9 @@ export interface ReserveConfig {
     optimalBorrowRate: number;
     maxBorrowRate: number;
     fees: {
-      borrowFee: unknown;
-      hostFee: unknown;
-      flashLoanFee: unknown;
+      borrowFee: { u192: U192 };
+      hostFee: PercentInt;
+      flashLoanFee: { u192: U192 };
     };
   };
 }

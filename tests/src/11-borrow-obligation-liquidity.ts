@@ -5,7 +5,7 @@ import { expect } from "chai";
 import { LendingMarket } from "./lending-market";
 import { Reserve } from "./reserve";
 import { Obligation } from "./obligation";
-import { u192ToBN, waitForCommit } from "./helpers";
+import { CaptureStdoutAndStderr, u192ToBN, waitForCommit } from "./helpers";
 
 export function test(
   program: Program<BorrowLending>,
@@ -75,14 +75,129 @@ export function test(
       await waitForCommit();
     });
 
-    it("borrows liquidity with host fee");
-    it("cannot borrow more than allowed value of liquidity");
-    it("fails if borrower is not signed");
-    it("fails if borrower doesn't own obligation");
-    it("fails if obligation stale");
-    it("fails if reserve stale");
-    it("fails if obligation has no deposits");
-    it("fails if obligation's and reserve's lending markets mismatch");
+    beforeEach("assert enough assets to borrow", () => {
+      expect(sourceDogeLiquidity).to.be.greaterThan(0);
+    });
+
+    it("cannot borrow more than allowed value of liquidity", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        obligation.borrow(reserveDoge, 300, destinationDogeLiquidityWallet)
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain(
+        "cannot exceed maximum borrow value"
+      );
+    });
+
+    it("fails if borrower is not signed", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const sign = false;
+      const refresh = true;
+      await expect(
+        obligation.borrow(
+          reserveDoge,
+          10,
+          destinationDogeLiquidityWallet,
+          undefined,
+          refresh,
+          refresh,
+          sign
+        )
+      ).to.be.rejected;
+
+      stdCapture.restore();
+    });
+
+    it("fails if borrower doesn't own obligation", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const originalBorrower = obligation.borrower;
+      obligation.borrower = Keypair.generate();
+
+      await expect(
+        obligation.borrow(reserveDoge, 10, destinationDogeLiquidityWallet)
+      ).to.be.rejected;
+
+      obligation.borrower = originalBorrower;
+
+      expect(stdCapture.restore()).to.contain("owner is not allowed");
+    });
+
+    it("fails if reserve stale", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const refreshReserve = false;
+      await expect(
+        obligation.borrow(
+          reserveDoge,
+          10,
+          destinationDogeLiquidityWallet,
+          undefined,
+          refreshReserve
+        )
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.match(/Reserve .* is stale/);
+    });
+
+    it("fails if obligation stale", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const refreshReserve = true;
+      const refreshObligation = false;
+      await expect(
+        obligation.borrow(
+          reserveDoge,
+          10,
+          destinationDogeLiquidityWallet,
+          undefined,
+          refreshReserve,
+          refreshObligation
+        )
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain("ObligationStale");
+    });
+
+    it("fails if obligation has no deposits", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const emptyObligation = await market.addObligation();
+      await expect(
+        emptyObligation.borrow(reserveDoge, 10, destinationDogeLiquidityWallet)
+      ).to.be.rejected;
+
+      stdCapture.restore();
+    });
+
+    it("fails if obligation's and reserve's lending markets mismatch", async () => {
+      const differentMarket = await LendingMarket.init(
+        program,
+        owner,
+        shmemProgramId
+      );
+      const differentReserve = await differentMarket.addReserve(
+        10,
+        undefined,
+        "doge"
+      );
+      const differentDestination =
+        await differentReserve.accounts.liquidityMint.createAccount(
+          obligation.borrower.publicKey
+        );
+
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        obligation.borrow(differentReserve, 10, differentDestination)
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain("LendingMarketMismatch");
+    });
+
     it("fails if source liquidity doesn't match reserve's config");
     it("fails if source liquidity wallet matches destination");
     it("fails if fee recv doesn't match reserve's config");
@@ -128,6 +243,23 @@ export function test(
       expect(destinationDogeWalletInfo.amount.toNumber()).to.eq(
         borrowDogeLiquidity
       );
+    });
+
+    it("borrows liquidity with host fee", async () => {
+      const borrowDogeLiquidity = 100;
+      await obligation.borrow(
+        reserveDoge,
+        borrowDogeLiquidity,
+        destinationDogeLiquidityWallet,
+        hostFeeReceiver
+      );
+      sourceDogeLiquidity -= borrowDogeLiquidity;
+
+      const hostFeeReceiverInfo =
+        await reserveDoge.accounts.liquidityMint.getAccountInfo(
+          hostFeeReceiver
+        );
+      expect(hostFeeReceiverInfo.amount.toNumber()).to.eq(1);
     });
   });
 }
