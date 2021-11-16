@@ -44,17 +44,17 @@ build_and_test:
 # https://crypto_project.gitlab.io/defi/borrow-lending
 pages:
   stage: pages
+  image: "cimg/rust:${RUST_VERSION}-node"
   artifacts:
     paths:
       - public
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    - if: '$CI_COMMIT_BRANCH == "develop"'
-  image: "cimg/rust:${RUST_VERSION}-node"
-  cache:
-    key: pages-cache
-    paths:
-      - target
+  # rules:
+  #   - if: '$CI_COMMIT_BRANCH == "main"'
+  #   - if: '$CI_COMMIT_BRANCH == "develop"'
+  # cache:
+  #   key: pages-cache
+  #   paths:
+  #     - target
   before_script:
     - wget "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
     - sudo dpkg -i "pandoc-${PANDOC_VERSION}-1-amd64.deb"
