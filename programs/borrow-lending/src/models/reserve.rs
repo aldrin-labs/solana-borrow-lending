@@ -175,6 +175,10 @@ impl Validate for ReserveConfig {
 }
 
 impl Reserve {
+    pub fn is_stale(&self, clock: &Clock) -> bool {
+        self.last_update.is_stale(clock.slot).unwrap_or(true)
+    }
+
     /// Record deposited liquidity and return amount of collateral tokens to
     /// mint in exchange for it.
     pub fn deposit_liquidity(&mut self, liquidity_amount: u64) -> Result<u64> {

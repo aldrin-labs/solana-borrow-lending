@@ -101,10 +101,8 @@ the model
 
 [![Desmos borrow lending view](docs/borrow_rate_model.png)][desmos-borrow-rate]
 
-_Legend_
-- subscript `o` in the image means optimal while in this document we use
-    superscript `*`;
-- the x axis represents $`R_u`$.
+_Legend_: subscript `o` in the image means optimal while in this document we
+use superscript `*`; the x axis represents $`R_u`$.
 
 </details>
 
@@ -128,6 +126,10 @@ Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
 | $`R^*_b`$    | optimal borrow rate (configurable) |
 | $`R_{minb}`$ | minimum $`R_b`$ (configurable) |
 | $`R_{maxb}`$ | maximum $`R_b`$ (configurable) |
+| $`V_d`$      | UAC value of deposited collateral |
+| $`V_b`$      | UAC value of borrowed liquidity |
+| $`V_{maxw}`$ | maximum withdrawable UAC value |
+| $`V_{maxb}`$ | maximum borrowable UAC value (against deposited collateral) |
 
 ```math
 R_u = \dfrac{L_b}{L_s}
@@ -164,13 +166,19 @@ L^{'}_s = L_s R_i
 \tag{5}
 ```
 
-
 Eq. (6) describes how interest accrues on borrowed liquidity. $`R^{'}_c`$ is
 the latest cum. borrow rate at time of update while $`R_c`$ is the cum. borrow
 rate at time of last interest accrual.
 ```math
 L^{'}_o = \dfrac{R^{'}_c}{R_c} L_o
 \tag{6}
+```
+
+Maximum UAC value to withdraw from an obligation is given by a ratio of
+borrowed value to maximum allowed borrow value:
+```math
+V_{maxw} = V_d - \dfrac{V_b}{V_{maxb}} V_d
+\tag{7}
 ```
 
 ## Commands

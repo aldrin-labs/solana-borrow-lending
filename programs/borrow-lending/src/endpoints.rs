@@ -7,6 +7,7 @@ pub mod redeem_reserve_collateral;
 pub mod refresh_obligation;
 pub mod refresh_reserve;
 pub mod set_lending_market_owner;
+pub mod withdraw_obligation_collateral;
 
 pub use deposit_obligation_collateral::*;
 pub use deposit_reserve_liquidity::*;
@@ -17,3 +18,4 @@ pub use redeem_reserve_collateral::*;
 pub use refresh_obligation::*;
 pub use refresh_reserve::*;
 pub use set_lending_market_owner::*;
+pub use withdraw_obligation_collateral::*;
