@@ -39,22 +39,15 @@ build_and_test:
 #
 # This runs automatically on develop branch, or can be manually triggered on
 # any other branch.
-#
-# This job publishes pages to
-# https://crypto_project.gitlab.io/defi/borrow-lending
-pages:
-  stage: pages
+.pages_job:
   image: "cimg/rust:${RUST_VERSION}-node"
+  cache:
+    key: pages-cache
+    paths:
+      - target
   artifacts:
     paths:
       - public
-  # rules:
-  #   - if: '$CI_COMMIT_BRANCH == "main"'
-  #   - if: '$CI_COMMIT_BRANCH == "develop"'
-  # cache:
-  #   key: pages-cache
-  #   paths:
-  #     - target
   before_script:
     - wget "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
     - sudo dpkg -i "pandoc-${PANDOC_VERSION}-1-amd64.deb"
@@ -71,16 +64,21 @@ pages:
       --metadata title="Program borrow-lending"
       -o public/index.html
 
+# This job publishes pages to
+# https://crypto_project.gitlab.io/defi/borrow-lending
+pages:
+  extends: .pages_job
+  stage: pages
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
 
 # This job creates artifacts which can be browsed as static website, but does
 # _not_ update https://crypto_project.gitlab.io/defi/borrow-lending
-# pages_manual:
-#   extends: .pages_job
-#   stage: pages
-#   artifacts:
-#     paths:
-#       - public
-#   when: manual
-#   except:
-#     - main
-#     - develop
+pages_manual:
+  extends: .pages_job
+  stage: pages
+  when: manual
+  except:
+    - main
+    - develop
