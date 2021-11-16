@@ -23,7 +23,7 @@ export function test(
       market = await LendingMarket.init(program, owner, shmemProgramId);
     });
 
-    before("initialize obligation", async () => {
+    before("initialize reserve", async () => {
       reserve = await market.addReserve(50);
     });
 
@@ -31,22 +31,19 @@ export function test(
       obligation = await market.addObligation();
     });
 
-    before(
-      "gift reserve collateral to borrower and deposits it as collateral",
-      async () => {
-        const sourceCollateralWallet =
-          await reserve.createCollateralWalletWithCollateral(
-            obligation.borrower.publicKey,
-            sourceCollateralWalletAmount
-          );
-
-        await obligation.depositCollateral(
-          reserve,
-          sourceCollateralWallet,
+    before("gift reserve collateral to borrower and deposit it", async () => {
+      const sourceCollateralWallet =
+        await reserve.createCollateralWalletWithCollateral(
+          obligation.borrower.publicKey,
           sourceCollateralWalletAmount
         );
-      }
-    );
+
+      await obligation.depositCollateral(
+        reserve,
+        sourceCollateralWallet,
+        sourceCollateralWalletAmount
+      );
+    });
 
     beforeEach("create destination collateral wallet", async () => {
       destinationCollateralWallet =

@@ -10,8 +10,7 @@ pub struct BorrowObligationLiquidity<'info> {
         mut,
         constraint = borrower.key() == obligation.owner
             @ ProgramError::IllegalOwner,
-        constraint = !obligation.last_update.is_stale(clock.slot).unwrap_or(true)
-            @ err::obligation_stale(),
+        constraint = !obligation.is_stale(&clock) @ err::obligation_stale(),
         constraint = obligation.has_deposits()
             @ ErrorCode::ObligationDepositsZero,
         constraint = obligation.deposited_value.to_dec() != Decimal::zero()
@@ -22,8 +21,7 @@ pub struct BorrowObligationLiquidity<'info> {
         mut,
         constraint = reserve.lending_market == obligation.lending_market
             @ err::market_mismatch(),
-        constraint = !reserve.last_update.is_stale(clock.slot).unwrap_or(true)
-            @ err::reserve_stale(),
+        constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
     pub reserve: Box<Account<'info, Reserve>>,
     #[account(

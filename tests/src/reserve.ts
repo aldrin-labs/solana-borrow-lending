@@ -22,7 +22,10 @@ import {
   AccountLayout,
 } from "@solana/spl-token";
 import {
-  oraclePriceBinBinByteLen,
+  OracleMarket,
+  oraclePriceBin,
+  oraclePriceBinByteLen,
+  oracleProductBin,
   oracleProductBinByteLen,
   setOraclePriceSlot,
   uploadOraclePrice,
@@ -51,7 +54,8 @@ export interface ReserveConfig {
 export class ReserveBuilder {
   private constructor(
     public market: LendingMarket,
-    public accounts: InitReserveAccounts
+    public accounts: InitReserveAccounts,
+    public oracleMarket: OracleMarket
   ) {
     //
   }
@@ -62,12 +66,14 @@ export class ReserveBuilder {
   public static async new(
     market: LendingMarket,
     oracleProgram: PublicKey,
-    owner: Keypair
+    owner: Keypair,
+    oracleMarket: OracleMarket = "srm"
   ) {
     const accounts = await createReserveAccounts(
       market.connection,
       oracleProgram,
-      owner
+      owner,
+      oracleMarket
     );
     await waitForCommit();
 
@@ -76,18 +82,20 @@ export class ReserveBuilder {
       oracleProgram,
       owner,
       accounts.oracleProduct.publicKey,
-      accounts.oraclePrice.publicKey
+      accounts.oraclePrice.publicKey,
+      oracleProductBin(oracleMarket)
     );
     await uploadOraclePrice(
       market.connection,
       oracleProgram,
       owner,
       accounts.oraclePrice.publicKey,
-      (await market.connection.getSlot()) + 2 // go bit into future so that finalize can be called within next ~second
+      (await market.connection.getSlot()) + 2, // go bit into future so that finalize can be called within next ~second
+      oraclePriceBin(oracleMarket)
     );
     await waitForCommit();
 
-    return new ReserveBuilder(market, accounts);
+    return new ReserveBuilder(market, accounts, oracleMarket);
   }
 
   /**
@@ -102,7 +110,8 @@ export class ReserveBuilder {
       this.market.owner,
       this.accounts,
       liquidityAmount,
-      config
+      config,
+      this.oracleMarket
     );
   }
 }
@@ -115,7 +124,8 @@ export class Reserve {
   private constructor(
     public market: LendingMarket,
     public owner: Keypair,
-    public accounts: InitReserveAccounts
+    public accounts: InitReserveAccounts,
+    public oracleMarket: OracleMarket
   ) {
     //
   }
@@ -125,7 +135,8 @@ export class Reserve {
     owner: Keypair,
     accounts: InitReserveAccounts,
     liquidityAmount: number,
-    config: ReserveConfig = Reserve.defaultConfig()
+    config: ReserveConfig = Reserve.defaultConfig(),
+    oracleMarket: OracleMarket = "srm"
   ): Promise<Reserve> {
     await rpcInitReserve(
       market.program,
@@ -136,7 +147,7 @@ export class Reserve {
       config
     );
 
-    return new Reserve(market, owner, accounts);
+    return new Reserve(market, owner, accounts, oracleMarket);
   }
 
   public static defaultConfig(): ReserveConfig {
@@ -304,7 +315,8 @@ export interface DepositReserveLiquidityAccounts {
 async function createReserveAccounts(
   connection: Connection,
   shmemProgramId: PublicKey,
-  owner: Keypair
+  owner: Keypair,
+  oracleMarket?: OracleMarket
 ): Promise<InitReserveAccounts> {
   const reserve = Keypair.generate();
   const oracleProduct = Keypair.generate();
@@ -331,13 +343,13 @@ async function createReserveAccounts(
     sourceLiquidityWallet,
     liquidityMintAuthority,
     [],
-    100
+    10000
   );
 
   // prepare empty oracle stub accounts
   await createProgramAccounts(connection, shmemProgramId, owner, [
-    { keypair: oracleProduct, space: oracleProductBinByteLen },
-    { keypair: oraclePrice, space: oraclePriceBinBinByteLen },
+    { keypair: oracleProduct, space: oracleProductBinByteLen(oracleMarket) },
+    { keypair: oraclePrice, space: oraclePriceBinByteLen(oracleMarket) },
   ]);
 
   // prepare empty token accounts and mint account
