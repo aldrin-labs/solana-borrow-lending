@@ -140,7 +140,7 @@ fn get_reserve<'a>(
     })?;
 
     if reserve.last_update.is_stale(slot).unwrap_or(true) {
-        msg!("Reserve '{}' is stale, please refresh it first");
+        msg!("Reserve '{}' is stale, please refresh it first", key);
         return Err(ErrorCode::ReserveStale.into());
     }
 

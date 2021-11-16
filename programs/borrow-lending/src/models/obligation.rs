@@ -70,6 +70,80 @@ impl Default for Obligation {
 }
 
 impl Obligation {
+    pub fn is_stale(&self, clock: &Clock) -> bool {
+        self.last_update.is_stale(clock.slot).unwrap_or(true)
+    }
+
+    /// Withdraw collateral and remove it from deposits if zeroed out
+    pub fn withdraw(
+        &mut self,
+        withdraw_amount: u64,
+        collateral_index: usize,
+    ) -> Result<()> {
+        match &mut self.reserves[collateral_index] {
+            ObligationReserve::Collateral { inner: collateral }
+                if collateral.deposited_amount == withdraw_amount =>
+            {
+                self.reserves[collateral_index] = ObligationReserve::Empty;
+                Ok(())
+            }
+            ObligationReserve::Collateral {
+                inner: ref mut collateral,
+            } => {
+                collateral.withdraw(withdraw_amount)?;
+                Ok(())
+            }
+            _ => {
+                msg!(
+                    "Expected a collateral at index {}, aborting",
+                    collateral_index
+                );
+                Err(ProgramError::InvalidArgument.into())
+            }
+        }
+    }
+
+    pub fn has_borrows(&self) -> bool {
+        self.reserves
+            .iter()
+            .find(|reserve| {
+                matches!(reserve, ObligationReserve::Liquidity { inner: _ })
+            })
+            .is_some()
+    }
+
+    // ref. eq. (7)
+    pub fn max_withdraw_value(&self) -> Result<Decimal> {
+        let required_deposit_value = self
+            .borrowed_value
+            .to_dec()
+            .try_mul(self.deposited_value.to_dec())?
+            .try_div(self.allowed_borrow_value.to_dec())?;
+        if required_deposit_value >= self.deposited_value.into() {
+            return Ok(Decimal::zero());
+        }
+        self.deposited_value
+            .to_dec()
+            .try_sub(required_deposit_value)
+    }
+
+    pub fn get_collateral(
+        &self,
+        key: Pubkey,
+    ) -> Option<(usize, &ObligationCollateral)> {
+        self.reserves
+            .iter()
+            .enumerate()
+            .find_map(|(index, reserve)| match reserve {
+                ObligationReserve::Collateral { ref inner }
+                    if inner.deposit_reserve == key =>
+                {
+                    Some((index, inner))
+                }
+                _ => None,
+            })
+    }
+
     pub fn deposit(
         &mut self,
         reserve_key: Pubkey,
@@ -154,6 +228,14 @@ impl ObligationCollateral {
             .checked_add(collateral_amount)
             .ok_or(ErrorCode::MathOverflow)?;
 
+        Ok(())
+    }
+
+    fn withdraw(&mut self, collateral_amount: u64) -> Result<()> {
+        self.deposited_amount = self
+            .deposited_amount
+            .checked_sub(collateral_amount)
+            .ok_or(ErrorCode::MathOverflow)?;
         Ok(())
     }
 }
