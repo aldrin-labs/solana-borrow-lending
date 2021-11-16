@@ -107,7 +107,7 @@ impl Obligation {
         self.reserves
             .iter()
             .find(|reserve| {
-                matches!(reserve, ObligationReserve::Liquidity { inner: _ })
+                matches!(reserve, ObligationReserve::Liquidity { .. })
             })
             .is_some()
     }
@@ -116,7 +116,7 @@ impl Obligation {
         self.reserves
             .iter()
             .find(|reserve| {
-                matches!(reserve, ObligationReserve::Collateral { inner: _ })
+                matches!(reserve, ObligationReserve::Collateral { .. })
             })
             .is_some()
     }
