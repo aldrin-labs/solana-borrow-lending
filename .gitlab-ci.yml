@@ -75,13 +75,13 @@ pages:
 
 # This job creates artifacts which can be browsed as static website, but does
 # _not_ update https://crypto_project.gitlab.io/defi/borrow-lending
-pages_manual:
-  extends: .pages_job
-  stage: pages
-  artifacts:
-    paths:
-      - public
-  when: manual
-  except:
-    - main
-    - develop
+# pages_manual:
+#   extends: .pages_job
+#   stage: pages
+#   artifacts:
+#     paths:
+#       - public
+#   when: manual
+#   except:
+#     - main
+#     - develop
