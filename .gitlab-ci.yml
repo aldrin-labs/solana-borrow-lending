@@ -45,9 +45,6 @@ build_and_test:
     key: pages-cache
     paths:
       - target
-  artifacts:
-    paths:
-      - public
   before_script:
     - wget "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
     - sudo dpkg -i "pandoc-${PANDOC_VERSION}-1-amd64.deb"
@@ -69,6 +66,9 @@ build_and_test:
 pages:
   extends: .pages_job
   stage: pages
+  artifacts:
+    paths:
+      - public
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_COMMIT_BRANCH == "develop"'
@@ -78,6 +78,9 @@ pages:
 pages_manual:
   extends: .pages_job
   stage: pages
+  artifacts:
+    paths:
+      - public
   when: manual
   except:
     - main
