@@ -70,6 +70,10 @@ impl Default for Obligation {
 }
 
 impl Obligation {
+    pub fn is_stale(&self, clock: &Clock) -> bool {
+        self.last_update.is_stale(clock.slot).unwrap_or(true)
+    }
+
     /// Withdraw collateral and remove it from deposits if zeroed out
     pub fn withdraw(
         &mut self,
@@ -84,7 +88,7 @@ impl Obligation {
                 Ok(())
             }
             ObligationReserve::Collateral {
-                inner: mut collateral,
+                inner: ref mut collateral,
             } => {
                 collateral.withdraw(withdraw_amount)?;
                 Ok(())

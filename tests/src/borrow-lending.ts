@@ -3,20 +3,21 @@ import chai from "chai";
 
 chai.use(chaiAsPromised);
 
+import { readFile } from "fs/promises";
 import { Keypair, BPF_LOADER_PROGRAM_ID, BpfLoader } from "@solana/web3.js";
 import * as anchor from "@project-serum/anchor";
 import { Program } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
-import { test as testInitLendingMarket } from "./init-lending-market";
-import { test as testSetLendingMarketOwner } from "./set-lending-market-owner";
-import { test as testInitReserve } from "./init-reserve";
-import { test as testRefreshReserve } from "./refresh-reserve";
-import { test as testDepositReserveLiquidity } from "./deposit-reserve-liquidity";
-import { test as testRedeemReserveCollateral } from "./redeem-reserve-collateral";
-import { test as testInitObligation } from "./init-obligation";
-import { test as testRefreshObligation } from "./refresh-obligation";
-import { test as testDepositObligationCollateral } from "./deposit-obligation-collateral";
-import { readFile } from "fs/promises";
+import { test as testInitLendingMarket } from "./1-init-lending-market";
+import { test as testSetLendingMarketOwner } from "./2-set-lending-market-owner";
+import { test as testInitReserve } from "./3-init-reserve";
+import { test as testRefreshReserve } from "./4-refresh-reserve";
+import { test as testDepositReserveLiquidity } from "./5-deposit-reserve-liquidity";
+import { test as testRedeemReserveCollateral } from "./6-redeem-reserve-collateral";
+import { test as testInitObligation } from "./7-init-obligation";
+import { test as testRefreshObligation } from "./8-refresh-obligation";
+import { test as testDepositObligationCollateral } from "./9-deposit-obligation-collateral";
+import { test as testWithdrawObligationCollateral } from "./10-withdraw-obligation-collateral";
 
 describe("borrow-lending", () => {
   const provider = anchor.Provider.local();
@@ -63,16 +64,12 @@ describe("borrow-lending", () => {
 
   testInitLendingMarket(program);
   testSetLendingMarketOwner(program);
-  testInitReserve(program, provider, payer, shmemProgram.publicKey);
-  testRefreshReserve(program, provider, payer, shmemProgram.publicKey);
-  testDepositReserveLiquidity(program, provider, payer, shmemProgram.publicKey);
-  testRedeemReserveCollateral(program, provider, payer, shmemProgram.publicKey);
+  testInitReserve(program, payer, shmemProgram.publicKey);
+  testRefreshReserve(program, payer, shmemProgram.publicKey);
+  testDepositReserveLiquidity(program, payer, shmemProgram.publicKey);
+  testRedeemReserveCollateral(program, payer, shmemProgram.publicKey);
   testInitObligation(program, payer, shmemProgram.publicKey);
-  testRefreshObligation(program, provider, payer, shmemProgram.publicKey);
-  testDepositObligationCollateral(
-    program,
-    provider,
-    payer,
-    shmemProgram.publicKey
-  );
+  testRefreshObligation(program, payer, shmemProgram.publicKey);
+  testDepositObligationCollateral(program, payer, shmemProgram.publicKey);
+  testWithdrawObligationCollateral(program, payer, shmemProgram.publicKey);
 });
