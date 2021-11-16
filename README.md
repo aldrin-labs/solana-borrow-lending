@@ -177,7 +177,7 @@ L^{'}_o = \dfrac{R^{'}_c}{R_c} L_o
 Maximum UAC value to withdraw from an obligation is given by a ratio of
 borrowed value to maximum allowed borrow value:
 ```math
-V_{maxw} = V_d - \dfract{V_b}{V_{maxb}} V_d
+V_{maxw} = V_d - \dfrac{V_b}{V_{maxb}} V_d
 \tag{7}
 ```
 
