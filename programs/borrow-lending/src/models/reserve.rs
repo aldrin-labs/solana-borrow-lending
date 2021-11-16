@@ -69,7 +69,8 @@ pub struct ReserveFees {
     /// Fee for flash loan, expressed as a Wad.
     /// 0.3% (Aave flash loan fee) = 3_000_000_000_000_000
     pub flash_loan_fee: SDecimal,
-    /// Amount of fee going to host account, if provided in liquidate and repay
+    /// Amount of fee going to host account, if provided in liquidate and
+    /// repay.
     pub host_fee: PercentageInt,
 }
 
