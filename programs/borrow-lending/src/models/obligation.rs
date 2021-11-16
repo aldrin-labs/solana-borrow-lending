@@ -88,7 +88,7 @@ impl Obligation {
                 Ok(())
             }
             ObligationReserve::Collateral {
-                inner: mut collateral,
+                inner: ref mut collateral,
             } => {
                 collateral.withdraw(withdraw_amount)?;
                 Ok(())

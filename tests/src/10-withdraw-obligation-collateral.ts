@@ -17,7 +17,6 @@ export function test(
     let market: LendingMarket,
       obligation: Obligation,
       reserve: Reserve,
-      sourceCollateralWallet: PublicKey,
       destinationCollateralWallet: PublicKey;
 
     before("initialize lending market", async () => {
@@ -32,13 +31,22 @@ export function test(
       obligation = await market.addObligation();
     });
 
-    before("gift reserve collateral to borrower", async () => {
-      sourceCollateralWallet =
-        await reserve.createCollateralWalletWithCollateral(
-          obligation.borrower.publicKey,
+    before(
+      "gift reserve collateral to borrower and deposits it as collateral",
+      async () => {
+        const sourceCollateralWallet =
+          await reserve.createCollateralWalletWithCollateral(
+            obligation.borrower.publicKey,
+            sourceCollateralWalletAmount
+          );
+
+        await obligation.depositCollateral(
+          reserve,
+          sourceCollateralWallet,
           sourceCollateralWalletAmount
         );
-    });
+      }
+    );
 
     beforeEach("create destination collateral wallet", async () => {
       destinationCollateralWallet =
@@ -54,8 +62,14 @@ export function test(
     it("fails if no deposited collateral", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
+      const emptyObligation = await market.addObligation();
+
       await expect(
-        obligation.withdrawCollateral(reserve, destinationCollateralWallet, 10)
+        emptyObligation.withdrawCollateral(
+          reserve,
+          destinationCollateralWallet,
+          10
+        )
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain(
@@ -63,15 +77,189 @@ export function test(
       );
     });
 
-    it("fails if instruction isn't signed");
-    it("fails if obligation is stale");
-    it("fails if reserve is stale");
-    it("fails if reserve's market doesn't match obligation's market");
-    it("fails if source collateral wallet doesn't match reserve's config");
-    it("fails if destination collateral wallet equals the source one");
-    it("cannot withdraw zero collateral");
-    it("withdraws half of collateral");
-    it("withdraws all collateral");
+    it("fails if instruction isn't signed", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const sign = false;
+      await expect(
+        obligation.withdrawCollateral(
+          reserve,
+          destinationCollateralWallet,
+          10,
+          true,
+          true,
+          sign
+        )
+      ).to.be.rejected;
+
+      stdCapture.restore();
+    });
+
+    it("fails if obligation is stale", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const refreshObligation = false;
+      await expect(
+        obligation.withdrawCollateral(
+          reserve,
+          destinationCollateralWallet,
+          10,
+          true,
+          refreshObligation
+        )
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain("ObligationStale");
+    });
+
+    it("fails if reserve is stale", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const refreshReserve = false;
+      await expect(
+        obligation.withdrawCollateral(
+          reserve,
+          destinationCollateralWallet,
+          10,
+          refreshReserve
+        )
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain("stale, please refresh");
+    });
+
+    it("fails if reserve's market doesn't match obligation's market", async () => {
+      const differentMarket = await LendingMarket.init(
+        program,
+        owner,
+        shmemProgramId
+      );
+      const differentObligation = await differentMarket.addObligation();
+
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        differentObligation.withdrawCollateral(
+          reserve,
+          destinationCollateralWallet,
+          10
+        )
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain("LendingMarketMismatch");
+    });
+
+    it("fails if source collateral wallet doesn't match reserve's config", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const originalSourceCollateralWallet =
+        reserve.accounts.reserveCollateralWallet;
+      reserve.accounts.reserveCollateralWallet = Keypair.generate();
+
+      await expect(
+        obligation.withdrawCollateral(reserve, destinationCollateralWallet, 10)
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain(
+        "[InvalidAccountInput] Source col. wallet must eq. reserve's col. supply"
+      );
+
+      reserve.accounts.reserveCollateralWallet = originalSourceCollateralWallet;
+    });
+
+    it("fails if destination collateral wallet equals the source one", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        obligation.withdrawCollateral(
+          reserve,
+          reserve.accounts.reserveCollateralWallet.publicKey,
+          10
+        )
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain(
+        "[InvalidAccountInput] Dest. col. wallet mustn't eq. reserve's col. supply"
+      );
+    });
+
+    it("cannot withdraw zero collateral", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        obligation.withdrawCollateral(reserve, destinationCollateralWallet, 0)
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain(
+        "Collateral amount provided cannot be zero"
+      );
+    });
+
+    it("withdraws half of collateral", async () => {
+      await obligation.withdrawCollateral(
+        reserve,
+        destinationCollateralWallet,
+        sourceCollateralWalletAmount / 2
+      );
+      sourceCollateralWalletAmount /= 2;
+
+      const obligationInfo = await obligation.fetch();
+      expect(obligationInfo.lastUpdate.stale).to.be.true;
+      const obligationInfoReserve = (obligationInfo.reserves as any[]).shift()
+        .collateral.inner;
+      expect(obligationInfoReserve.depositReserve).to.deep.eq(reserve.id);
+      expect(obligationInfoReserve.depositedAmount.toNumber()).to.eq(
+        sourceCollateralWalletAmount
+      );
+
+      const destinationCollateralWalletInfo =
+        await reserve.accounts.reserveCollateralMint.getAccountInfo(
+          destinationCollateralWallet
+        );
+      expect(destinationCollateralWalletInfo.amount.toNumber()).to.eq(
+        sourceCollateralWalletAmount
+      );
+
+      const reserveCollateralWalletInfo =
+        await reserve.accounts.reserveCollateralMint.getAccountInfo(
+          reserve.accounts.reserveCollateralWallet.publicKey
+        );
+      expect(reserveCollateralWalletInfo.amount.toNumber()).to.eq(
+        sourceCollateralWalletAmount
+      );
+    });
+
+    it("withdraws all collateral", async () => {
+      await obligation.withdrawCollateral(
+        reserve,
+        destinationCollateralWallet,
+        sourceCollateralWalletAmount * 10 // should withdraw at most what's in the account
+      );
+      const withdrawnAmount = sourceCollateralWalletAmount;
+      sourceCollateralWalletAmount = 0;
+
+      const obligationInfo = await obligation.fetch();
+      expect(obligationInfo.lastUpdate.stale).to.be.true;
+      expect(obligationInfo.reserves).to.deep.eq(
+        new Array(10).fill(undefined).map(() => ({ empty: {} }))
+      );
+
+      const destinationCollateralWalletInfo =
+        await reserve.accounts.reserveCollateralMint.getAccountInfo(
+          destinationCollateralWallet
+        );
+      expect(destinationCollateralWalletInfo.amount.toNumber()).to.eq(
+        withdrawnAmount
+      );
+
+      const reserveCollateralWalletInfo =
+        await reserve.accounts.reserveCollateralMint.getAccountInfo(
+          reserve.accounts.reserveCollateralWallet.publicKey
+        );
+      expect(reserveCollateralWalletInfo.amount.toNumber()).to.eq(
+        sourceCollateralWalletAmount
+      );
+    });
 
     // TODO: these tests can be added only when borrowing is implemented
     it("cannot withdraw collateral if borrowed lots of assets");
