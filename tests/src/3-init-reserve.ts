@@ -44,9 +44,33 @@ export function test(
       expect(stdCapture.restore()).to.contain("must be in range [0, 100]");
     });
 
-    it("fails if oracle product's price pubkey doesn't match price account");
+    it("fails if oracle product's price doesn't match price account", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
 
-    it("fails if oracle currency doesn't match lending market currency");
+      const someReserve = await market.addReserve(10);
+
+      const builder = await ReserveBuilder.new(market, shmemProgramId, owner);
+      builder.accounts.oraclePrice = someReserve.accounts.oraclePrice;
+      await expect(builder.build(10)).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain(
+        "product price account does not match"
+      );
+    });
+
+    it("fails if oracle currency doesn't match lending market currency", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const differentMarket = await LendingMarket.init(
+        program,
+        owner,
+        shmemProgramId,
+        Keypair.generate().publicKey
+      );
+      await expect(differentMarket.addReserve(10)).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain("currency does not match");
+    });
 
     it("fails if oracle price last updated slot is too far behind", async () => {
       const stdCapture = new CaptureStdoutAndStderr();

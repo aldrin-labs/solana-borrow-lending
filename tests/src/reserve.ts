@@ -154,9 +154,9 @@ export class Reserve {
     return {
       conf: {
         optimalUtilizationRate: { percent: 50 },
-        loanToValueRatio: { percent: 5 },
+        loanToValueRatio: { percent: 90 },
         liquidationBonus: { percent: 2 },
-        liquidationThreshold: { percent: 10 },
+        liquidationThreshold: { percent: 96 },
         minBorrowRate: 1,
         optimalBorrowRate: 5,
         maxBorrowRate: 10,

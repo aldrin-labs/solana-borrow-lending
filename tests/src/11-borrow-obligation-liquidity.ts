@@ -5,6 +5,7 @@ import { expect } from "chai";
 import { LendingMarket } from "./lending-market";
 import { Reserve } from "./reserve";
 import { Obligation } from "./obligation";
+import { u192ToBN, waitForCommit } from "./helpers";
 
 export function test(
   program: Program<BorrowLending>,
@@ -12,14 +13,13 @@ export function test(
   shmemProgramId: PublicKey
 ) {
   describe("borrow_obligation_liquidity", () => {
+    let sourceDogeLiquidity = 500;
     let depositedSrmCollateralAmount = 50;
     let market: LendingMarket,
       obligation: Obligation,
       reserveSrm: Reserve,
       reserveDoge: Reserve,
-      destinationSrmCollateralWallet: PublicKey,
       destinationDogeLiquidityWallet: PublicKey,
-      feeReceiver: PublicKey,
       hostFeeReceiver: PublicKey;
 
     before("initialize lending market", async () => {
@@ -28,7 +28,11 @@ export function test(
 
     before("initialize reserves", async () => {
       reserveSrm = await market.addReserve(50, undefined, "srm");
-      reserveDoge = await market.addReserve(500, undefined, "doge");
+      reserveDoge = await market.addReserve(
+        sourceDogeLiquidity,
+        undefined,
+        "doge"
+      );
     });
 
     before("initialize obligation", async () => {
@@ -52,53 +56,77 @@ export function test(
       }
     );
 
-    beforeEach("create destination collateral wallet", async () => {
-      destinationSrmCollateralWallet =
-        await reserveSrm.accounts.reserveCollateralMint.createAccount(
-          obligation.borrower.publicKey
-        );
-    });
-
     beforeEach("create destination liquidity wallet", async () => {
       destinationDogeLiquidityWallet =
-        await reserveDoge.accounts.reserveCollateralMint.createAccount(
+        await reserveDoge.accounts.liquidityMint.createAccount(
           obligation.borrower.publicKey
         );
     });
 
-    beforeEach("create fee receivers", async () => {
-      feeReceiver = await reserveDoge.accounts.liquidityMint.createAccount(
-        obligation.borrower.publicKey
-      );
-
+    beforeEach("create host fee receiver", async () => {
       hostFeeReceiver = await reserveDoge.accounts.liquidityMint.createAccount(
         obligation.borrower.publicKey
       );
     });
 
     beforeEach("refresh oracle slot validity", async () => {
-      await reserveSrm.refreshOraclePrice(10);
-      await reserveDoge.refreshOraclePrice(10);
+      await reserveSrm.refreshOraclePrice(15);
+      await reserveDoge.refreshOraclePrice(15);
+      await waitForCommit();
     });
 
-    it.only("borrows liquidity without host fee", async () => {
+    it("borrows liquidity with host fee");
+    it("cannot borrow more than allowed value of liquidity");
+    it("fails if borrower is not signed");
+    it("fails if borrower doesn't own obligation");
+    it("fails if obligation stale");
+    it("fails if reserve stale");
+    it("fails if obligation has no deposits");
+    it("fails if obligation's and reserve's lending markets mismatch");
+    it("fails if source liquidity doesn't match reserve's config");
+    it("fails if source liquidity wallet matches destination");
+    it("fails if fee recv doesn't match reserve's config");
+    it("depends on loan to value ration for maximum borrow value");
+
+    it("borrows liquidity without host fee", async () => {
+      const borrowDogeLiquidity = 100;
       await obligation.borrow(
         reserveDoge,
-        100,
-        destinationDogeLiquidityWallet,
-        feeReceiver
+        borrowDogeLiquidity,
+        destinationDogeLiquidityWallet
       );
+      sourceDogeLiquidity -= borrowDogeLiquidity;
 
-      console.log(await obligation.fetch());
-      console.log(
+      const obligationInfo = await obligation.fetch();
+      expect(obligationInfo.lastUpdate.stale).to.eq(true);
+      expect(u192ToBN(obligationInfo.depositedValue).toString()).to.eq(
+        "73825000000000000000"
+      );
+      // this gets updated on next refresh
+      expect(u192ToBN(obligationInfo.borrowedValue).toNumber()).to.eq(0);
+
+      expect(obligationInfo.reserves[0])
+        .to.have.property("collateral")
+        .which.has.property("inner");
+      expect(obligationInfo.reserves[1])
+        .to.have.property("liquidity")
+        .which.has.property("inner");
+      const obligationLiquidityInfo =
+        obligationInfo.reserves[1].liquidity.inner;
+      expect(obligationLiquidityInfo.borrowReserve).to.deep.eq(reserveDoge.id);
+      expect(u192ToBN(obligationLiquidityInfo.borrowedAmount).toString()).to.eq(
+        "102000000000000000000"
+      );
+      expect(
+        u192ToBN(obligationLiquidityInfo.cumulativeBorrowRate).toString()
+      ).to.eq("1000000000000000000");
+
+      const destinationDogeWalletInfo =
         await reserveDoge.accounts.liquidityMint.getAccountInfo(
           destinationDogeLiquidityWallet
-        )
-      );
-      console.log(
-        await reserveDoge.accounts.liquidityMint.getAccountInfo(
-          reserveDoge.accounts.sourceLiquidityWallet
-        )
+        );
+      expect(destinationDogeWalletInfo.amount.toNumber()).to.eq(
+        borrowDogeLiquidity
       );
     });
   });

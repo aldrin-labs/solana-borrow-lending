@@ -50,9 +50,7 @@ export class Obligation {
     return this.market.program.account.obligation.fetch(this.id);
   }
 
-  public async refresh(
-    reserves: Reserve[] = Array.from(this.reservesToRefresh)
-  ) {
+  public async refresh(reserves?: Reserve[]) {
     await this.market.program.provider.send(
       new Transaction().add(this.refreshInstruction(reserves))
     );
@@ -112,10 +110,11 @@ export class Obligation {
     sign: boolean = true
   ) {
     const instructions = [];
+    if (refreshReserve) {
+      instructions.push(...this.refreshReservesInstructions());
+    }
     if (refreshObligation) {
       instructions.push(this.refreshInstruction());
-    } else if (refreshReserve) {
-      instructions.push(reserve.refreshInstruction());
     }
 
     await this.market.program.rpc.withdrawObligationCollateral(
@@ -143,7 +142,6 @@ export class Obligation {
     reserve: Reserve,
     liquidityAmount: number,
     destinationLiquidityWallet: PublicKey,
-    feeReceiver: PublicKey,
     hostFeeReceiver?: PublicKey,
     refreshReserve: boolean = true,
     refreshObligation: boolean = true,
@@ -151,21 +149,13 @@ export class Obligation {
   ) {
     this.reservesToRefresh.add(reserve);
 
-
-    // TODO: this doesn't work
     const instructions = [];
+    if (refreshReserve) {
+      instructions.push(...this.refreshReservesInstructions());
+    }
     if (refreshObligation) {
       instructions.push(this.refreshInstruction());
     }
-     if (refreshReserve) {
-      instructions.push(
-        Array.from(this.reservesToRefresh).map((reserve) =>
-          reserve.refreshInstruction()
-        )
-      );
-    }
-
-    console.log(instructions)
 
     await this.market.program.rpc.borrowObligationLiquidity(
       this.market.bumpSeed,
@@ -176,7 +166,7 @@ export class Obligation {
           reserve: reserve.id,
           obligation: this.id,
           lendingMarketPda: this.market.pda,
-          feeReceiver,
+          feeReceiver: reserve.accounts.reserveLiquidityFeeRecvWallet.publicKey,
           sourceLiquidityWallet:
             reserve.accounts.reserveLiquidityWallet.publicKey,
           destinationLiquidityWallet,
@@ -195,6 +185,12 @@ export class Obligation {
             ]
           : [],
       }
+    );
+  }
+
+  private refreshReservesInstructions(): TransactionInstruction[] {
+    return Array.from(this.reservesToRefresh).map((reserve) =>
+      reserve.refreshInstruction()
     );
   }
 }

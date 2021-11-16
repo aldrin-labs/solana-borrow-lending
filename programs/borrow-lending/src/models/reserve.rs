@@ -5,6 +5,7 @@ use std::convert::{TryFrom, TryInto};
 /// account where the tokens that borrowers will want to borrow and funders will
 /// want to lent are.
 #[account]
+#[derive(Debug)]
 pub struct Reserve {
     pub lending_market: Pubkey,
     /// Last slot when rates were updated. Helps us ensure that we're working
@@ -43,7 +44,7 @@ pub struct ReserveConfig {
 
 /// Unvalidated config wrapper type. Use [`InputReserveConfig::validate`] to
 /// access the inner value.
-#[derive(AnchorSerialize, AnchorDeserialize)]
+#[derive(AnchorSerialize, AnchorDeserialize, Debug)]
 pub struct InputReserveConfig {
     conf: ReserveConfig,
 }
@@ -292,7 +293,11 @@ impl Reserve {
             .try_mul(self.liquidity.market_price.to_dec())?
             .try_div(decimals)?;
         if borrow_value > max_borrow_value {
-            msg!("Borrow value cannot exceed maximum borrow value");
+            msg!(
+                "Borrow value ({}) cannot exceed maximum borrow value ({})",
+                borrow_value,
+                max_borrow_value
+            );
             return Err(ErrorCode::BorrowTooLarge.into());
         }
 

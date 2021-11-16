@@ -61,6 +61,7 @@ export function test(
 
       const emptyObligation = await market.addObligation();
 
+      emptyObligation.reservesToRefresh.add(reserve);
       await expect(
         emptyObligation.withdrawCollateral(
           reserve,
@@ -122,7 +123,7 @@ export function test(
         )
       ).to.be.rejected;
 
-      expect(stdCapture.restore()).to.contain("stale, please refresh");
+      expect(stdCapture.restore()).to.contain("is stale");
     });
 
     it("fails if reserve's market doesn't match obligation's market", async () => {
