@@ -147,14 +147,20 @@ export class Obligation {
     refreshObligation: boolean = true,
     sign: boolean = true
   ) {
-    this.reservesToRefresh.add(reserve);
-
     const instructions = [];
     if (refreshReserve) {
-      instructions.push(...this.refreshReservesInstructions());
+      instructions.push(
+        reserve.refreshInstruction(),
+        ...this.refreshReservesInstructions()
+      );
     }
     if (refreshObligation) {
-      instructions.push(this.refreshInstruction());
+      instructions.push(
+        this.refreshInstruction([
+          reserve,
+          ...Array.from(this.reservesToRefresh),
+        ])
+      );
     }
 
     await this.market.program.rpc.borrowObligationLiquidity(
@@ -186,6 +192,8 @@ export class Obligation {
           : [],
       }
     );
+
+    this.reservesToRefresh.add(reserve);
   }
 
   private refreshReservesInstructions(): TransactionInstruction[] {

@@ -69,14 +69,14 @@ export function test(
       );
     });
 
-    beforeEach("refresh oracle slot validity", async () => {
-      await reserveSrm.refreshOraclePrice(15);
-      await reserveDoge.refreshOraclePrice(15);
-      await waitForCommit();
-    });
-
     beforeEach("assert enough assets to borrow", () => {
       expect(sourceDogeLiquidity).to.be.greaterThan(0);
+    });
+
+    beforeEach("refresh oracle slot validity", async () => {
+      await reserveDoge.refreshOraclePrice(15);
+      await reserveSrm.refreshOraclePrice(15);
+      await waitForCommit();
     });
 
     it("cannot borrow more than allowed value of liquidity", async () => {

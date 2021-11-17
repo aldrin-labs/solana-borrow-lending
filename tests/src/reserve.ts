@@ -193,12 +193,13 @@ export class Reserve {
   }
 
   public async refreshOraclePrice(intoFuture: number = 0) {
+    const slot = await this.market.connection.getSlot();
     await setOraclePriceSlot(
       this.market.connection,
       this.market.oracleProgram,
       this.market.owner,
       this.accounts.oraclePrice.publicKey,
-      (await this.market.connection.getSlot()) + intoFuture
+      slot + intoFuture
     );
   }
 
