@@ -198,10 +198,59 @@ export function test(
       expect(stdCapture.restore()).to.contain("LendingMarketMismatch");
     });
 
-    it("fails if source liquidity doesn't match reserve's config");
-    it("fails if source liquidity wallet matches destination");
-    it("fails if fee recv doesn't match reserve's config");
-    it("depends on loan to value ration for maximum borrow value");
+    it("fails if source liquidity doesn't match reserve's config", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const originalSourceLiquidityDogeWallet =
+        reserveDoge.accounts.reserveLiquidityWallet;
+      reserveDoge.accounts.reserveLiquidityWallet = Keypair.generate();
+
+      await expect(
+        obligation.borrow(reserveDoge, 10, destinationDogeLiquidityWallet)
+      ).to.be.rejected;
+
+      reserveDoge.accounts.reserveLiquidityWallet =
+        originalSourceLiquidityDogeWallet;
+
+      expect(stdCapture.restore()).to.contain(
+        "Source liq. wallet must eq. reserve's liq. supply"
+      );
+    });
+
+    it("fails if source liquidity wallet matches destination", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        obligation.borrow(
+          reserveDoge,
+          10,
+          reserveDoge.accounts.reserveLiquidityWallet.publicKey
+        )
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain(
+        "Dest. liq. wallet mustn't eq. reserve's liq. supply"
+      );
+    });
+
+    it("fails if fee recv doesn't match reserve's config", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const originalSourceLiquidityDogeWallet =
+        reserveDoge.accounts.reserveLiquidityFeeRecvWallet;
+      reserveDoge.accounts.reserveLiquidityFeeRecvWallet = Keypair.generate();
+
+      await expect(
+        obligation.borrow(reserveDoge, 10, destinationDogeLiquidityWallet)
+      ).to.be.rejected;
+
+      reserveDoge.accounts.reserveLiquidityFeeRecvWallet =
+        originalSourceLiquidityDogeWallet;
+
+      expect(stdCapture.restore()).to.contain(
+        "Fee receiver doesn't match reserve's config"
+      );
+    });
 
     it("borrows liquidity without host fee", async () => {
       const borrowDogeLiquidity = 100;
