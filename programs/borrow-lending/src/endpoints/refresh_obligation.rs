@@ -9,6 +9,12 @@ pub struct RefreshObligation<'info> {
 }
 
 pub fn handle(ctx: Context<RefreshObligation>) -> ProgramResult {
+    msg!(
+        "refresh obligation '{}' at slot {}",
+        ctx.accounts.obligation.key(),
+        ctx.accounts.clock.slot
+    );
+
     // Performance assumption: all remaining accounts which are of kind
     // [`Reserve`] are relevant to the rest of this endpoint logic.
     let reserves: BTreeMap<_, _> = ctx

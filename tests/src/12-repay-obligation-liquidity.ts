@@ -5,14 +5,14 @@ import { Reserve } from "./reserve";
 import { Obligation } from "./obligation";
 import { LendingMarket } from "./lending-market";
 import { expect } from "chai";
-import { u192ToBN, waitForCommit } from "./helpers";
+import { CaptureStdoutAndStderr, u192ToBN, waitForCommit } from "./helpers";
 
 export function test(
   program: Program<BorrowLending>,
   owner: Keypair,
   shmemProgramId: PublicKey
 ) {
-  describe("repay_obligation_liquidity", () => {
+  describe.only("repay_obligation_liquidity", () => {
     // this liquidity is borrowed for each test case
     const borrowedLiquidity = 100;
     // when we create borrower's doge wallet, we mint them some initial tokens
@@ -94,14 +94,106 @@ export function test(
       await update();
     });
 
-    it("fails if repayer isn't signer");
+    it("fails if repayer isn't signer", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const refresh = true;
+      const sign = false;
+      await expect(
+        obligation.repay(
+          reserveDoge,
+          borrowerDogeLiquidityWallet,
+          10,
+          refresh,
+          refresh,
+          sign
+        )
+      ).to.be.rejected;
+
+      stdCapture.restore();
+    });
+
+    it("fails if obligation is stale", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const refreshReserve = true;
+      const refreshObligation = false;
+      await expect(
+        obligation.repay(
+          reserveDoge,
+          borrowerDogeLiquidityWallet,
+          10,
+          refreshReserve,
+          refreshObligation
+        )
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain("ObligationStale");
+    });
+
+    it("fails if reserve is stale", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const refreshReserve = false;
+      await expect(
+        obligation.repay(
+          reserveDoge,
+          borrowerDogeLiquidityWallet,
+          10,
+          refreshReserve
+        )
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.match(/Reserve .* is stale/);
+    });
+
+    it("fails if source liquidity wallet matches reserve's config", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        obligation.repay(
+          reserveDoge,
+          reserveDoge.accounts.reserveLiquidityWallet.publicKey,
+          10
+        )
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain(
+        "Source liq. wallet mustn't eq. reserve's liq. supply"
+      );
+    });
+
+    it("fails if destination wallet doesn't match reserve's config", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const originalReserveLiquidityWallet =
+        reserveDoge.accounts.reserveLiquidityWallet;
+      reserveDoge.accounts.reserveLiquidityWallet = Keypair.generate();
+
+      await expect(
+        obligation.repay(reserveDoge, borrowerDogeLiquidityWallet, 10)
+      ).to.be.rejected;
+
+      reserveDoge.accounts.reserveLiquidityWallet =
+        originalReserveLiquidityWallet;
+
+      expect(stdCapture.restore()).to.contain(
+        "Dest. liq. wallet must eq. reserve's liq. supply"
+      );
+    });
+
     it("fails if reserve's and obligation's market mismatch");
-    it("fails if obligation is stale");
-    it("fails if reserve is stale");
-    it("fails if destination wallet doesn't match reserve's config");
-    it("fails if source liquidity wallet matches reserve's config");
-    it("fails if liquidity amount is zero");
     it("fails if obligation has no such borrowed reserve");
+
+    it("fails if liquidity amount is zero", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        obligation.repay(reserveDoge, borrowerDogeLiquidityWallet, 0)
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain("amount provided cannot be zero");
+    });
 
     it("repays some liquidity", async () => {
       const repayAmount = borrowedLiquidity / 2;

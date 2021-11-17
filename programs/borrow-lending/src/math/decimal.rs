@@ -96,6 +96,27 @@ impl Decimal {
             .ok_or(ErrorCode::MathOverflow)?;
         Ok(u64::try_from(ceil_val).map_err(|_| ErrorCode::MathOverflow)?)
     }
+
+    /// Calculates base^exp
+    pub fn try_pow(&self, mut exp: u64) -> Result<Self> {
+        let mut base = *self;
+        let mut ret = if exp % 2 != 0 {
+            base
+        } else {
+            Self::one()
+        };
+
+        while exp > 0 {
+            exp /= 2;
+            base = base.try_mul(base)?;
+
+            if exp % 2 != 0 {
+                ret = ret.try_mul(base)?;
+            }
+        }
+
+        Ok(ret)
+    }
 }
 
 impl fmt::Display for Decimal {
@@ -211,5 +232,21 @@ mod test {
     #[test]
     fn test_scaler() {
         assert_eq!(U192::exp10(consts::SCALE), Decimal::wad());
+    }
+
+    #[test]
+    fn test_checked_pow() {
+        assert_eq!(Decimal::one(), Decimal::one().try_pow(u64::MAX).unwrap());
+    }
+
+    #[test]
+    fn test_try_mul() {
+        let a = Decimal(408000003381369883327u128.into());
+        let b = Decimal(1000000007436580456u128.into());
+
+        assert_eq!(
+            Decimal(408000006415494734520u128.into()),
+            a.try_mul(b).unwrap()
+        );
     }
 }

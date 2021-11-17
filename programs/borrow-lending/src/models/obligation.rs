@@ -269,11 +269,13 @@ impl Obligation {
         }
     }
 
-    /// Calculate the maximum liquidity value that can be borrowed
-    pub fn remaining_borrow_value(&self) -> Result<Decimal> {
+    /// Calculate the maximum liquidity value that can be borrowed by
+    /// subtracting allowed borrow value from actual borrow value.
+    pub fn remaining_borrow_value(&self) -> Decimal {
         self.allowed_borrow_value
             .to_dec()
             .try_sub(self.borrowed_value.to_dec())
+            .unwrap_or(Decimal::zero())
     }
 }
 

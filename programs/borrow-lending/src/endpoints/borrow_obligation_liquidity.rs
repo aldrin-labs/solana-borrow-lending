@@ -73,14 +73,18 @@ pub fn handle<'info>(
     liquidity_amount: u64,
 ) -> ProgramResult {
     let accounts = ctx.accounts;
+    msg!(
+        "borrow liquidity from reserve {} at slot {}",
+        accounts.reserve.key(),
+        accounts.clock.slot
+    );
 
     if liquidity_amount == 0 {
         msg!("Liquidity amount provided cannot be zero");
         return Err(ErrorCode::InvalidAmount.into());
     }
 
-    let remaining_borrow_value =
-        accounts.obligation.remaining_borrow_value()?;
+    let remaining_borrow_value = accounts.obligation.remaining_borrow_value();
     if remaining_borrow_value == Decimal::zero() {
         msg!("Remaining borrow value is zero");
         return Err(ErrorCode::BorrowTooLarge.into());

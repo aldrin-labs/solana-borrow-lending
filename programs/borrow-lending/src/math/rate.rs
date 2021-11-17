@@ -183,9 +183,10 @@ impl TryMul<u64> for Rate {
 
 impl TryMul<Rate> for Rate {
     fn try_mul(self, rhs: Self) -> Result<Self> {
+        let large_rate = self.0.checked_mul(rhs.0);
+        println!("xd {:?}", large_rate);
         Ok(Self(
-            self.0
-                .checked_mul(rhs.0)
+            large_rate
                 .ok_or(ErrorCode::MathOverflow)?
                 .checked_div(Self::wad())
                 .ok_or(ErrorCode::MathOverflow)?,
@@ -198,7 +199,15 @@ mod test {
     use super::*;
 
     #[test]
-    fn checked_pow() {
+    fn test_checked_pow() {
         assert_eq!(Rate::one(), Rate::one().try_pow(u64::MAX).unwrap());
+    }
+
+    #[test]
+    fn test_try_mul() {
+        let a = Rate(408000003381369883327u128.into());
+        let b = Rate(1000000007436580456u128.into());
+
+        assert_eq!(Rate(0u128.into()), a.try_mul(b).unwrap());
     }
 }
