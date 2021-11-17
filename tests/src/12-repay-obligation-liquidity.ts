@@ -1,18 +1,23 @@
-import { Program } from "@project-serum/anchor";
+import { BN, Program } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { Reserve } from "./reserve";
 import { Obligation } from "./obligation";
 import { LendingMarket } from "./lending-market";
 import { expect } from "chai";
-import { CaptureStdoutAndStderr, u192ToBN, waitForCommit } from "./helpers";
+import {
+  CaptureStdoutAndStderr,
+  ONE_WAD,
+  u192ToBN,
+  waitForCommit,
+} from "./helpers";
 
 export function test(
   program: Program<BorrowLending>,
   owner: Keypair,
   shmemProgramId: PublicKey
 ) {
-  describe.only("repay_obligation_liquidity", () => {
+  describe("repay_obligation_liquidity", () => {
     // this liquidity is borrowed for each test case
     const borrowedLiquidity = 100;
     // when we create borrower's doge wallet, we mint them some initial tokens
@@ -182,8 +187,38 @@ export function test(
       );
     });
 
-    it("fails if reserve's and obligation's market mismatch");
-    it("fails if obligation has no such borrowed reserve");
+    it("fails if reserve's and obligation's market mismatch", async () => {
+      const differentMarket = await LendingMarket.init(
+        program,
+        owner,
+        shmemProgramId
+      );
+      const differentReserve = await differentMarket.addReserve(
+        500,
+        undefined,
+        "doge"
+      );
+
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      obligation.reservesToRefresh.add(differentReserve);
+      await expect(
+        obligation.repay(differentReserve, borrowerDogeLiquidityWallet, 50)
+      ).to.be.rejected;
+
+      obligation.reservesToRefresh.delete(differentReserve);
+      expect(stdCapture.restore()).to.contain("LendingMarketMismatch");
+    });
+
+    it("fails if obligation has no such borrowed reserve", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        obligation.repay(reserveSrm, borrowerDogeLiquidityWallet, 10)
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain("Obligation has no such reserve");
+    });
 
     it("fails if liquidity amount is zero", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
@@ -196,6 +231,8 @@ export function test(
     });
 
     it("repays some liquidity", async () => {
+      const oldReserveInfo = await reserveDoge.fetch();
+
       const repayAmount = borrowedLiquidity / 2;
       await obligation.repay(
         reserveDoge,
@@ -209,14 +246,19 @@ export function test(
       expect(reserveInfo.liquidity.availableAmount.toNumber()).eq(
         sourceDogeLiquidity
       );
-      const rba = u192ToBN(reserveInfo.liquidity.borrowedAmount).toString();
-      const rcbr = u192ToBN(
-        reserveInfo.liquidity.cumulativeBorrowRate
-      ).toString();
-      const ruacp = u192ToBN(reserveInfo.liquidity.marketPrice).toString();
-      expect(rba).eq("52000000029368340922");
-      expect(rcbr).eq("1000000002190512419");
-      expect(ruacp).eq("238167000000000000");
+      expect(
+        u192ToBN(reserveInfo.liquidity.borrowedAmount).lt(
+          u192ToBN(oldReserveInfo.liquidity.borrowedAmount)
+        )
+      ).to.be.true;
+
+      // should be ~10000000xxxxxxxxxxx
+      const rcbr = u192ToBN(reserveInfo.liquidity.cumulativeBorrowRate);
+      expect(rcbr.gt(ONE_WAD)).to.be.true;
+      expect(rcbr.lt(ONE_WAD.add(ONE_WAD.div(new BN(100000))))).to.be.true;
+
+      const ruacp = u192ToBN(reserveInfo.liquidity.marketPrice);
+      expect(ruacp.toString()).eq("238167000000000000");
 
       const obligationInfo = await obligation.fetch();
       expect(obligationInfo.lastUpdate.stale).to.be.true;
@@ -225,13 +267,18 @@ export function test(
           u192ToBN(obligationInfo.borrowedValue)
         )
       );
+      // should be about ~242xxxxxxxxxxxxxxxxx
+      const obv = u192ToBN(obligationInfo.borrowedValue);
+      expect(obv.gt(ONE_WAD.mul(new BN(24)))).to.be.true;
+      expect(obv.lt(ONE_WAD.mul(new BN(25)))).to.be.true;
+
       const odv = u192ToBN(obligationInfo.depositedValue).toString();
-      const obv = u192ToBN(obligationInfo.borrowedValue).toString();
-      const oab = u192ToBN(obligationInfo.allowedBorrowValue).toString();
-      const oub = u192ToBN(obligationInfo.unhealthyBorrowValue).toString();
       expect(odv).to.eq("73825000000000000000");
-      expect(obv).to.eq("24293034053214192672");
+
+      const oab = u192ToBN(obligationInfo.allowedBorrowValue).toString();
       expect(oab).to.eq("66442500000000000000");
+
+      const oub = u192ToBN(obligationInfo.unhealthyBorrowValue).toString();
       expect(oub).to.eq("70872000000000000000");
 
       expect(obligationInfo.reserves[0].collateral).to.have.property("inner");
@@ -240,11 +287,12 @@ export function test(
       ).to.eq(depositedSrmCollateralAmount);
 
       expect(obligationInfo.reserves[1].liquidity).to.have.property("inner");
-      expect(
-        u192ToBN(
-          obligationInfo.reserves[1].liquidity.inner.borrowedAmount
-        ).toString()
-      ).to.eq("102000000223432266738");
+      // should be ~10200000xxxxxxxxxxxxx
+      const lba = u192ToBN(
+        obligationInfo.reserves[1].liquidity.inner.borrowedAmount
+      );
+      expect(lba.gt(ONE_WAD.mul(new BN(102))));
+      expect(lba.lt(ONE_WAD.mul(new BN(103))));
 
       const borrowerDogeLiquidityWalletInfo =
         await reserveDoge.accounts.liquidityMint.getAccountInfo(

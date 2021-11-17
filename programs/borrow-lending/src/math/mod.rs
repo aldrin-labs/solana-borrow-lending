@@ -1,13 +1,33 @@
-mod common;
 mod decimal;
-mod rate;
 mod sdecimal;
 
 use crate::prelude::*;
-pub use common::*;
 pub use decimal::*;
-pub use rate::*;
 pub use sdecimal::*;
+
+/// Try to subtract, return an error on underflow
+pub trait TrySub: Sized {
+    /// Subtract
+    fn try_sub(self, rhs: Self) -> Result<Self>;
+}
+
+/// Try to subtract, return an error on overflow
+pub trait TryAdd: Sized {
+    /// Add
+    fn try_add(self, rhs: Self) -> Result<Self>;
+}
+
+/// Try to divide, return an error on overflow or divide by zero
+pub trait TryDiv<RHS>: Sized {
+    /// Divide
+    fn try_div(self, rhs: RHS) -> Result<Self>;
+}
+
+/// Try to multiply, return an error on overflow
+pub trait TryMul<RHS>: Sized {
+    /// Multiply
+    fn try_mul(self, rhs: RHS) -> Result<Self>;
+}
 
 /// Number in range [0; 100]
 #[derive(
@@ -25,7 +45,7 @@ pub struct PercentageInt {
     percent: u8,
 }
 
-impl From<PercentageInt> for Rate {
+impl From<PercentageInt> for Decimal {
     fn from(p: PercentageInt) -> Self {
         Self::from_percent(p.percent)
     }

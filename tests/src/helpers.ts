@@ -31,7 +31,7 @@ export class CaptureStdoutAndStderr {
 }
 
 export type U192 = [BN, BN, BN];
-const ONE_WAD = new BN(10).pow(new BN(18));
+export const ONE_WAD = new BN(10).pow(new BN(18));
 
 export function numberToU192(n: number): U192 {
   if (n < 0) {

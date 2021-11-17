@@ -1,6 +1,5 @@
 use crate::prelude::*;
 use std::cmp::Ordering;
-use std::convert::{TryFrom, TryInto};
 
 #[account]
 pub struct Obligation {
@@ -303,11 +302,12 @@ impl ObligationLiquidity {
             }
             Ordering::Equal => {}
             Ordering::Greater => {
-                let compounded_interest_rate: Rate = cumulative_borrow_rate
-                    .try_div(prev_cumulative_borrow_rate)?
-                    .try_into()?;
+                let compounded_interest_rate: Decimal = cumulative_borrow_rate
+                    .try_div(prev_cumulative_borrow_rate)?;
 
-                self.borrowed_amount = Rate::try_from(self.borrowed_amount)?
+                self.borrowed_amount = self
+                    .borrowed_amount
+                    .to_dec()
                     .try_mul(compounded_interest_rate)?
                     .into();
                 self.cumulative_borrow_rate = cumulative_borrow_rate.into();
