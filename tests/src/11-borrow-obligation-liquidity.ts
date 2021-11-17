@@ -292,6 +292,8 @@ export function test(
       expect(destinationDogeWalletInfo.amount.toNumber()).to.eq(
         borrowDogeLiquidity
       );
+
+      // TODO: check reserve
     });
 
     it("borrows liquidity with host fee", async () => {

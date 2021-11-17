@@ -8,16 +8,14 @@ pub struct RepayObligationLiquidity<'info> {
     pub repayer: AccountInfo<'info>,
     #[account(
         mut,
-        constraint = !obligation.last_update.is_stale(clock.slot).unwrap_or(true)
-            @ err::obligation_stale(),
+        constraint = !obligation.is_stale(&clock) @ err::obligation_stale(),
     )]
     pub obligation: Box<Account<'info, Obligation>>,
     #[account(
         mut,
         constraint = reserve.lending_market == obligation.lending_market
             @ err::market_mismatch(),
-        constraint = !reserve.last_update.is_stale(clock.slot).unwrap_or(true)
-            @ err::reserve_stale(),
+        constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
     pub reserve: Box<Account<'info, Reserve>>,
     #[account(
