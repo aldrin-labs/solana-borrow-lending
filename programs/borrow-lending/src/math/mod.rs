@@ -42,3 +42,15 @@ impl From<u8> for PercentageInt {
         Self { percent: p }
     }
 }
+
+/// Amount of liquidity that is settled from the obligation and amount of tokens
+/// to transfer to the reserve's liquidity wallet from borrower's source wallet.
+pub fn calculate_repay_amounts(
+    repay_amount: u64,
+    borrowed_amount: Decimal,
+) -> Result<(u64, Decimal)> {
+    let settle_amount = Decimal::from(repay_amount).min(borrowed_amount);
+    let repay_amount = settle_amount.try_ceil_u64()?;
+
+    Ok((repay_amount, settle_amount))
+}

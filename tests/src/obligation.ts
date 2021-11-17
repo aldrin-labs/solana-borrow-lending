@@ -50,10 +50,21 @@ export class Obligation {
     return this.market.program.account.obligation.fetch(this.id);
   }
 
-  public async refresh(reserves?: Reserve[]) {
-    await this.market.program.provider.send(
-      new Transaction().add(this.refreshInstruction(reserves))
-    );
+  public async refresh(
+    reserves: Reserve[] = Array.from(this.reservesToRefresh)
+  ) {
+    await this.market.program.rpc.refreshObligation({
+      accounts: {
+        obligation: this.id,
+        clock: SYSVAR_CLOCK_PUBKEY,
+      },
+      remainingAccounts: reserves.map((reserve) => ({
+        pubkey: reserve.id,
+        isSigner: false,
+        isWritable: false,
+      })),
+      instructions: reserves.map((reserve) => reserve.refreshInstruction()),
+    });
   }
 
   public refreshInstruction(

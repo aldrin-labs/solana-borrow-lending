@@ -91,7 +91,7 @@ export function test(
         borrowedLiquidity,
         borrowerDogeLiquidityWallet
       );
-      sourceDogeLiquidity -= borrowedLiquidity;
+      await update();
     });
 
     it("fails if repayer isn't signer");
@@ -101,22 +101,21 @@ export function test(
     it("fails if destination wallet doesn't match reserve's config");
     it("fails if source liquidity wallet matches reserve's config");
     it("fails if liquidity amount is zero");
-    it("fails if obligation has no such reserve borrow");
+    it("fails if obligation has no such borrowed reserve");
 
     it("repays some liquidity", async () => {
       const repayAmount = borrowedLiquidity / 2;
-      const fee = 2;
       await obligation.repay(
         reserveDoge,
         borrowerDogeLiquidityWallet,
         repayAmount
       );
-      sourceDogeLiquidity += repayAmount;
+      await update();
 
       const reserveInfo = await reserveDoge.fetch();
       expect(reserveInfo.lastUpdate.stale).to.be.true;
       expect(reserveInfo.liquidity.availableAmount.toNumber()).eq(
-        sourceDogeLiquidity - fee
+        sourceDogeLiquidity
       );
       const rba = u192ToBN(reserveInfo.liquidity.borrowedAmount).toString();
       const rcbr = u192ToBN(
@@ -172,6 +171,48 @@ export function test(
       );
     });
 
-    it("repays at most what's owed");
+    it("repays at most what's owed", async () => {
+      const repayAmount = borrowedLiquidity * 2;
+      await waitForCommit();
+      await obligation.repay(
+        reserveDoge,
+        borrowerDogeLiquidityWallet,
+        repayAmount
+      );
+      await update();
+
+      await obligation.refresh();
+      const obligationInfo = await obligation.fetch();
+      expect(obligationInfo.reserves[1]).to.deep.eq({ empty: {} });
+      expect(u192ToBN(obligationInfo.borrowedValue).toNumber()).to.eq(0);
+
+      await reserveDoge.refresh();
+      const reserveInfo = await reserveDoge.fetch();
+      expect(reserveInfo.liquidity.availableAmount.toNumber()).to.eq(
+        sourceDogeLiquidity
+      );
+
+      const borrowerDogeLiquidityWalletInfo =
+        await reserveDoge.accounts.liquidityMint.getAccountInfo(
+          borrowerDogeLiquidityWallet
+        );
+      // this is time dependent but it ceils up so the test would have to take
+      // a long time for this to increase
+      const feePlusInterest = 3;
+      expect(borrowerDogeLiquidityWalletInfo.amount.toNumber()).to.eq(
+        initialDogeAmount - feePlusInterest
+      );
+    });
+
+    /**
+     * Updates amounts which are used for expectation calculations.
+     */
+    async function update() {
+      const sourceDogeLiquidityInfo =
+        await reserveDoge.accounts.liquidityMint.getAccountInfo(
+          reserveDoge.accounts.reserveLiquidityWallet.publicKey
+        );
+      sourceDogeLiquidity = sourceDogeLiquidityInfo.amount.toNumber();
+    }
   });
 }

@@ -58,28 +58,26 @@ pub fn handle(
         return Err(ErrorCode::ObligationLiquidityEmpty.into());
     }
 
-    let repay_calc = accounts.reserve.calculate_repay(
+    let (repay_amount, settle_amount) = calculate_repay_amounts(
         liquidity_amount,
         liquidity.borrowed_amount.to_dec(),
     )?;
 
-    if repay_calc.repay_amount == 0 {
+    if repay_amount == 0 {
         msg!("Repay amount is too small to transfer liquidity");
         return Err(ErrorCode::RepayTooSmall.into());
     }
 
     accounts
-        .obligation
-        .repay(repay_calc.settle_amount, liquidity_index)?;
-    accounts.obligation.last_update.mark_stale();
-
-    accounts.reserve.liquidity.repay(repay_calc)?;
+        .reserve
+        .liquidity
+        .repay(repay_amount, settle_amount)?;
     accounts.reserve.last_update.mark_stale();
 
-    token::transfer(
-        accounts.into_repay_liquidity_context(),
-        repay_calc.repay_amount,
-    )?;
+    accounts.obligation.repay(settle_amount, liquidity_index)?;
+    accounts.obligation.last_update.mark_stale();
+
+    token::transfer(accounts.into_repay_liquidity_context(), repay_amount)?;
 
     Ok(())
 }
