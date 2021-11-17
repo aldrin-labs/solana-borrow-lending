@@ -1,3 +1,7 @@
+//! Allows the borrower to repay part or all of their loan against a single
+//! reserve. The caller of this endpoint, the repayer, doesn't have to
+//! necessarily be the owner of the obligation.
+
 use crate::prelude::*;
 use anchor_spl::token::{self, Token};
 
@@ -58,6 +62,13 @@ pub fn handle(
         return Err(ErrorCode::ObligationLiquidityEmpty.into());
     }
 
+    // the repay amount is similar to liquidity but at most equal to the
+    // borrowed amount which guarantees that the repayer never overpays
+    //
+    // the settle amount is decimal representation of the repay amount and is
+    // equal to the repay amount unless the repayer requested to repay all of
+    // their loan, in which case the repay amount is ceiled version of the
+    // settle amount
     let (repay_amount, settle_amount) = calculate_repay_amounts(
         liquidity_amount,
         liquidity.borrowed_amount.to_dec(),
@@ -68,13 +79,16 @@ pub fn handle(
         return Err(ErrorCode::RepayTooSmall.into());
     }
 
+    // increases the available amount in the reserve
     accounts
         .reserve
         .liquidity
         .repay(repay_amount, settle_amount)?;
-    accounts.reserve.last_update.mark_stale();
 
+    // and removes the owed amount from the obligation
     accounts.obligation.repay(settle_amount, liquidity_index)?;
+
+    accounts.reserve.last_update.mark_stale();
     accounts.obligation.last_update.mark_stale();
 
     token::transfer(accounts.into_repay_liquidity_context(), repay_amount)?;
