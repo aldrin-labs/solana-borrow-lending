@@ -5,6 +5,7 @@ use std::convert::{TryFrom, TryInto};
 /// account where the tokens that borrowers will want to borrow and funders will
 /// want to lent are.
 #[account]
+#[derive(Debug)]
 pub struct Reserve {
     pub lending_market: Pubkey,
     /// Last slot when rates were updated. Helps us ensure that we're working
@@ -43,7 +44,7 @@ pub struct ReserveConfig {
 
 /// Unvalidated config wrapper type. Use [`InputReserveConfig::validate`] to
 /// access the inner value.
-#[derive(AnchorSerialize, AnchorDeserialize)]
+#[derive(AnchorSerialize, AnchorDeserialize, Debug)]
 pub struct InputReserveConfig {
     conf: ReserveConfig,
 }
@@ -69,7 +70,8 @@ pub struct ReserveFees {
     /// Fee for flash loan, expressed as a Wad.
     /// 0.3% (Aave flash loan fee) = 3_000_000_000_000_000
     pub flash_loan_fee: SDecimal,
-    /// Amount of fee going to host account, if provided in liquidate and repay
+    /// Amount of fee going to host account, if provided in liquidate and
+    /// repay.
     pub host_fee: PercentageInt,
 }
 
@@ -190,6 +192,10 @@ impl Validate for ReserveConfig {
 }
 
 impl Reserve {
+    pub fn is_stale(&self, clock: &Clock) -> bool {
+        self.last_update.is_stale(clock.slot).unwrap_or(true)
+    }
+
     /// Record deposited liquidity and return amount of collateral tokens to
     /// mint in exchange for it.
     pub fn deposit_liquidity(&mut self, liquidity_amount: u64) -> Result<u64> {
@@ -295,7 +301,11 @@ impl Reserve {
             .try_mul(self.liquidity.market_price.to_dec())?
             .try_div(decimals)?;
         if borrow_value > max_borrow_value {
-            msg!("Borrow value cannot exceed maximum borrow value");
+            msg!(
+                "Borrow value ({}) cannot exceed maximum borrow value ({})",
+                borrow_value,
+                max_borrow_value
+            );
             return Err(ErrorCode::BorrowTooLarge.into());
         }
 
@@ -498,12 +508,12 @@ impl ReserveFees {
 
     fn calculate(
         &self,
-        amount: Decimal,
+        borrow_amount: Decimal,
         borrow_fee_rate: Rate,
     ) -> Result<FeesCalculation> {
         let host_fee_rate = Rate::from_percent(self.host_fee);
 
-        if borrow_fee_rate > Rate::zero() && amount > Decimal::zero() {
+        if borrow_fee_rate > Rate::zero() && borrow_amount > Decimal::zero() {
             let need_to_assess_host_fee = host_fee_rate > Rate::zero();
             let minimum_fee = if need_to_assess_host_fee {
                 2 // 1 token to owner, 1 to host
@@ -513,12 +523,12 @@ impl ReserveFees {
 
             // Calculate fee to be added to borrow: fee = max(amount * rate,
             // minimum_fee)
-            let borrow_fee = amount
+            let borrow_fee = borrow_amount
                 .try_mul(borrow_fee_rate)?
                 .try_round_u64()?
                 .max(minimum_fee);
 
-            if Decimal::from(borrow_fee) >= amount {
+            if Decimal::from(borrow_fee) >= borrow_amount {
                 msg!(
                     "Borrow amount is too small to receive liquidity after fees"
                 );

@@ -70,6 +70,10 @@ impl Default for Obligation {
 }
 
 impl Obligation {
+    pub fn is_stale(&self, clock: &Clock) -> bool {
+        self.last_update.is_stale(clock.slot).unwrap_or(true)
+    }
+
     /// Withdraw collateral and remove it from deposits if zeroed out
     pub fn withdraw(
         &mut self,
@@ -84,7 +88,7 @@ impl Obligation {
                 Ok(())
             }
             ObligationReserve::Collateral {
-                inner: mut collateral,
+                inner: ref mut collateral,
             } => {
                 collateral.withdraw(withdraw_amount)?;
                 Ok(())
@@ -100,21 +104,15 @@ impl Obligation {
     }
 
     pub fn has_borrows(&self) -> bool {
-        self.reserves
-            .iter()
-            .find(|reserve| {
-                matches!(reserve, ObligationReserve::Liquidity { inner: _ })
-            })
-            .is_some()
+        self.reserves.iter().any(|reserve| {
+            matches!(reserve, ObligationReserve::Liquidity { .. })
+        })
     }
 
     pub fn has_deposits(&self) -> bool {
-        self.reserves
-            .iter()
-            .find(|reserve| {
-                matches!(reserve, ObligationReserve::Collateral { inner: _ })
-            })
-            .is_some()
+        self.reserves.iter().any(|reserve| {
+            matches!(reserve, ObligationReserve::Collateral { .. })
+        })
     }
 
     // ref. eq. (7)
@@ -289,6 +287,7 @@ impl ObligationLiquidity {
         }
     }
 
+    /// ref. eq. (6)
     pub fn accrue_interest(
         &mut self,
         cumulative_borrow_rate: Decimal,

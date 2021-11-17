@@ -1,5 +1,5 @@
 //! Once a borrower initiated an obligation with
-//! [`crate::endpoints::init_obligation_r10`] then they can deposit collateral
+//! [`crate::endpoints::init_obligation`] then they can deposit collateral
 //! to it. The collateral is the token minted in
 //! [`crate::endpoints::deposit_reserve_liquidity`].
 //!
@@ -23,8 +23,7 @@ pub struct DepositObligationCollateral<'info> {
     #[account(
         constraint = reserve.lending_market == obligation.lending_market
             @ err::market_mismatch(),
-        constraint = !reserve.last_update.is_stale(clock.slot).unwrap_or(true)
-            @ err::reserve_stale(),
+        constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
         constraint = 0u8 != reserve.config.loan_to_value_ratio.into()
             @ err::cannot_use_as_collateral(),
     )]

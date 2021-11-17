@@ -39,8 +39,7 @@ pub struct RedeemReserveCollateral<'info> {
     pub lending_market_pda: AccountInfo<'info>,
     #[account(
         mut,
-        constraint = !reserve.last_update.is_stale(clock.slot).unwrap_or(true)
-            @ err::reserve_stale(),
+        constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
     pub reserve: Account<'info, Reserve>,
     #[account(

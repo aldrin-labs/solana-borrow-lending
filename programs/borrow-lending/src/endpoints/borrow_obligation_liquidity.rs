@@ -1,3 +1,12 @@
+//! After depositing collateral to an obligation, the borrower can use this
+//! endpoint to borrow liquidity from other reserves.
+//!
+//! The obligation and all reserves connected to it must be refreshed in the
+//! same transaction (see [`consts::MARKET_STALE_AFTER_SLOTS_ELAPSED`]). By
+//! refreshing we recalculate the allowed borrow rate value
+//! ([`Obligation.allowed_borrow_value`]). This UAC value limits how much
+//! liquidity can be borrowed against the deposited collateral.
+
 use crate::prelude::*;
 use anchor_spl::token::{self, Token};
 
@@ -6,12 +15,12 @@ use anchor_spl::token::{self, Token};
 pub struct BorrowObligationLiquidity<'info> {
     #[account(signer)]
     pub borrower: AccountInfo<'info>,
+    /// Must be refreshed and deposited with some collateral.
     #[account(
         mut,
         constraint = borrower.key() == obligation.owner
             @ ProgramError::IllegalOwner,
-        constraint = !obligation.last_update.is_stale(clock.slot).unwrap_or(true)
-            @ err::obligation_stale(),
+        constraint = !obligation.is_stale(&clock) @ err::obligation_stale(),
         constraint = obligation.has_deposits()
             @ ErrorCode::ObligationDepositsZero,
         constraint = obligation.deposited_value.to_dec() != Decimal::zero()
@@ -22,8 +31,7 @@ pub struct BorrowObligationLiquidity<'info> {
         mut,
         constraint = reserve.lending_market == obligation.lending_market
             @ err::market_mismatch(),
-        constraint = !reserve.last_update.is_stale(clock.slot).unwrap_or(true)
-            @ err::reserve_stale(),
+        constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
     pub reserve: Box<Account<'info, Reserve>>,
     #[account(
@@ -31,12 +39,14 @@ pub struct BorrowObligationLiquidity<'info> {
         bump = lending_market_bump_seed,
     )]
     pub lending_market_pda: AccountInfo<'info>,
+    /// The program's wallet where it stores all funded liquidity.
     #[account(
         mut,
         constraint = source_liquidity_wallet.key() == reserve.liquidity.supply
             @ err::acc("Source liq. wallet must eq. reserve's liq. supply"),
     )]
     pub source_liquidity_wallet: AccountInfo<'info>,
+    /// Where would the borrower like to receive their loan?
     #[account(
         mut,
         constraint = destination_liquidity_wallet.key() !=
@@ -44,6 +54,9 @@ pub struct BorrowObligationLiquidity<'info> {
             eq. reserve's liq. supply"),
     )]
     pub destination_liquidity_wallet: AccountInfo<'info>,
+    /// The fee receiver was set up when the reserve was initialized. However,
+    /// there's an option to add one more receiver wallet to the remaining
+    /// accounts. That wallet can be anything as long as the liquidity matches.
     #[account(
         mut,
         constraint = fee_receiver.key() == reserve.liquidity.fee_receiver

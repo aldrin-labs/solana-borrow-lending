@@ -8,6 +8,8 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 
+export type PercentInt = { percent: number };
+
 export class CaptureStdoutAndStderr {
   private data: string = "";
 
