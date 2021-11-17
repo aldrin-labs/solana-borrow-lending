@@ -92,6 +92,23 @@ following information:
 * `min_borrow_rate` is $`R_{minb}`$, see below;
 * `max_borrow_rate` is $`R_{maxb}`$, see below;
 
+#### Fees
+Upon calling the borrow action the caller can provide up to two wallets which
+are used for fee collection.
+
+The main fee receiver wallet is mandatory and its pubkey is configured on
+reserve's initialization. When liquidity is borrowed this wallet receives a
+fraction of that borrow defined by `borrow_fee` reserve configuration
+percentage value.
+
+An optional host fee receiver wallet is defined as a remaining account and can
+be any valid borrowed liquidity wallet (pubkey not conditioned by reserve's
+config). If provided it receives a fraction of the borrow defined by `host_fee`
+reserve configuration percentage value.
+
+The minimum fee is 1 liquidity token's smallest divisible part (e.g. 1 sat for
+XBT).
+
 ### Borrow rate
 Borrow rate ($`R_b`$) is a key concept for interest calculation. TODO: explain
 the model

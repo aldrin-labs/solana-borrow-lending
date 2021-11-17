@@ -468,12 +468,12 @@ impl ReserveFees {
 
     fn calculate(
         &self,
-        amount: Decimal,
+        borrow_amount: Decimal,
         borrow_fee_rate: Rate,
     ) -> Result<FeesCalculation> {
         let host_fee_rate = Rate::from_percent(self.host_fee);
 
-        if borrow_fee_rate > Rate::zero() && amount > Decimal::zero() {
+        if borrow_fee_rate > Rate::zero() && borrow_amount > Decimal::zero() {
             let need_to_assess_host_fee = host_fee_rate > Rate::zero();
             let minimum_fee = if need_to_assess_host_fee {
                 2 // 1 token to owner, 1 to host
@@ -483,12 +483,12 @@ impl ReserveFees {
 
             // Calculate fee to be added to borrow: fee = max(amount * rate,
             // minimum_fee)
-            let borrow_fee = amount
+            let borrow_fee = borrow_amount
                 .try_mul(borrow_fee_rate)?
                 .try_round_u64()?
                 .max(minimum_fee);
 
-            if Decimal::from(borrow_fee) >= amount {
+            if Decimal::from(borrow_fee) >= borrow_amount {
                 msg!(
                     "Borrow amount is too small to receive liquidity after fees"
                 );

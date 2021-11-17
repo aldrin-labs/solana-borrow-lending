@@ -104,21 +104,15 @@ impl Obligation {
     }
 
     pub fn has_borrows(&self) -> bool {
-        self.reserves
-            .iter()
-            .find(|reserve| {
-                matches!(reserve, ObligationReserve::Liquidity { .. })
-            })
-            .is_some()
+        self.reserves.iter().any(|reserve| {
+            matches!(reserve, ObligationReserve::Liquidity { .. })
+        })
     }
 
     pub fn has_deposits(&self) -> bool {
-        self.reserves
-            .iter()
-            .find(|reserve| {
-                matches!(reserve, ObligationReserve::Collateral { .. })
-            })
-            .is_some()
+        self.reserves.iter().any(|reserve| {
+            matches!(reserve, ObligationReserve::Collateral { .. })
+        })
     }
 
     // ref. eq. (7)

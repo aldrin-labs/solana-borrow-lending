@@ -29,6 +29,10 @@ export function test(
       expect(obligationInfo.lastUpdate.stale).to.be.false;
     });
 
+    it(
+      "has a maximum number of reserves which can be refreshed in a single transaction"
+    );
+
     // TODO: we can add these tests once we can deposit collateral
     it("fails if deposited collateral account is missing");
     it("refreshes collateral market value");
