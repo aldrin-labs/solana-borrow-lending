@@ -30,41 +30,22 @@ export function test(
       expect(obligationInfo.lastUpdate.stale).to.be.false;
     });
 
-    it("has a maximum number of reserves which can be refreshed in a single transaction", async () => {
-       // gives us enough time to not have to deal with oracle price expiry
+    it("can refresh at least 4 reserves and an obligation", async () => {
+      // gives us enough time to not have to deal with oracle price expiry
       const intoFuture = 500;
 
-      // creates 4*3=12 reserves
-      const reserves: Reserve[] = []
-      for (let i = 0; i < 4; i++) {
+      const reserves: Reserve[] = [];
+      for (let i = 0; i < 2; i++) {
         reserves.push(
-          ...(await Promise.all([
-            market.addReserve(10),
-            market.addReserve(10),
-            market.addReserve(10),
-          ]))
-        )
+          ...(await Promise.all([market.addReserve(10), market.addReserve(10)]))
+        );
       }
 
-      await Promise.all(
-        reserves.map(r => r.refreshOraclePrice(intoFuture))
-      )
-      await waitForCommit()
+      await Promise.all(reserves.map((r) => r.refreshOraclePrice(intoFuture)));
+      await waitForCommit();
 
       await obligation.refresh(reserves);
-      expect(reserves).to.be.lengthOf(12)
-
-      const thirteenthReserve = await market.addReserve(10)
-      await thirteenthReserve.refreshOraclePrice(intoFuture)
-      reserves.push(thirteenthReserve)
-
-      const stdCapture = new CaptureStdoutAndStderr();
-
-      await expect(
-        obligation.refresh(reserves)
-      ).to.be.rejected
-
-      stdCapture.restore()
+      expect(reserves).to.be.lengthOf(4);
     });
 
     // TODO: we can add these tests once we can deposit collateral
