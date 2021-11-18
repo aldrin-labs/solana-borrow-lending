@@ -158,20 +158,19 @@ export class Obligation {
     refreshObligation: boolean = true,
     sign: boolean = true
   ) {
+    // deduplicates reserves in case
+    const reserves = new Set<Reserve>();
+    reserves.add(reserve);
+    this.reservesToRefresh.forEach((r) => reserves.add(r));
+
     const instructions = [];
     if (refreshReserve) {
       instructions.push(
-        reserve.refreshInstruction(),
-        ...this.refreshReservesInstructions()
+        ...Array.from(reserves).map((r) => r.refreshInstruction())
       );
     }
     if (refreshObligation) {
-      instructions.push(
-        this.refreshInstruction([
-          reserve,
-          ...Array.from(this.reservesToRefresh),
-        ])
-      );
+      instructions.push(this.refreshInstruction(Array.from(reserves)));
     }
 
     await this.market.program.rpc.borrowObligationLiquidity(
@@ -191,7 +190,7 @@ export class Obligation {
           tokenProgram: TOKEN_PROGRAM_ID,
         },
         signers: sign ? [this.borrower] : [],
-        instructions,
+        instructions: Array.from(instructions),
         remainingAccounts: hostFeeReceiver
           ? [
               {
