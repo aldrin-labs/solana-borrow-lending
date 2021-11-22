@@ -43,9 +43,9 @@ pub fn handle(ctx: Context<RefreshObligation>) -> ProgramResult {
             ObligationReserve::Empty => (),
             ObligationReserve::Liquidity { inner: liquidity } => {
                 let borrow_reserve = get_reserve(
+                    &accounts.clock,
                     &reserves,
                     &liquidity.borrow_reserve,
-                    accounts.clock.slot,
                 )?;
 
                 liquidity.accrue_interest(
@@ -69,9 +69,9 @@ pub fn handle(ctx: Context<RefreshObligation>) -> ProgramResult {
             }
             ObligationReserve::Collateral { inner: collateral } => {
                 let deposit_reserve = get_reserve(
+                    &accounts.clock,
                     &reserves,
                     &collateral.deposit_reserve,
-                    accounts.clock.slot,
                 )?;
 
                 let decimals = 10u64
@@ -130,17 +130,21 @@ pub fn handle(ctx: Context<RefreshObligation>) -> ProgramResult {
 }
 
 fn get_reserve<'a>(
+    clock: &Clock,
     reserves: &'a BTreeMap<Pubkey, Reserve>,
     key: &Pubkey,
-    slot: u64,
 ) -> Result<&'a Reserve> {
     let reserve = reserves.get(key).ok_or_else(|| {
         msg!("No valid account provided for reserve '{}'", key);
         ErrorCode::MissingReserveAccount
     })?;
 
-    if reserve.last_update.is_stale(slot).unwrap_or(true) {
-        msg!("Reserve '{}' is stale, please refresh it first", key);
+    if reserve.is_stale(clock) {
+        msg!(
+            "Reserve '{}' is stale by {:?} slots",
+            key,
+            reserve.last_update.slots_elapsed(clock.slot).ok()
+        );
         return Err(ErrorCode::ReserveStale.into());
     }
 

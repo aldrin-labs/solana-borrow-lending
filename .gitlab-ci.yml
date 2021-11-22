@@ -2,11 +2,13 @@ stages:
   - build_and_test
   - pages
 
+
 variables:
   RUST_VERSION: "1.56.1"
   SOLANA_VERSION: "1.8.2"
   PANDOC_VERSION: "2.16.1"
   KATEX_VERSION: "0.13.9"
+
 
 build_and_test:
   stage: build_and_test
@@ -70,7 +72,6 @@ pages:
   extends: .pages_job
   stage: pages
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_COMMIT_BRANCH == "develop"'
 
 # This job creates artifacts which can be browsed as static website, but does

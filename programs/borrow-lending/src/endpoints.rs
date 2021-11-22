@@ -1,3 +1,4 @@
+pub mod borrow_obligation_liquidity;
 pub mod deposit_obligation_collateral;
 pub mod deposit_reserve_liquidity;
 pub mod init_lending_market;
@@ -9,6 +10,7 @@ pub mod refresh_reserve;
 pub mod set_lending_market_owner;
 pub mod withdraw_obligation_collateral;
 
+pub use borrow_obligation_liquidity::*;
 pub use deposit_obligation_collateral::*;
 pub use deposit_reserve_liquidity::*;
 pub use init_lending_market::*;
