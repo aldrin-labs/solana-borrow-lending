@@ -257,6 +257,8 @@ export function test(
       expect(reserveCollateralWalletInfo.amount.toNumber()).to.eq(
         sourceCollateralWalletAmount
       );
+
+      // TODO: check reserve
     });
 
     // TODO: these tests can be added only when borrowing is implemented

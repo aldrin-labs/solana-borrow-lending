@@ -209,7 +209,7 @@ Use testing script to build dependencies for testing (such as `shmem`)
 and run the tests:
 
 ```
-./bin/test.sh
+./bin/test.sh [--detach] [--skip-build]
 ```
 
 When debugging or working on a new feature, use

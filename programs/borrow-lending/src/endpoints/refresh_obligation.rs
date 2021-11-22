@@ -9,6 +9,12 @@ pub struct RefreshObligation<'info> {
 }
 
 pub fn handle(ctx: Context<RefreshObligation>) -> ProgramResult {
+    msg!(
+        "refresh obligation '{}' at slot {}",
+        ctx.accounts.obligation.key(),
+        ctx.accounts.clock.slot
+    );
+
     // Performance assumption: all remaining accounts which are of kind
     // [`Reserve`] are relevant to the rest of this endpoint logic.
     let reserves: BTreeMap<_, _> = ctx
@@ -93,7 +99,7 @@ pub fn handle(ctx: Context<RefreshObligation>) -> ProgramResult {
                 deposited_value =
                     deposited_value.try_add(updated_market_value)?;
 
-                let loan_to_value_rate = Rate::from_percent(
+                let loan_to_value_rate = Decimal::from_percent(
                     deposit_reserve.config.loan_to_value_ratio,
                 );
                 allowed_borrow_value = allowed_borrow_value.try_add(
@@ -103,7 +109,7 @@ pub fn handle(ctx: Context<RefreshObligation>) -> ProgramResult {
                         .try_mul(loan_to_value_rate)?,
                 )?;
 
-                let liquidation_threshold_rate = Rate::from_percent(
+                let liquidation_threshold_rate = Decimal::from_percent(
                     deposit_reserve.config.liquidation_threshold,
                 );
                 unhealthy_borrow_value = unhealthy_borrow_value.try_add(

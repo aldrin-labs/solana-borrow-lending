@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use std::convert::TryFrom;
 
 /// We use storable decimal (hence [`SDecimal`]) when storing stuff into account
 /// because at the moment Anchor's IDL TS library doesn't work with tuple
@@ -55,20 +54,6 @@ impl From<&mut SDecimal> for Decimal {
 impl From<Decimal> for SDecimal {
     fn from(dec: Decimal) -> Self {
         Self { u192: dec.0 .0 }
-    }
-}
-
-impl TryFrom<SDecimal> for Rate {
-    type Error = Error;
-
-    fn try_from(dec: SDecimal) -> Result<Self> {
-        Self::try_from(Decimal::from(dec))
-    }
-}
-
-impl From<Rate> for SDecimal {
-    fn from(rate: Rate) -> Self {
-        Decimal::from(rate).into()
     }
 }
 

@@ -1,6 +1,5 @@
 use crate::prelude::*;
 use std::cmp::Ordering;
-use std::convert::{TryFrom, TryInto};
 
 #[account]
 pub struct Obligation {
@@ -147,6 +146,23 @@ impl Obligation {
             })
     }
 
+    pub fn get_liquidity(
+        &self,
+        key: Pubkey,
+    ) -> Option<(usize, &ObligationLiquidity)> {
+        self.reserves
+            .iter()
+            .enumerate()
+            .find_map(|(index, reserve)| match reserve {
+                ObligationReserve::Liquidity { ref inner }
+                    if inner.borrow_reserve == key =>
+                {
+                    Some((index, inner))
+                }
+                _ => None,
+            })
+    }
+
     pub fn deposit(
         &mut self,
         reserve_key: Pubkey,
@@ -223,11 +239,42 @@ impl Obligation {
         }
     }
 
-    /// Calculate the maximum liquidity value that can be borrowed
-    pub fn remaining_borrow_value(&self) -> Result<Decimal> {
+    /// Repay liquidity and remove it from borrows if zeroed out
+    pub fn repay(
+        &mut self,
+        settle_amount: Decimal,
+        liquidity_index: usize,
+    ) -> ProgramResult {
+        match &mut self.reserves[liquidity_index] {
+            ObligationReserve::Liquidity { inner: liquidity }
+                if liquidity.borrowed_amount.to_dec() == settle_amount =>
+            {
+                self.reserves[liquidity_index] = ObligationReserve::Empty;
+                Ok(())
+            }
+            ObligationReserve::Liquidity {
+                inner: mut liquidity,
+            } => {
+                liquidity.repay(settle_amount)?;
+                Ok(())
+            }
+            _ => {
+                msg!(
+                    "Expected a liquidity at index {}, aborting",
+                    liquidity_index
+                );
+                Err(ProgramError::InvalidArgument.into())
+            }
+        }
+    }
+
+    /// Calculate the maximum liquidity value that can be borrowed by
+    /// subtracting allowed borrow value from actual borrow value.
+    pub fn remaining_borrow_value(&self) -> Decimal {
         self.allowed_borrow_value
             .to_dec()
             .try_sub(self.borrowed_value.to_dec())
+            .unwrap_or(Decimal::zero())
     }
 }
 
@@ -255,11 +302,12 @@ impl ObligationLiquidity {
             }
             Ordering::Equal => {}
             Ordering::Greater => {
-                let compounded_interest_rate: Rate = cumulative_borrow_rate
-                    .try_div(prev_cumulative_borrow_rate)?
-                    .try_into()?;
+                let compounded_interest_rate: Decimal = cumulative_borrow_rate
+                    .try_div(prev_cumulative_borrow_rate)?;
 
-                self.borrowed_amount = Rate::try_from(self.borrowed_amount)?
+                self.borrowed_amount = self
+                    .borrowed_amount
+                    .to_dec()
                     .try_mul(compounded_interest_rate)?
                     .into();
                 self.cumulative_borrow_rate = cumulative_borrow_rate.into();
@@ -269,9 +317,17 @@ impl ObligationLiquidity {
         Ok(())
     }
 
+    fn repay(&mut self, settle_amount: Decimal) -> Result<()> {
+        self.borrowed_amount =
+            self.borrowed_amount.to_dec().try_sub(settle_amount)?.into();
+
+        Ok(())
+    }
+
     fn borrow(&mut self, borrow_amount: Decimal) -> Result<()> {
         self.borrowed_amount =
             self.borrowed_amount.to_dec().try_add(borrow_amount)?.into();
+
         Ok(())
     }
 }

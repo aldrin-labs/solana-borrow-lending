@@ -30,8 +30,10 @@ pub enum ErrorCode {
     ReserveCollateralDisabled,
     #[msg("Number of reserves associated with a single obligation is limited")]
     ObligationReserveLimit,
-    #[msg("No collateral deposited in obligation")]
+    #[msg("No collateral deposited in this obligation")]
     ObligationCollateralEmpty,
+    #[msg("No liquidity borrowed in this obligation")]
+    ObligationLiquidityEmpty,
     #[msg("No deposited value in collateral")]
     ObligationDepositsZero,
     #[msg("Cannot withdraw more than allowed amount of collateral")]
@@ -40,6 +42,8 @@ pub enum ErrorCode {
     BorrowTooLarge,
     #[msg("Not enough liquidity borrowed to cover the fees")]
     BorrowTooSmall,
+    #[msg("The amount to repay cannot be zero")]
+    RepayTooSmall,
 }
 
 pub fn acc(msg: impl AsRef<str>) -> ProgramError {

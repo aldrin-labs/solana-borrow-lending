@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use std::convert::{TryFrom, TryInto};
 
 /// Lending market reserve account. It's associated a reserve token wallet
 /// account where the tokens that borrowers will want to borrow and funders will
@@ -123,7 +122,7 @@ pub struct ReserveCollateral {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct CollateralExchangeRate(Rate);
+pub struct CollateralExchangeRate(Decimal);
 
 #[derive(Debug)]
 pub struct FeesCalculation {
@@ -234,18 +233,18 @@ impl Reserve {
     }
 
     /// ref. eq. (3)
-    pub fn current_borrow_rate(&self) -> Result<Rate> {
+    pub fn current_borrow_rate(&self) -> Result<Decimal> {
         let utilization_rate = self.liquidity.utilization_rate()?;
         let optimal_utilization_rate =
-            Rate::from_percent(self.config.optimal_utilization_rate);
+            Decimal::from_percent(self.config.optimal_utilization_rate);
         let low_utilization = utilization_rate < optimal_utilization_rate;
 
         // if R_u < R*_u
         if low_utilization || *self.config.optimal_utilization_rate == 100 {
             let normalized_rate =
                 utilization_rate.try_div(optimal_utilization_rate)?;
-            let min_rate = Rate::from_percent(self.config.min_borrow_rate);
-            let rate_range = Rate::from_percent(
+            let min_rate = Decimal::from_percent(self.config.min_borrow_rate);
+            let rate_range = Decimal::from_percent(
                 self.config
                     .optimal_borrow_rate
                     .checked_sub(self.config.min_borrow_rate)
@@ -256,15 +255,16 @@ impl Reserve {
         } else {
             let normalized_rate = utilization_rate
                 .try_sub(optimal_utilization_rate)?
-                .try_div(Rate::from_percent(
+                .try_div(Decimal::from_percent(
                     100u8
                         .checked_sub(
                             self.config.optimal_utilization_rate.into(),
                         )
                         .ok_or(ErrorCode::MathOverflow)?,
                 ))?;
-            let min_rate = Rate::from_percent(self.config.optimal_borrow_rate);
-            let rate_range = Rate::from_percent(
+            let min_rate =
+                Decimal::from_percent(self.config.optimal_borrow_rate);
+            let rate_range = Decimal::from_percent(
                 self.config
                     .max_borrow_rate
                     .checked_sub(self.config.optimal_borrow_rate)
@@ -321,14 +321,13 @@ impl ReserveLiquidity {
     }
 
     /// ref. eq. (1)
-    pub fn utilization_rate(&self) -> Result<Rate> {
+    pub fn utilization_rate(&self) -> Result<Decimal> {
         let total_supply = self.total_supply()?;
         if total_supply == Decimal::zero() {
-            return Ok(Rate::zero());
+            return Ok(Decimal::zero());
+        } else {
+            Ok(Decimal::from(self.borrowed_amount).try_div(total_supply)?)
         }
-        Decimal::from(self.borrowed_amount)
-            .try_div(total_supply)?
-            .try_into()
     }
 
     pub fn withdraw(&mut self, liquidity_amount: u64) -> Result<()> {
@@ -343,28 +342,59 @@ impl ReserveLiquidity {
         Ok(())
     }
 
+    /// Add repay amount to available liquidity and subtract settle amount from
+    /// total borrows.
+    pub fn repay(
+        &mut self,
+        repay_amount: u64,
+        settle_amount: Decimal,
+    ) -> ProgramResult {
+        self.available_amount = self
+            .available_amount
+            .checked_add(repay_amount)
+            .ok_or(ErrorCode::MathOverflow)?;
+        self.borrowed_amount = self
+            .borrowed_amount
+            .to_dec()
+            .try_sub(settle_amount)
+            // small discrepancies can occur on small timelines (borrow and
+            // repay between few slots) when repaying last loan between the
+            // reserve's immediate cumulative borrow and obligation's borrowed
+            // amount
+            //
+            // this prevents those tiny results from rendering an obligation
+            // problematic to repay due to overflow errors
+            .unwrap_or(Decimal::zero())
+            .into();
+
+        Ok(())
+    }
+
     fn compound_interest(
         &mut self,
-        current_borrow_rate: Rate,
+        current_borrow_rate: Decimal,
         slots_elapsed: u64,
     ) -> Result<()> {
         // ref. eq. (4)
         let slot_interest_rate =
             current_borrow_rate.try_div(consts::SLOTS_PER_YEAR)?;
-        let compounded_interest_rate = Rate::one()
+        let compounded_interest_rate = Decimal::one()
             .try_add(slot_interest_rate)?
             .try_pow(slots_elapsed)?;
 
         // ref. eq. (5)
-        self.borrowed_amount = Rate::try_from(self.borrowed_amount)?
+        self.borrowed_amount = self
+            .borrowed_amount
+            .to_dec()
             .try_mul(compounded_interest_rate)?
             .into();
 
         // TODO: explain
-        self.cumulative_borrow_rate =
-            Rate::try_from(self.cumulative_borrow_rate)?
-                .try_mul(compounded_interest_rate)?
-                .into();
+        self.cumulative_borrow_rate = self
+            .cumulative_borrow_rate
+            .to_dec()
+            .try_mul(compounded_interest_rate)?
+            .into();
 
         Ok(())
     }
@@ -409,10 +439,10 @@ impl ReserveCollateral {
         let rate = if self.mint_total_supply == 0
             || total_liquidity == Decimal::zero()
         {
-            Rate::from_scaled_val(consts::INITIAL_COLLATERAL_RATE)
+            Decimal::from_scaled_val(consts::INITIAL_COLLATERAL_RATE.into())
         } else {
             let mint_total_supply = Decimal::from(self.mint_total_supply);
-            Rate::try_from(mint_total_supply.try_div(total_liquidity)?)?
+            mint_total_supply.try_div(total_liquidity)?
         };
 
         Ok(CollateralExchangeRate(rate))
@@ -463,18 +493,19 @@ impl InputReserveConfig {
 impl ReserveFees {
     /// Calculate the owner and host fees on borrow
     fn borrow_fees(&self, borrow_amount: Decimal) -> Result<FeesCalculation> {
-        self.calculate(borrow_amount, Rate::try_from(self.borrow_fee)?)
+        self.calculate(borrow_amount, self.borrow_fee.into())
     }
 
     fn calculate(
         &self,
         borrow_amount: Decimal,
-        borrow_fee_rate: Rate,
+        borrow_fee_rate: Decimal,
     ) -> Result<FeesCalculation> {
-        let host_fee_rate = Rate::from_percent(self.host_fee);
+        let host_fee_rate = Decimal::from_percent(self.host_fee);
 
-        if borrow_fee_rate > Rate::zero() && borrow_amount > Decimal::zero() {
-            let need_to_assess_host_fee = host_fee_rate > Rate::zero();
+        if borrow_fee_rate > Decimal::zero() && borrow_amount > Decimal::zero()
+        {
+            let need_to_assess_host_fee = host_fee_rate > Decimal::zero();
             let minimum_fee = if need_to_assess_host_fee {
                 2 // 1 token to owner, 1 to host
             } else {

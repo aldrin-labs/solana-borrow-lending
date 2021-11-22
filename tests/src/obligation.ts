@@ -50,10 +50,21 @@ export class Obligation {
     return this.market.program.account.obligation.fetch(this.id);
   }
 
-  public async refresh(reserves?: Reserve[]) {
-    await this.market.program.provider.send(
-      new Transaction().add(this.refreshInstruction(reserves))
-    );
+  public async refresh(
+    reserves: Reserve[] = Array.from(this.reservesToRefresh)
+  ) {
+    await this.market.program.rpc.refreshObligation({
+      accounts: {
+        obligation: this.id,
+        clock: SYSVAR_CLOCK_PUBKEY,
+      },
+      remainingAccounts: reserves.map((reserve) => ({
+        pubkey: reserve.id,
+        isSigner: false,
+        isWritable: false,
+      })),
+      instructions: reserves.map((reserve) => reserve.refreshInstruction()),
+    });
   }
 
   public refreshInstruction(
@@ -147,20 +158,19 @@ export class Obligation {
     refreshObligation: boolean = true,
     sign: boolean = true
   ) {
+    // deduplicates reserves in case
+    const reserves = new Set<Reserve>();
+    reserves.add(reserve);
+    this.reservesToRefresh.forEach((r) => reserves.add(r));
+
     const instructions = [];
     if (refreshReserve) {
       instructions.push(
-        reserve.refreshInstruction(),
-        ...this.refreshReservesInstructions()
+        ...Array.from(reserves).map((r) => r.refreshInstruction())
       );
     }
     if (refreshObligation) {
-      instructions.push(
-        this.refreshInstruction([
-          reserve,
-          ...Array.from(this.reservesToRefresh),
-        ])
-      );
+      instructions.push(this.refreshInstruction(Array.from(reserves)));
     }
 
     await this.market.program.rpc.borrowObligationLiquidity(
@@ -180,7 +190,7 @@ export class Obligation {
           tokenProgram: TOKEN_PROGRAM_ID,
         },
         signers: sign ? [this.borrower] : [],
-        instructions,
+        instructions: Array.from(instructions),
         remainingAccounts: hostFeeReceiver
           ? [
               {
@@ -194,6 +204,41 @@ export class Obligation {
     );
 
     this.reservesToRefresh.add(reserve);
+  }
+
+  public async repay(
+    reserve: Reserve,
+    sourceLiquidityWallet: PublicKey,
+    liquidityAmount: number,
+    refreshReserve: boolean = true,
+    refreshObligation: boolean = true,
+    sign: boolean = true
+  ) {
+    const instructions = [];
+    if (refreshReserve) {
+      instructions.push(...this.refreshReservesInstructions());
+    }
+    if (refreshObligation) {
+      instructions.push(this.refreshInstruction());
+    }
+
+    await this.market.program.rpc.repayObligationLiquidity(
+      new BN(liquidityAmount),
+      {
+        accounts: {
+          repayer: this.borrower.publicKey,
+          reserve: reserve.id,
+          obligation: this.id,
+          sourceLiquidityWallet,
+          destinationLiquidityWallet:
+            reserve.accounts.reserveLiquidityWallet.publicKey,
+          clock: SYSVAR_CLOCK_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        },
+        signers: sign ? [this.borrower] : [],
+        instructions,
+      }
+    );
   }
 
   private refreshReservesInstructions(): TransactionInstruction[] {
