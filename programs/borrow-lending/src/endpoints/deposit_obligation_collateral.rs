@@ -1,5 +1,5 @@
 //! Once a borrower initiated an obligation with
-//! [`crate::endpoints::init_obligation_r10`] then they can deposit collateral
+//! [`crate::endpoints::init_obligation`] then they can deposit collateral
 //! to it. The collateral is the token minted in
 //! [`crate::endpoints::deposit_reserve_liquidity`].
 //!

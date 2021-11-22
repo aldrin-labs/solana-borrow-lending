@@ -23,7 +23,7 @@ export function test(
       market = await LendingMarket.init(program, owner, shmemProgramId);
     });
 
-    before("initialize obligation", async () => {
+    before("initialize reserve", async () => {
       reserve = await market.addReserve(50);
     });
 
@@ -31,22 +31,19 @@ export function test(
       obligation = await market.addObligation();
     });
 
-    before(
-      "gift reserve collateral to borrower and deposits it as collateral",
-      async () => {
-        const sourceCollateralWallet =
-          await reserve.createCollateralWalletWithCollateral(
-            obligation.borrower.publicKey,
-            sourceCollateralWalletAmount
-          );
-
-        await obligation.depositCollateral(
-          reserve,
-          sourceCollateralWallet,
+    before("gift reserve collateral to borrower and deposit it", async () => {
+      const sourceCollateralWallet =
+        await reserve.createCollateralWalletWithCollateral(
+          obligation.borrower.publicKey,
           sourceCollateralWalletAmount
         );
-      }
-    );
+
+      await obligation.depositCollateral(
+        reserve,
+        sourceCollateralWallet,
+        sourceCollateralWalletAmount
+      );
+    });
 
     beforeEach("create destination collateral wallet", async () => {
       destinationCollateralWallet =
@@ -64,6 +61,7 @@ export function test(
 
       const emptyObligation = await market.addObligation();
 
+      emptyObligation.reservesToRefresh.add(reserve);
       await expect(
         emptyObligation.withdrawCollateral(
           reserve,
@@ -125,7 +123,7 @@ export function test(
         )
       ).to.be.rejected;
 
-      expect(stdCapture.restore()).to.contain("stale, please refresh");
+      expect(stdCapture.restore()).to.contain("is stale");
     });
 
     it("fails if reserve's market doesn't match obligation's market", async () => {

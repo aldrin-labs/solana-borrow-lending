@@ -3,6 +3,7 @@ import { BorrowLending } from "../../target/types/borrow_lending";
 import { PublicKey, Keypair, Connection } from "@solana/web3.js";
 import { Reserve, ReserveBuilder, ReserveConfig } from "./reserve";
 import { Obligation } from "./obligation";
+import { OracleMarket } from "./pyth";
 
 export class LendingMarket {
   public get id(): PublicKey {
@@ -84,12 +85,14 @@ export class LendingMarket {
 
   public async addReserve(
     liquidityAmount: number,
-    config: ReserveConfig = Reserve.defaultConfig()
+    config: ReserveConfig = Reserve.defaultConfig(),
+    oracleMarket?: OracleMarket
   ): Promise<Reserve> {
     const builder = await ReserveBuilder.new(
       this,
       this.oracleProgram,
-      this.owner
+      this.owner,
+      oracleMarket
     );
 
     return builder.build(liquidityAmount, config);

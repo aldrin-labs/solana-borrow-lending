@@ -8,6 +8,7 @@ import { Keypair, BPF_LOADER_PROGRAM_ID, BpfLoader } from "@solana/web3.js";
 import * as anchor from "@project-serum/anchor";
 import { Program } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
+
 import { test as testInitLendingMarket } from "./1-init-lending-market";
 import { test as testSetLendingMarketOwner } from "./2-set-lending-market-owner";
 import { test as testInitReserve } from "./3-init-reserve";
@@ -18,6 +19,7 @@ import { test as testInitObligation } from "./7-init-obligation";
 import { test as testRefreshObligation } from "./8-refresh-obligation";
 import { test as testDepositObligationCollateral } from "./9-deposit-obligation-collateral";
 import { test as testWithdrawObligationCollateral } from "./10-withdraw-obligation-collateral";
+import { test as testBorrowObligationLiquidity } from "./11-borrow-obligation-liquidity";
 
 describe("borrow-lending", () => {
   const provider = anchor.Provider.local();
@@ -72,4 +74,5 @@ describe("borrow-lending", () => {
   testRefreshObligation(program, payer, shmemProgram.publicKey);
   testDepositObligationCollateral(program, payer, shmemProgram.publicKey);
   testWithdrawObligationCollateral(program, payer, shmemProgram.publicKey);
+  testBorrowObligationLiquidity(program, payer, shmemProgram.publicKey);
 });

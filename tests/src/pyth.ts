@@ -2,13 +2,17 @@ import { PublicKey, Transaction, Keypair, Connection } from "@solana/web3.js";
 import { numberToU64 } from "./helpers";
 import { readFileSync } from "fs";
 
-export const oracleProductBin = () =>
-  readFileSync("tests/fixtures/srm_usd_product.bin");
-export const oracleProductBinByteLen = oracleProductBin().length;
+export type OracleMarket = "srm" | "doge";
 
-export const oraclePriceBin = () =>
-  readFileSync("tests/fixtures/srm_usd_price.bin");
-export const oraclePriceBinBinByteLen = oraclePriceBin().length;
+export const oracleProductBin = (market: OracleMarket = "srm") =>
+  readFileSync(`tests/fixtures/${market}_usd_product.bin`);
+export const oracleProductBinByteLen = (market?: OracleMarket) =>
+  oracleProductBin(market).length;
+
+export const oraclePriceBin = (market: OracleMarket = "srm") =>
+  readFileSync(`tests/fixtures/${market}_usd_price.bin`);
+export const oraclePriceBinByteLen = (market?: OracleMarket) =>
+  oraclePriceBin(market).length;
 
 export async function uploadOracleProduct(
   connection: Connection,

@@ -2,6 +2,7 @@
 extern crate shrinkwraprs;
 
 pub mod endpoints;
+pub mod err;
 pub mod math;
 pub mod models;
 pub mod prelude;
@@ -100,6 +101,18 @@ pub mod borrow_lending {
             ctx,
             lending_market_bump_seed,
             collateral_amount,
+        )
+    }
+
+    pub fn borrow_obligation_liquidity<'info>(
+        ctx: Context<'_, '_, '_, 'info, BorrowObligationLiquidity<'info>>,
+        lending_market_bump_seed: u8,
+        liquidity_amount: u64,
+    ) -> ProgramResult {
+        endpoints::borrow_obligation_liquidity::handle(
+            ctx,
+            lending_market_bump_seed,
+            liquidity_amount,
         )
     }
 }
