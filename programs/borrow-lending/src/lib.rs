@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[macro_use]
+extern crate memoffset;
+
 #[macro_use]
 extern crate shrinkwraprs;
 
@@ -92,6 +96,8 @@ pub mod borrow_lending {
         endpoints::deposit_obligation_collateral::handle(ctx, collateral_amount)
     }
 
+    /// As long as borrower's obligation stays healthy they withdraw given
+    /// amount of collateral from a specific reserve.
     pub fn withdraw_obligation_collateral(
         ctx: Context<WithdrawObligationCollateral>,
         lending_market_bump_seed: u8,
@@ -104,6 +110,8 @@ pub mod borrow_lending {
         )
     }
 
+    /// Borrower makes a loan of a specific reserve liquidity against all
+    /// collateral they deposited.
     pub fn borrow_obligation_liquidity<'info>(
         ctx: Context<'_, '_, '_, 'info, BorrowObligationLiquidity<'info>>,
         lending_market_bump_seed: u8,
@@ -116,10 +124,25 @@ pub mod borrow_lending {
         )
     }
 
+    /// Borrowed repays part or all of their loan of a specific reserve.
     pub fn repay_obligation_liquidity(
         ctx: Context<RepayObligationLiquidity>,
         liquidity_amount: u64,
     ) -> ProgramResult {
         endpoints::repay_obligation_liquidity::handle(ctx, liquidity_amount)
+    }
+
+    /// Any user can repay part of loan of a specific reserve for advantageous
+    /// market value and receive collateral in lieu.
+    pub fn liquidate_obligation(
+        ctx: Context<LiquidateObligation>,
+        lending_market_bump_seed: u8,
+        liquidity_amount: u64,
+    ) -> ProgramResult {
+        endpoints::liquidate_obligation::handle(
+            ctx,
+            lending_market_bump_seed,
+            liquidity_amount,
+        )
     }
 }

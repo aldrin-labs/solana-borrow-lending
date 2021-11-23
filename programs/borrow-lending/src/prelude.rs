@@ -5,6 +5,7 @@ pub use crate::models::*;
 pub use anchor_lang::prelude::*;
 
 pub mod consts {
+    use super::PercentageInt;
     use anchor_lang::solana_program::clock::{
         DEFAULT_TICKS_PER_SECOND, DEFAULT_TICKS_PER_SLOT, SECONDS_PER_DAY,
     };
@@ -48,4 +49,12 @@ pub mod consts {
     /// - <https://github.com/project-serum/anchor/issues/632>
     /// - borsh "const-generics" feature must be exported
     pub const MAX_OBLIGATION_RESERVES: usize = 10;
+
+    /// Percentage of an obligation that can be repaid during each liquidation
+    /// call. TODO: What's the point? Doesn't the obligation just grow more
+    /// and more unhealthy with each call because of the liquidation bonus?
+    pub const LIQUIDATION_CLOSE_FACTOR: PercentageInt = PercentageInt::new(50);
+
+    /// Obligation borrow amount that is small enough to close out.
+    pub const LIQUIDATION_CLOSE_AMOUNT: u64 = 2;
 }

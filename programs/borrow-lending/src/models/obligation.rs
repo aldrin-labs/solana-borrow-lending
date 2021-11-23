@@ -114,6 +114,18 @@ impl Obligation {
         })
     }
 
+    pub fn is_deposited_value_zero(&self) -> bool {
+        self.deposited_value.to_dec() == Decimal::zero()
+    }
+
+    pub fn is_borrowed_value_zero(&self) -> bool {
+        self.borrowed_value.to_dec() == Decimal::zero()
+    }
+
+    pub fn is_healthy(&self) -> bool {
+        self.borrowed_value.to_dec() < self.unhealthy_borrow_value.to_dec()
+    }
+
     // ref. eq. (7)
     pub fn max_withdraw_value(&self) -> Result<Decimal> {
         let required_deposit_value = self
@@ -132,7 +144,7 @@ impl Obligation {
     pub fn get_collateral(
         &self,
         key: Pubkey,
-    ) -> Option<(usize, &ObligationCollateral)> {
+    ) -> Result<(usize, &ObligationCollateral)> {
         self.reserves
             .iter()
             .enumerate()
@@ -144,12 +156,16 @@ impl Obligation {
                 }
                 _ => None,
             })
+            .ok_or_else(|| {
+                msg!("Obligation has no such reserve collateral");
+                ProgramError::InvalidArgument.into()
+            })
     }
 
     pub fn get_liquidity(
         &self,
         key: Pubkey,
-    ) -> Option<(usize, &ObligationLiquidity)> {
+    ) -> Result<(usize, &ObligationLiquidity)> {
         self.reserves
             .iter()
             .enumerate()
@@ -160,6 +176,10 @@ impl Obligation {
                     Some((index, inner))
                 }
                 _ => None,
+            })
+            .ok_or_else(|| {
+                msg!("Obligation has no such reserve liquidity");
+                ProgramError::InvalidArgument.into()
             })
     }
 
@@ -253,7 +273,7 @@ impl Obligation {
                 Ok(())
             }
             ObligationReserve::Liquidity {
-                inner: mut liquidity,
+                inner: ref mut liquidity,
             } => {
                 liquidity.repay(settle_amount)?;
                 Ok(())
@@ -279,7 +299,7 @@ impl Obligation {
 }
 
 impl ObligationLiquidity {
-    fn new(borrow_reserve: Pubkey) -> Self {
+    pub fn new(borrow_reserve: Pubkey) -> Self {
         Self {
             borrow_reserve,
             market_value: Decimal::zero().into(),
@@ -317,6 +337,21 @@ impl ObligationLiquidity {
         Ok(())
     }
 
+    /// Calculate the maximum liquidation amount for a given liquidity.
+    ///
+    /// ref. eq. (8)
+    pub fn max_liquidation_amount(
+        &self,
+        obligation_borrowed_value: Decimal,
+    ) -> Result<Decimal> {
+        let max_liquidation_value = obligation_borrowed_value
+            .try_mul(Decimal::from_percent(consts::LIQUIDATION_CLOSE_FACTOR))?
+            .min(self.market_value.to_dec());
+        let max_liquidation_pct =
+            max_liquidation_value.try_div(self.market_value.to_dec())?;
+        self.borrowed_amount.to_dec().try_mul(max_liquidation_pct)
+    }
+
     fn repay(&mut self, settle_amount: Decimal) -> Result<()> {
         self.borrowed_amount =
             self.borrowed_amount.to_dec().try_sub(settle_amount)?.into();
@@ -333,7 +368,7 @@ impl ObligationLiquidity {
 }
 
 impl ObligationCollateral {
-    fn new(deposit_reserve: Pubkey) -> Self {
+    pub fn new(deposit_reserve: Pubkey) -> Self {
         Self {
             deposit_reserve,
             market_value: Decimal::zero().into(),

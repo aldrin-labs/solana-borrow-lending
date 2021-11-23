@@ -285,6 +285,7 @@ dependencies = [
  "anchor-spl",
  "borsh",
  "bytemuck",
+ "memoffset",
  "shrinkwraprs",
  "spl-token",
  "uint",

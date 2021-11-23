@@ -25,7 +25,7 @@ pub enum ErrorCode {
     #[msg("Interest rate cannot be negative")]
     NegativeInterestRate,
     #[msg("Provided accounts must belong to the same market")]
-    LendingMarketMismatch,
+    LendingMarketMismatch, // 310
     #[msg("Reserve cannot be used as a collateral")]
     ReserveCollateralDisabled,
     #[msg("Number of reserves associated with a single obligation is limited")]
@@ -34,8 +34,8 @@ pub enum ErrorCode {
     ObligationCollateralEmpty,
     #[msg("No liquidity borrowed in this obligation")]
     ObligationLiquidityEmpty,
-    #[msg("No deposited value in collateral")]
-    ObligationDepositsZero,
+    #[msg("Cannot withdraw zero collateral")]
+    WithdrawTooSmall,
     #[msg("Cannot withdraw more than allowed amount of collateral")]
     WithdrawTooLarge,
     #[msg("Cannot borrow that amount of liquidity against this obligation")]
@@ -44,6 +44,13 @@ pub enum ErrorCode {
     BorrowTooSmall,
     #[msg("The amount to repay cannot be zero")]
     RepayTooSmall,
+    #[msg("Healthy obligation cannot be liquidated")]
+    ObligationHealthy,
+    #[msg(
+        "To receive some collateral or repay liquidity \
+        the amount of liquidity to repay must be higher"
+    )]
+    LiquidationTooSmall,
 }
 
 pub fn acc(msg: impl AsRef<str>) -> ProgramError {
@@ -80,6 +87,27 @@ pub fn market_mismatch() -> ProgramError {
     );
 
     ErrorCode::LendingMarketMismatch.into()
+}
+
+pub fn obligation_healthy() -> ProgramError {
+    msg!(
+        "[ObligationHealthy] Obligation's unhealthy borrow value is zero \
+        hence there's nothing to be liquidated"
+    );
+
+    ErrorCode::ObligationHealthy.into()
+}
+
+pub fn empty_liquidity(msg: impl AsRef<str>) -> ProgramError {
+    msg!("[ObligationLiquidityEmpty] {}", msg.as_ref());
+
+    ErrorCode::ObligationLiquidityEmpty.into()
+}
+
+pub fn empty_collateral(msg: impl AsRef<str>) -> ProgramError {
+    msg!("[ObligationCollateralEmpty] {}", msg.as_ref());
+
+    ErrorCode::ObligationCollateralEmpty.into()
 }
 
 #[cfg(test)]

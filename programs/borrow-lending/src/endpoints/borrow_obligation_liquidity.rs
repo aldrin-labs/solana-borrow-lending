@@ -22,9 +22,9 @@ pub struct BorrowObligationLiquidity<'info> {
             @ ProgramError::IllegalOwner,
         constraint = !obligation.is_stale(&clock) @ err::obligation_stale(),
         constraint = obligation.has_deposits()
-            @ ErrorCode::ObligationDepositsZero,
-        constraint = obligation.deposited_value.to_dec() != Decimal::zero()
-            @ ErrorCode::ObligationDepositsZero,
+            @ err::empty_collateral("No collateral deposited"),
+        constraint = !obligation.is_deposited_value_zero()
+            @ err::empty_collateral("Collateral deposited value is zero"),
     )]
     pub obligation: Box<Account<'info, Obligation>>,
     #[account(
