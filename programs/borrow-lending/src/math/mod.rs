@@ -45,6 +45,12 @@ pub struct PercentageInt {
     percent: u8,
 }
 
+impl PercentageInt {
+    pub const fn new(percent: u8) -> Self {
+        Self { percent }
+    }
+}
+
 impl From<PercentageInt> for Decimal {
     fn from(p: PercentageInt) -> Self {
         Self::from_percent(p.percent)
@@ -61,16 +67,4 @@ impl From<u8> for PercentageInt {
     fn from(p: u8) -> Self {
         Self { percent: p }
     }
-}
-
-/// Amount of liquidity that is settled from the obligation and amount of tokens
-/// to transfer to the reserve's liquidity wallet from borrower's source wallet.
-pub fn calculate_repay_amounts(
-    liquidity_amount: u64,
-    borrowed_amount: Decimal,
-) -> Result<(u64, Decimal)> {
-    let settle_amount = Decimal::from(liquidity_amount).min(borrowed_amount);
-    let repay_amount = settle_amount.try_ceil_u64()?;
-
-    Ok((repay_amount, settle_amount))
 }

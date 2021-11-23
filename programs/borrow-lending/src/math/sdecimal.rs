@@ -57,6 +57,12 @@ impl From<Decimal> for SDecimal {
     }
 }
 
+impl From<u64> for SDecimal {
+    fn from(v: u64) -> Self {
+        Decimal::from(v).into()
+    }
+}
+
 impl SDecimal {
     pub fn to_dec(self) -> Decimal {
         self.into()

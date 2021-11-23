@@ -232,6 +232,7 @@ export function test(
 
     it("repays some liquidity", async () => {
       const oldReserveInfo = await reserveDoge.fetch();
+      const oldObligationInfo = await obligation.fetch();
 
       const repayAmount = borrowedLiquidity / 2;
       await obligation.repay(
@@ -260,17 +261,20 @@ export function test(
       const ruacp = u192ToBN(reserveInfo.liquidity.marketPrice);
       expect(ruacp.toString()).eq("238167000000000000");
 
+      expect((await obligation.fetch()).lastUpdate.stale).to.be.true;
+
+      await obligation.refresh();
       const obligationInfo = await obligation.fetch();
-      expect(obligationInfo.lastUpdate.stale).to.be.true;
       expect(
         u192ToBN(obligationInfo.depositedValue).lt(
           u192ToBN(obligationInfo.borrowedValue)
         )
       );
-      // should be about ~242xxxxxxxxxxxxxxxxx
+      // should be about ~123xxxxxxxxxxxxxxxxx
       const obv = u192ToBN(obligationInfo.borrowedValue);
-      expect(obv.gt(ONE_WAD.mul(new BN(24)))).to.be.true;
-      expect(obv.lt(ONE_WAD.mul(new BN(25)))).to.be.true;
+      expect(obv.gt(ONE_WAD.mul(new BN(12)))).to.be.true;
+      expect(obv.lt(ONE_WAD.mul(new BN(13)))).to.be.true;
+      expect(obv.lt(u192ToBN(oldObligationInfo.borrowedValue)));
 
       const odv = u192ToBN(obligationInfo.depositedValue).toString();
       expect(odv).to.eq("73825000000000000000");

@@ -62,12 +62,16 @@ is able to withdraw A' as long as they deposit yet another collateral or repay
 B.
 
 A liquidator is a user who actions on under-collateralized obligations. It's a
-public action, therefore any block-chain user can be a liquidator. Not the whole
-obligation can be liquidated at once. With each liquidation call only half of
-the obligation is liquidated in such a manner that the market value of
+public action, therefore any block-chain user can be a liquidator. Not the
+whole obligation can be liquidated at once. With each liquidation call only
+half of the obligation is liquidated in such a manner that the market value of
 collateral approaches market value of liquidity plus the necessary
-over-collateralized percentage. The liquidator gets a share of the liquidated
-amount. TODO: cross-reference with equations
+over-collateralized percentage. The liquidator pays a liquidity which is
+borrowed by an obligation and receives collateral in exchange. To make this
+profitable for the liquidator, the market price of the liquidity is multiplied
+by a liquidation bonus configurable value.
+
+TODO: cross-reference with equations
 
 
 <details>
@@ -128,9 +132,11 @@ Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
 
 | Symbol       | Description |
 |---           |--- |
-| $`L_b`$      | total borrowed liquidity |
+| $`L_b`$      | total borrowed liquidity (of reserve or obligation) |
 | $`L_s`$      | total deposited liquidity supply |
 | $`L_o`$      | borrowed liquidity for obligation |
+| $`L_v`$      | UAC value of borrowed liquidity |
+| $`L_{maxl}`$ | maximum liquidity amount to liquidate |
 | $`C_s`$      | total minted collateral supply |
 | $`S_e`$      | elapsed slots |
 | $`S_a`$      | number of slots in a calendar year |
@@ -147,16 +153,26 @@ Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
 | $`V_b`$      | UAC value of borrowed liquidity |
 | $`V_{maxw}`$ | maximum withdrawable UAC value |
 | $`V_{maxb}`$ | maximum borrowable UAC value (against deposited collateral) |
+| $`κ`$        | constant liquidity close factor |
+
 
 ```math
 R_u = \dfrac{L_b}{L_s}
 \tag{1}
 ```
 
+
+Exchange rate is simply ratio of collateral to liquidity in the supply. However,
+if there's no liquidity or collateral in the supply, the ratio defaults to a
+compiled-in value.
+
 ```math
 R_x = \dfrac{C_s}{L_s}
 \tag{2}
 ```
+
+
+See the docs in [borrow rate section](#borrow-rate).
 
 ```math
 R_b =
@@ -173,29 +189,48 @@ R_b =
 We define the compound interest period to equal one slot. To get the `i`
 parameter of the standard [compound interest formula][compound-interest-formula]
 we divide borrow rate by the number of slots per year:
+
 ```math
 R_i = (1 + \dfrac{R_b}{S_a})^{S_e}
 \tag{4}
 ```
+
+
+Once per slot we update the liquidity supply with interest rate:
 
 ```math
 L^{'}_s = L_s R_i
 \tag{5}
 ```
 
+
 Eq. (6) describes how interest accrues on borrowed liquidity. $`R^{'}_c`$ is
 the latest cum. borrow rate at time of update while $`R_c`$ is the cum. borrow
 rate at time of last interest accrual.
+
 ```math
 L^{'}_o = \dfrac{R^{'}_c}{R_c} L_o
 \tag{6}
 ```
 
+
 Maximum UAC value to withdraw from an obligation is given by a ratio of
 borrowed value to maximum allowed borrow value:
+
 ```math
 V_{maxw} = V_d - \dfrac{V_b}{V_{maxb}} V_d
 \tag{7}
+```
+
+
+Eq. (8) gives us maximum liquidation amount of liquidity which a liquidator
+cannot go over. (Although they can liquidate less than that.) The close factor
+$`κ`$ is 50% (compiled into the program) and puts a limit on how much borrowed
+value can be liquidated at once.
+
+```math
+L_{maxl} = \dfrac{\min\{V_b * κ, L_v\}}{L_v} L_b
+\tag{8}
 ```
 
 ## Commands

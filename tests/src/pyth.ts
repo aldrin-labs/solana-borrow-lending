@@ -70,6 +70,26 @@ export async function setOraclePriceSlot(
   );
 }
 
+export async function setOraclePrice(
+  connection: Connection,
+  shmemProgramId: PublicKey,
+  payer: Keypair,
+  priceAccount: PublicKey,
+  price: number
+) {
+  // check out the `crate::models::pyth::Price` struct, we are targeting the
+  // `agg` field here
+  const oraclePriceBinAggOffset = 208;
+  await shmemSet(
+    connection,
+    shmemProgramId,
+    payer,
+    priceAccount,
+    oraclePriceBinAggOffset,
+    numberToU64(price)
+  );
+}
+
 async function shmemOverwrite(
   connection: Connection,
   shmemProgramId: PublicKey,

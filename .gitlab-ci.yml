@@ -33,6 +33,7 @@ build_and_test:
 
     - npm i
   script:
+    - cargo test
     - ./bin/test.sh
 
 

@@ -241,6 +241,56 @@ export class Obligation {
     );
   }
 
+  public async liquidate(
+    liquidityAmount: number,
+    repayReserve: Reserve,
+    withdrawReserve: Reserve,
+    sourceLiquidityWallet: PublicKey,
+    destinationCollateralWallet: PublicKey,
+    liquidator = this.borrower,
+    refreshObligation = true,
+    refreshRepayReserve = true,
+    refreshWithdrawReserve = true,
+    sign = true
+  ) {
+    const instructions = [];
+    if (refreshRepayReserve && refreshWithdrawReserve) {
+      instructions.push(...this.refreshReservesInstructions());
+    } else if (refreshRepayReserve) {
+      instructions.push(repayReserve.refreshInstruction());
+    } else if (refreshWithdrawReserve) {
+      instructions.push(withdrawReserve.refreshInstruction());
+    }
+
+    if (refreshObligation) {
+      instructions.push(this.refreshInstruction());
+    }
+
+    await this.market.program.rpc.liquidateObligation(
+      this.market.bumpSeed,
+      new BN(liquidityAmount),
+      {
+        accounts: {
+          lendingMarketPda: this.market.pda,
+          liquidator: liquidator.publicKey,
+          obligation: this.id,
+          withdrawReserve: withdrawReserve.id,
+          reserveCollateralWallet:
+            withdrawReserve.accounts.reserveCollateralWallet.publicKey,
+          destinationCollateralWallet,
+          repayReserve: repayReserve.id,
+          reserveLiquidityWallet:
+            repayReserve.accounts.reserveLiquidityWallet.publicKey,
+          sourceLiquidityWallet,
+          clock: SYSVAR_CLOCK_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        },
+        signers: sign ? [liquidator] : [],
+        instructions,
+      }
+    );
+  }
+
   private refreshReservesInstructions(): TransactionInstruction[] {
     return Array.from(this.reservesToRefresh).map((reserve) =>
       reserve.refreshInstruction()

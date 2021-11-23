@@ -50,16 +50,10 @@ pub fn handle(
         return Err(ErrorCode::InvalidAmount.into());
     }
 
-    let (liquidity_index, liquidity) = accounts
-        .obligation
-        .get_liquidity(accounts.reserve.key())
-        .ok_or_else(|| {
-            msg!("Obligation has no such reserve liquidity");
-            ProgramError::InvalidArgument
-        })?;
+    let (liquidity_index, liquidity) =
+        accounts.obligation.get_liquidity(accounts.reserve.key())?;
     if liquidity.borrowed_amount.to_dec() == Decimal::zero() {
-        msg!("Liquidity borrowed amount is zero");
-        return Err(ErrorCode::ObligationLiquidityEmpty.into());
+        return Err(err::empty_liquidity("Liquidity borrowed amount is zero"));
     }
 
     // the repay amount is similar to liquidity but at most equal to the
@@ -94,6 +88,18 @@ pub fn handle(
     token::transfer(accounts.into_repay_liquidity_context(), repay_amount)?;
 
     Ok(())
+}
+
+// Amount of liquidity that is settled from the obligation and amount of tokens
+// to transfer to the reserve's liquidity wallet from borrower's source wallet.
+fn calculate_repay_amounts(
+    liquidity_amount: u64,
+    borrowed_amount: Decimal,
+) -> Result<(u64, Decimal)> {
+    let settle_amount = Decimal::from(liquidity_amount).min(borrowed_amount);
+    let repay_amount = settle_amount.try_ceil_u64()?;
+
+    Ok((repay_amount, settle_amount))
 }
 
 impl<'info> RepayObligationLiquidity<'info> {

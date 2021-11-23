@@ -68,17 +68,13 @@ pub fn handle(
         return Err(ErrorCode::InvalidAmount.into());
     }
 
-    let (collateral_index, collateral) = accounts
-        .obligation
-        .get_collateral(accounts.reserve.key())
-        .ok_or_else(|| {
-            msg!("Obligation has no such reserve collateral");
-            ProgramError::InvalidArgument
-        })?;
+    let (collateral_index, collateral) =
+        accounts.obligation.get_collateral(accounts.reserve.key())?;
 
     if collateral.deposited_amount == 0 {
-        msg!("Collateral deposited amount is zero");
-        return Err(ErrorCode::ObligationCollateralEmpty.into());
+        return Err(err::empty_collateral(
+            "Collateral deposited amount is zero",
+        ));
     }
 
     let withdraw_amount = if !accounts.obligation.has_borrows() {
@@ -88,13 +84,15 @@ pub fn handle(
         // unlikely situation as if there's no deposited value then there won't
         // be any borrows, but since we're dividing by deposited amount, this
         // is a more friendly error in any case
-        msg!("Obligation deposited value is zero");
-        return Err(ErrorCode::ObligationDepositsZero.into());
+        return Err(err::empty_collateral(
+            "Obligation deposited value is zero",
+        ));
     } else {
         let max_withdraw_value = accounts.obligation.max_withdraw_value()?;
         if max_withdraw_value == Decimal::zero() {
-            msg!("No collateral can be withdrawn");
-            return Err(ErrorCode::ObligationDepositsZero.into());
+            return Err(err::empty_collateral(
+                "No collateral can be withdrawn",
+            ));
         }
 
         let withdraw_amount =
@@ -119,7 +117,7 @@ pub fn handle(
 
         if withdraw_amount == 0 {
             msg!("Withdraw amount is too small to transfer collateral");
-            return Err(ErrorCode::ObligationDepositsZero.into());
+            return Err(ErrorCode::WithdrawTooSmall.into());
         }
 
         withdraw_amount

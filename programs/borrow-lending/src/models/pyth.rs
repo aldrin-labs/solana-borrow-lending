@@ -318,6 +318,27 @@ mod tests {
     fn it_loads_price() {
         let data = fs::read("../../tests/fixtures/srm_usd_price.bin").unwrap();
 
-        assert!(Price::load(&data).is_ok());
+        let price = Price::load(&data);
+        assert!(price.is_ok());
+        let price = price.unwrap().validate();
+        assert!(price.is_ok());
+        let price = price.unwrap();
+
+        assert_eq!(price.agg.price, 7382500000);
+    }
+
+    #[test]
+    fn it_has_stable_price_offset() {
+        assert_eq!(offset_of!(Price, agg), 208);
+    }
+
+    #[test]
+    fn it_has_stable_price_slot_offset() {
+        assert_eq!(offset_of!(Price, valid_slot), 40);
+    }
+
+    #[test]
+    fn it_has_stable_product_price_offset() {
+        assert_eq!(offset_of!(Product, px_acc), 16);
     }
 }

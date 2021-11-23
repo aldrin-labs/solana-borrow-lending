@@ -28,6 +28,7 @@ import {
   oraclePriceBinByteLen,
   oracleProductBin,
   oracleProductBinByteLen,
+  setOraclePrice,
   setOraclePriceSlot,
   uploadOraclePrice,
   uploadOracleProduct,
@@ -203,6 +204,16 @@ export class Reserve {
     );
   }
 
+  public async setOraclePrice(price: number) {
+    await setOraclePrice(
+      this.market.connection,
+      this.market.oracleProgram,
+      this.market.owner,
+      this.accounts.oraclePrice.publicKey,
+      price
+    );
+  }
+
   public async depositLiquidity(
     liquidityAmount: number,
     refreshReserve: boolean = true
@@ -214,7 +225,7 @@ export class Reserve {
       sourceLiquidityWallet,
       this.accounts.liquidityMintAuthority,
       [],
-      50
+      liquidityAmount
     );
     const destinationCollateralWallet =
       await this.accounts.reserveCollateralMint.createAccount(funder.publicKey);
