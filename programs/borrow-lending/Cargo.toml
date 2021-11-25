@@ -19,10 +19,10 @@ serde = ["serde_crate", "serde_json"]
 [dependencies]
 anchor-lang = "0.18"
 anchor-spl = "0.18"
-bytemuck = "1.7"
+pyth-client = "0.2"
+shrinkwraprs = "0.3"
 spl-token = { version = "3.2", features = ["no-entrypoint"] }
 uint = "0.9"
-shrinkwraprs = "0.3"
 # we use any version which means the selected version is
 # going to be compatible with anchor-lang
 borsh = "*"

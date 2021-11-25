@@ -24,7 +24,7 @@ pub fn handle(ctx: Context<RefreshReserve>) -> ProgramResult {
     let oracle_price_data = accounts.oracle_price.try_borrow_data()?;
     let oracle_price = pyth::Price::load(&oracle_price_data)?.validate()?;
     accounts.reserve.liquidity.market_price =
-        oracle_price.calculate_market_price(&accounts.clock)?.into();
+        pyth::calculate_market_price(&oracle_price, &accounts.clock)?.into();
 
     accounts.reserve.accrue_interest(accounts.clock.slot)?;
     accounts
