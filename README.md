@@ -44,7 +44,7 @@ wallet to the reserve's supply wallet which holds funds of all funders
 together. In return, BLp mints appropriate amount of reserve's collateral
 tokens into funder's destination collateral wallet. The exchange rate between
 liquidity and collateral starts at 1:5 when no collateral is minted, and given
-by [eq. 2](#equations) when the circulating amount of collateral is not 0.
+by [eq. (2)](#equations) when the circulating amount of collateral is not 0.
 Because borrowers pay interest on their loans, the amount of liquidity in the
 reserve's supply wallet increases which makes the ratio more favorable for the
 minted collateral. Eventually, the funder redeems their minted collateral for
@@ -69,10 +69,14 @@ collateral approaches market value of liquidity plus the necessary
 over-collateralized percentage. The liquidator pays a liquidity which is
 borrowed by an obligation and receives collateral in exchange. To make this
 profitable for the liquidator, the market price of the liquidity is multiplied
-by a liquidation bonus configurable value.
+by a liquidation bonus configurable value. In another words, the liquidator
+seeks an unhealthy obligation and picks a borrow reserve and a collateral
+reserve from this obligation. They repay the borrow reserve's liquidity token
+and receive a collateral token at a discounted price.
 
-TODO: cross-reference with equations
-
+Not all of obligation's value can be liquidated at once. The [eq.
+(8)](#equations) sets a limit on how much of the obligation's borrow value can
+be liquidated at once.
 
 <details>
 <summary markdown="span">
@@ -82,6 +86,24 @@ Diagram illustrating endpoints-accounts relationships
 ![Overview of endpoints](docs/endpoints_accounts_relationship.png)
 
 </details>
+
+### Flash loan
+Flash Loans are special uncollateralised loans that allow the borrowing of an
+asset, as long as the borrowed amount (and a fee) is returned before the end of
+the transaction. There is no real world analogy to Flash Loans, so it requires
+some basic understanding of how state is managed within blocks in blockchains.
+(Source: [Aave dev docs][aave-flash-loans])
+
+Flash loans are frequent target of vulnerabilities, a recent large one was [the
+CREAM attack][podcast-coinsec-ep-46].
+
+Some competitors who offer flash loans as a part of their borrow lending
+offering are [Port Finance][port-finance], [Solaris][solaris] and
+[Equalizer][equalizer] who, albeit on ETH, specializes on flash loans.
+
+After searching through Port's transaction history it seems that flash loan is
+a rarely used feature in their program. In the analysed timespan of ~24h, it
+hasn't been used once.
 
 ### Reserve configuration
 When market owner creates a reserve, they supply configuration with (not only)
@@ -304,3 +326,7 @@ create a new lending market with:
 [pyth-network]: https://pyth.network
 [pyth-srm-usd]: https://pyth.network/markets/#SRM/USD
 [project-rust-docs]: https://crypto_project.gitlab.io/defi/borrow-lending/borrow_lending
+[port-finance]: https://port.finance
+[solaris]: https://solarisprotocol.com
+[equalizer]: https://equalizer.finance
+[aave-flash-loan]: https://docs.aave.com/developers/guides/flash-loans
