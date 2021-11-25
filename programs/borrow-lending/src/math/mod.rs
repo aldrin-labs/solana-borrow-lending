@@ -41,6 +41,12 @@ pub trait TryMul<RHS>: Sized {
     PartialEq,
     Eq,
 )]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde_crate::Serialize, serde_crate::Deserialize),
+    serde(crate = "serde_crate")
+)]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct PercentageInt {
     percent: u8,
 }

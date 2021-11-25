@@ -397,6 +397,8 @@ dependencies = [
  "borsh",
  "bytemuck",
  "memoffset",
+ "serde",
+ "serde_json",
  "shrinkwraprs",
  "spl-token",
  "uint",
@@ -637,9 +639,11 @@ name = "cli"
 version = "0.1.0"
 dependencies = [
  "anchor-client",
+ "anchor-spl",
  "borrow-lending",
  "clap 3.0.0-beta.5",
  "dotenv",
+ "serde_json",
  "solana-sdk",
 ]
 

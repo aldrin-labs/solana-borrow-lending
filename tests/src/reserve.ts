@@ -42,9 +42,9 @@ export interface ReserveConfig {
     loanToValueRatio: PercentInt;
     liquidationBonus: PercentInt;
     liquidationThreshold: PercentInt;
-    minBorrowRate: number;
-    optimalBorrowRate: number;
-    maxBorrowRate: number;
+    minBorrowRate: PercentInt;
+    optimalBorrowRate: PercentInt;
+    maxBorrowRate: PercentInt;
     fees: {
       borrowFee: { u192: U192 };
       hostFee: PercentInt;
@@ -159,9 +159,9 @@ export class Reserve {
         loanToValueRatio: { percent: 90 },
         liquidationBonus: { percent: 2 },
         liquidationThreshold: { percent: 96 },
-        minBorrowRate: 1,
-        optimalBorrowRate: 5,
-        maxBorrowRate: 10,
+        minBorrowRate: { percent: 1 },
+        optimalBorrowRate: { percent: 5 },
+        maxBorrowRate: { percent: 10 },
         fees: {
           borrowFee: { u192: numberToU192(0.01) },
           flashLoanFee: { u192: numberToU192(0.001) },
