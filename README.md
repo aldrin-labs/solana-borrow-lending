@@ -111,13 +111,37 @@ hasn't been used once.
 When market owner creates a reserve, they supply configuration with (not only)
 following information:
 
+
 * `optimal_utilization_rate` is $`R^*_u`$, see below;
+
 * `optimal_borrow_rate` is $`R^*_b`$, see below;
-* `loan_to_value_ratio` is a percentage by which obligation must be
-  over-collateralized to make further borrowing possible;
-* `liquidation_threshold` is a percentage by which obligation must be
-  over-collateralized to avoid liquidation;
+
+* `loan_to_value_ratio` is the ratio between the maximum allowed borrow value
+  and the collateral value. Set to 0 to disable use as a collateral.
+
+Say that a user deposit 100 USD worth of SOL, according to the currently LTV of
+85% for Solana the users are able to borrow up to 85 USD worth of assets.
+
+* `liquidation_threshold` is loan to value ratio at which an obligation can be
+  liquidated.
+
+In another words, liquidation threshold is the ratio between borrow amount and
+the collateral value at which the users are subject to liquidation.
+
+Say that a user deposit 100 USD worth of SOL and borrow 85 USD worth of assets,
+according to the currently liquidation threshold of 90%, the user is subject to
+liquidation if the value of the assets that they borrow has increased 90 USD.
+
+* `liquidation_bonus` is a bonus a liquidator gets when repaying part of an
+  unhealthy obligation.
+
+If the user has put in 100 USD worth of SOL and borrow 85 USD. If the value of
+the borrowed asset has reached 90 USD. The liquidator can comes in and pay 50
+USD worth of SOL and it will be able to get back `50 * (1 + 2%) = 51` USD worth
+of SOL.
+
 * `min_borrow_rate` is $`R_{minb}`$, see below;
+
 * `max_borrow_rate` is $`R_{maxb}`$, see below;
 
 #### Fees
@@ -138,8 +162,11 @@ The minimum fee is 1 liquidity token's smallest divisible part (e.g. 1 sat for
 XBT).
 
 ### Borrow rate
-Borrow rate ($`R_b`$) is a key concept for interest calculation. TODO: explain
-the model
+Borrow rate ($`R_b`$) is a key concept for interest calculation.  When $`R_u <
+R^*_u`$, the rate increases slowly with utilization. Otherwise the borrow
+interest rate increases sharply to incentivize more deposit and avoid liquidity
+risk. See the [Aave borrow interest rate documentation][aave-borrow-rate] for
+more information. We use the same interest rate curve.
 
 <details>
 <summary markdown="span">Model for borrow rate calculation (eq. 3)</summary>
@@ -328,6 +355,7 @@ create a new lending market with:
 [pyth-network]: https://pyth.network
 [pyth-srm-usd]: https://pyth.network/markets/#SRM/USD
 [project-rust-docs]: https://crypto_project.gitlab.io/defi/borrow-lending/borrow_lending
+[aave-borrow-rate]: https://docs.aave.com/risk/liquidity-risk/borrow-interest-rate#interest-rate-model
 [port-finance]: https://port.finance
 [solaris]: https://solarisprotocol.com
 [equalizer]: https://equalizer.finance

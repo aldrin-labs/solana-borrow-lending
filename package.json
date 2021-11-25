@@ -1,7 +1,7 @@
 {
   "description": "Test suite for borrow-lending program",
   "scripts": {
-    "fmt": "prettier --write package.json tests/src",
+    "fmt": "prettier --write package.json tests/src bin",
     "test": "anchor test",
     "test-skip-build": "anchor test --skip-build",
     "check": "tsc --build"
@@ -16,6 +16,7 @@
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "mocha": "^8.0.0",
+    "node-fetch": "^2.6.1",
     "prettier": "^2.4.1",
     "ts-mocha": "^8.0.0",
     "typescript": "^4.3.5"

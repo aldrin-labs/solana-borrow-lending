@@ -27,15 +27,33 @@ pub struct Reserve {
 pub struct ReserveConfig {
     ///  TODO
     pub optimal_utilization_rate: PercentageInt,
-    /// Target ratio of the value of borrows to deposits. TODO
+    /// LTV is the ratio between the maximum allowed borrow value and the
+    /// collateral value. Set to 0 to disable use as a collateral.
     ///
-    /// Set to 0 to disable use as a collateral.
+    /// ## Example
+    /// Say that a user deposit 100 USD worth of SOL, according to the
+    /// currently LTV of 85% for Solana the users are able to borrow up to 85
+    /// USD worth of assets.
     pub loan_to_value_ratio: PercentageInt,
     /// Bonus a liquidator gets when repaying part of an unhealthy obligation.
+    ///
+    /// ## Example
+    /// If the user has put in 100 USD worth of SOL and borrow 85 USD. If the
+    /// value of the borrowed asset has reached 90 USD. The liquidator can
+    /// comes in and pay 50 USD worth of SOL and it will be able to get back 50
+    /// * (1 + 2%) =  51 USD worth of SOL.
     pub liquidation_bonus: PercentageInt,
-    /// Loan to value ratio at which an obligation can be liquidated. For
-    /// example, if the loan is worth more than 1.2x collateral, then
-    /// proceed with liquidation. In such case this value would be 20.
+    /// Loan to value ratio at which an obligation can be liquidated.
+    ///
+    /// In another words, liquidation threshold is the ratio between borrow
+    /// amount and the collateral value at which the users are subject to
+    /// liquidation.
+    ///
+    /// ## Example
+    /// Say that a user deposit 100 USD worth of SOL and borrow 85 USD worth of
+    /// assets, according to the currently liquidation threshold of 90%, the
+    /// user is subject to liquidation if the value of the assets that they
+    /// borrow has increased 90 USD.
     pub liquidation_threshold: PercentageInt,
     /// Min borrow APY TODO
     pub min_borrow_rate: PercentageInt,
