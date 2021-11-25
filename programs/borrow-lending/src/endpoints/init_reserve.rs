@@ -99,7 +99,7 @@ pub fn handle(
     let oracle_product_data = accounts.oracle_product.try_borrow_data()?;
     let oracle_product =
         pyth::Product::load(&oracle_product_data)?.validate()?;
-    if oracle_product.px_acc != accounts.oracle_price.key() {
+    if oracle_product.px_acc.val != accounts.oracle_price.key().to_bytes() {
         msg!(
             "Pyth product price account does not match the Pyth price provided"
         );
@@ -114,7 +114,8 @@ pub fn handle(
 
     let oracle_price_data = accounts.oracle_price.try_borrow_data()?;
     let oracle_price = pyth::Price::load(&oracle_price_data)?.validate()?;
-    let market_price = oracle_price.calculate_market_price(&accounts.clock)?;
+    let market_price =
+        pyth::calculate_market_price(&oracle_price, &accounts.clock)?;
 
     accounts.reserve.last_update = LastUpdate::new(accounts.clock.slot);
     accounts.reserve.lending_market = accounts.lending_market.key();
