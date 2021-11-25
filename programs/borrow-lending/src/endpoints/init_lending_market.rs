@@ -18,6 +18,7 @@ pub fn handle(
     currency: UniversalAssetCurrency,
 ) -> ProgramResult {
     let accounts = ctx.accounts;
+    msg!("init lending market '{}'", accounts.lending_market.key());
 
     accounts.lending_market.owner = accounts.owner.key();
     accounts.lending_market.oracle_program = accounts.oracle_program.key();
