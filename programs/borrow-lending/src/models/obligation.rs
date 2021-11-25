@@ -283,7 +283,7 @@ impl Obligation {
                     "Expected a liquidity at index {}, aborting",
                     liquidity_index
                 );
-                Err(ProgramError::InvalidArgument.into())
+                Err(ProgramError::InvalidArgument)
             }
         }
     }
@@ -294,7 +294,7 @@ impl Obligation {
         self.allowed_borrow_value
             .to_dec()
             .try_sub(self.borrowed_value.to_dec())
-            .unwrap_or(Decimal::zero())
+            .unwrap_or_else(|_| Decimal::zero())
     }
 }
 

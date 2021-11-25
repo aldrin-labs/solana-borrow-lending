@@ -251,6 +251,53 @@ When debugging or working on a new feature, use
 [mocha's `only`][mocha-exclusive-tests] functionality to avoid running all tests
 every time.
 
+## CLI
+To ease BLp setup on devnet and mainnet, this repository provides a simple CLI
+which can be configured to call actions on the chain.
+
+First, you must build the CLI binary. (You will need to have `libssl-dev` and
+`libudev-dev` installed.)
+
+```
+cargo build --bin cli --release
+```
+
+Then you can either setup an .env file by cloning and editing the example:
+
+```
+cp cli/.env.example .env
+```
+
+or you can view help for command line configuration options:
+
+```
+./target/release/cli help
+```
+
+A handy command to generate new keypair for setting up new accounts:
+
+```
+solana-keygen new -o [file-name].json
+```
+
+To try the CLI locally you run the test ledger and configure localnet either
+with `--cluster` flag or `CLUSTER` environment variable.
+
+```
+solana-test-validator
+```
+
+For example, after creating necessary keypairs and setting up .env, one can
+create a new lending market with:
+
+```
+./target/release/cli init-market \
+  --keypair market-keypair.json \
+  --owner owner-keypair.json \
+  --usd
+```
+
+
 [desmos-borrow-rate]: https://www.desmos.com/calculator/1002gfizz0
 [compound-interest-formula]: https://en.wikipedia.org/wiki/Compound_interest#Periodic_compounding
 [mocha-exclusive-tests]: https://mochajs.org/#exclusive-tests

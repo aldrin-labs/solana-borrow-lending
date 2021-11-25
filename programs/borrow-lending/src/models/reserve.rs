@@ -324,7 +324,7 @@ impl ReserveLiquidity {
     pub fn utilization_rate(&self) -> Result<Decimal> {
         let total_supply = self.total_supply()?;
         if total_supply == Decimal::zero() {
-            return Ok(Decimal::zero());
+            Ok(Decimal::zero())
         } else {
             Ok(Decimal::from(self.borrowed_amount).try_div(total_supply)?)
         }
@@ -364,7 +364,7 @@ impl ReserveLiquidity {
             //
             // this prevents those tiny results from rendering an obligation
             // problematic to repay due to overflow errors
-            .unwrap_or(Decimal::zero())
+            .unwrap_or_else(|_| Decimal::zero())
             .into();
 
         Ok(())

@@ -14,7 +14,7 @@ pub mod prelude;
 use endpoints::*;
 use prelude::*;
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("7vRDzPZK2toUCkGUgtb1uPZLXvtj8YvXUKUBRh8Ufr5y");
 
 #[program]
 pub mod borrow_lending {

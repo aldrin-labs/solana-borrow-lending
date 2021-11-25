@@ -25,7 +25,13 @@ build_and_test:
     paths:
       - target/deploy/borrow_lending.so
       - target/idl/borrow_lending.json
+      - target/release/cli
   before_script:
+    # necessary for anchor-client
+    # TODO: export to a docker image
+    - sudo apt update
+    - sudo apt install -y libssl-dev libudev-dev
+
     # TODO: export the solana CLI installation into a docker image in our own
     # registery
     - sh -c "$(curl -sSfL https://release.solana.com/v${SOLANA_VERSION}/install)"
@@ -35,6 +41,8 @@ build_and_test:
   script:
     - cargo test
     - ./bin/test.sh
+    - cargo build --bin cli --release
+    - ./target/release/cli help
 
 
 # We generate docs.rs style documentation for the codebase and publish it as
