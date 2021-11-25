@@ -1,6 +1,16 @@
 * [View Rust docs][project-rust-docs]
 
 ## Design
+
+<details>
+<summary markdown="span">
+Diagram illustrating endpoints-accounts relationships
+</summary>
+
+![Overview of endpoints](docs/endpoints_accounts_relationship.png)
+
+</details>
+
 The Borrow-Lending program (BLp) is a set of actions (endpoints) each belonging
 to one of 4 permission levels. BLp operates on 3 kinds of owned accounts, 2
 kinds of oracle accounts and 2 kinds of token accounts.
@@ -78,14 +88,6 @@ Not all of obligation's value can be liquidated at once. The [eq.
 (8)](#equations) sets a limit on how much of the obligation's borrow value can
 be liquidated at once.
 
-<details>
-<summary markdown="span">
-Diagram illustrating endpoints-accounts relationships
-</summary>
-
-![Overview of endpoints](docs/endpoints_accounts_relationship.png)
-
-</details>
 
 ### Flash loan
 Flash Loans are special uncollateralised loans that allow the borrowing of an
@@ -329,4 +331,5 @@ create a new lending market with:
 [port-finance]: https://port.finance
 [solaris]: https://solarisprotocol.com
 [equalizer]: https://equalizer.finance
-[aave-flash-loan]: https://docs.aave.com/developers/guides/flash-loans
+[aave-flash-loans]: https://docs.aave.com/developers/guides/flash-loans
+[podcast-coinsec-ep-46]: https://podcastaddict.com/episode/130756978
