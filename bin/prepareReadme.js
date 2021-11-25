@@ -24,7 +24,8 @@ const { readFileSync } = require("fs");
 
 // print the output to stdin which is then used by .gitlab-ci.yml
 console.log(
-  readFileSync("README.md").toString()
+  readFileSync("README.md")
+    .toString()
     .replace(/```math(.*?)```/gms, "$$$ $1$$$")
     .replace(/```math/gm, "$$$")
     .replace(/\$`|`\$/g, "$")
