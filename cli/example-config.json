@@ -1,0 +1,14 @@
+{
+  "optimalUtilizationRate": { "percent": 50 },
+  "loanToValueRatio": { "percent": 90 },
+  "liquidationBonus": { "percent": 2 },
+  "liquidationThreshold": { "percent": 96 },
+  "minBorrowRate": { "percent": 1 },
+  "optimalBorrowRate": { "percent": 5 },
+  "maxBorrowRate": { "percent": 10 },
+  "fees": {
+    "borrowFee": { "u192": [10000000000000000, 0, 0] },
+    "flashLoanFee": { "u192": [1000000000000000, 0, 0] },
+    "hostFee": { "percent": 2 }
+  }
+}

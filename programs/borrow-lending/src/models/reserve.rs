@@ -18,6 +18,12 @@ pub struct Reserve {
 #[derive(
     AnchorSerialize, AnchorDeserialize, Clone, Debug, Default, PartialEq,
 )]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde_crate::Serialize, serde_crate::Deserialize),
+    serde(crate = "serde_crate")
+)]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct ReserveConfig {
     ///  TODO
     pub optimal_utilization_rate: PercentageInt,
@@ -32,11 +38,11 @@ pub struct ReserveConfig {
     /// proceed with liquidation. In such case this value would be 20.
     pub liquidation_threshold: PercentageInt,
     /// Min borrow APY TODO
-    pub min_borrow_rate: u8,
+    pub min_borrow_rate: PercentageInt,
     /// Optimal (utilization) borrow APY TODO
-    pub optimal_borrow_rate: u8,
+    pub optimal_borrow_rate: PercentageInt,
     /// Max borrow APY TODO
-    pub max_borrow_rate: u8,
+    pub max_borrow_rate: PercentageInt,
     /// Program owner fees separate from gains due to interest accrual.
     pub fees: ReserveFees,
 }
@@ -56,6 +62,12 @@ pub struct InputReserveConfig {
 #[derive(
     AnchorSerialize, AnchorDeserialize, Clone, Debug, Default, PartialEq,
 )]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde_crate::Serialize, serde_crate::Deserialize),
+    serde(crate = "serde_crate")
+)]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct ReserveFees {
     /// Fee assessed on [`crate::endpoints::BorrowObligationLiquidity`],
     /// expressed as a Wad. Must be between 0 and 10^18, such that 10^18 =
@@ -152,11 +164,11 @@ impl Validate for ReserveConfig {
             msg!("Liquidation threshold must be in range (LTV, 100]");
             return Err(ErrorCode::InvalidConfig.into());
         }
-        if self.optimal_borrow_rate < self.min_borrow_rate {
+        if *self.optimal_borrow_rate < *self.min_borrow_rate {
             msg!("Optimal borrow rate must be >= min borrow rate");
             return Err(ErrorCode::InvalidConfig.into());
         }
-        if self.optimal_borrow_rate > self.max_borrow_rate {
+        if *self.optimal_borrow_rate > *self.max_borrow_rate {
             msg!("Optimal borrow rate must be <= max borrow rate");
             return Err(ErrorCode::InvalidConfig.into());
         }
@@ -247,7 +259,7 @@ impl Reserve {
             let rate_range = Decimal::from_percent(
                 self.config
                     .optimal_borrow_rate
-                    .checked_sub(self.config.min_borrow_rate)
+                    .checked_sub(*self.config.min_borrow_rate)
                     .ok_or(ErrorCode::MathOverflow)?,
             );
 
@@ -267,7 +279,7 @@ impl Reserve {
             let rate_range = Decimal::from_percent(
                 self.config
                     .max_borrow_rate
-                    .checked_sub(self.config.optimal_borrow_rate)
+                    .checked_sub(*self.config.optimal_borrow_rate)
                     .ok_or(ErrorCode::MathOverflow)?,
             );
 
@@ -333,7 +345,11 @@ impl ReserveLiquidity {
     pub fn withdraw(&mut self, liquidity_amount: u64) -> Result<()> {
         if liquidity_amount > self.available_amount {
             msg!("Withdraw amount cannot exceed available amount");
-            return Err(ProgramError::InsufficientFunds.into());
+            return Err(err::insufficient_funds(
+                liquidity_amount,
+                self.available_amount,
+            )
+            .into());
         }
         self.available_amount = self
             .available_amount
@@ -404,7 +420,11 @@ impl ReserveLiquidity {
         let borrow_amount = borrow_decimal.try_floor_u64()?;
         if borrow_amount > self.available_amount {
             msg!("Borrow amount cannot exceed available amount");
-            return Err(ProgramError::InsufficientFunds.into());
+            return Err(err::insufficient_funds(
+                borrow_amount,
+                self.available_amount,
+            )
+            .into());
         }
 
         self.available_amount = self
@@ -487,6 +507,10 @@ impl InputReserveConfig {
         let Self { conf } = self;
         conf.validate()?;
         Ok(conf)
+    }
+
+    pub fn new(conf: ReserveConfig) -> Self {
+        Self { conf }
     }
 }
 

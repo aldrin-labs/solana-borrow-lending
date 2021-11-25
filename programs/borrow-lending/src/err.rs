@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use std::fmt::Display;
 
 #[error]
 pub enum ErrorCode {
@@ -108,6 +109,15 @@ pub fn empty_collateral(msg: impl AsRef<str>) -> ProgramError {
     msg!("[ObligationCollateralEmpty] {}", msg.as_ref());
 
     ErrorCode::ObligationCollateralEmpty.into()
+}
+
+pub fn insufficient_funds(
+    required: impl Display,
+    got: impl Display,
+) -> ProgramError {
+    msg!("[InsufficientFunds] Required {} but got {}", required, got);
+
+    ProgramError::InsufficientFunds
 }
 
 #[cfg(test)]

@@ -35,6 +35,12 @@ use crate::prelude::*;
     PartialEq,
     Eq,
 )]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde_crate::Serialize, serde_crate::Deserialize),
+    serde(crate = "serde_crate")
+)]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct SDecimal {
     u192: [u64; 3],
 }

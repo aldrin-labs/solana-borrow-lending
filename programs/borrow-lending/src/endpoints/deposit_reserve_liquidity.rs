@@ -12,7 +12,10 @@ pub struct DepositReserveLiquidity<'info> {
             source_liquidity_wallet.key()
             @ err::acc("Reserve liq. wallet mustn't equal source liq. wallet"),
         constraint = source_liquidity_wallet.amount >= liquidity_amount
-            @ ProgramError::InsufficientFunds,
+            @ err::insufficient_funds(
+                liquidity_amount,
+                source_liquidity_wallet.amount
+            ),
         constraint = source_liquidity_wallet.key() != reserve.liquidity.supply
             @ err::acc("Source liq. wallet musn't be reserve liq. wallet"),
     )]

@@ -43,7 +43,10 @@ pub struct InitReserve<'info> {
     #[account(
         mut,
         constraint = source_liquidity_wallet.amount >= liquidity_amount
-            @ ProgramError::InsufficientFunds,
+            @ err::insufficient_funds(
+                liquidity_amount,
+                source_liquidity_wallet.amount
+            ),
     )]
     pub source_liquidity_wallet: Account<'info, TokenAccount>,
     /// In exchange for the deposited initial liquidity, the owner gets
@@ -165,9 +168,7 @@ pub fn handle(
     )?;
     // in exchange for the deposited initial liquidity
     token::transfer(
-        accounts
-            .into_liquidity_deposit_context()
-            .with_signer(&[&pda_seeds[..]]),
+        accounts.into_liquidity_deposit_context(),
         liquidity_amount,
     )?;
 

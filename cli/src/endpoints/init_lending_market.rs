@@ -21,6 +21,8 @@
 //!   --oracle gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s \
 //!   --usd
 //! ```
+//!
+//! See `bin/cli/init_lending_market.sh` for another usage example.
 
 use crate::prelude::*;
 use borrow_lending::accounts::InitLendingMarket as Accounts;
@@ -72,41 +74,31 @@ pub fn app() -> App<'static> {
 }
 
 pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
-    let is_payer_owner;
-    let owner = match matches.value_of("owner") {
-        Some("") | None => {
-            is_payer_owner = true;
-            payer
-        }
-        Some(path) => {
-            is_payer_owner = false;
+    let (is_payer_owner, owner) = load_value(
+        matches.value_of("owner"),
+        || payer,
+        |path| {
             read_keypair_file(path)
                 .expect("Cannot read owner file into a keypair")
-        }
-    };
+        },
+    );
 
-    let env = env::var("ORACLE_PROGRAM_ID").unwrap_or_default();
-    let oracle = match matches.value_of("oracle").or_else(|| Some(env.as_str()))
-    {
-        Some("") | None => panic!(
-            "Oracle program id must be provided with \
-            an env ORACLE_PROGRAM_ID or --oracle"
-        ),
-        Some(pubkey) => {
-            Pubkey::from_str(pubkey).expect("Invalid oracle id pubkey")
-        }
-    };
-
-    let market = match matches.value_of("keypair") {
-        Some("") | None => {
+    let (_, oracle) = load_value_or_env(
+        matches.value_of("oracle"),
+        "ORACLE_PROGRAM_ID",
+        || {
             panic!(
-                "Path to keypair for market account must be provided \
-                with --keypair"
+                "Oracle program id must be provided with \
+                an env ORACLE_PROGRAM_ID or --oracle"
             )
-        }
-        Some(path) => read_keypair_file(path)
-            .expect("Cannot read market file into a keypair"),
-    };
+        },
+        |pubkey| Pubkey::from_str(pubkey).expect("Invalid oracle pubkey"),
+    );
+
+    let market = load_keypair(
+        matches.value_of("keypair"),
+        "Path to keypair for market account must be provided with --keypair",
+    );
 
     let currency = if matches.is_present("usd") {
         assert!(
@@ -128,7 +120,7 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
     let with_balance = program
         .rpc()
         .get_minimum_balance_for_rent_exemption(market_account_size)
-        .expect("Cannot calculate minimum rent excemption balance");
+        .expect("Cannot calculate minimum rent exemption balance");
 
     println!(
         "\nInitializing market account '{}':
@@ -136,7 +128,8 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         - balance:  {} lamports
         - currency: {:?}
         - oracle:   '{}'
-        - owner:    '{}'\n",
+        - owner:    '{}'
+        \n",
         market.pubkey(),
         market_account_size,
         with_balance,
@@ -170,6 +163,6 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
 
     let signature = transaction.send().expect("Transaction failed");
 
-    println!("Successful initialized lending market account");
+    println!("Successfully initialized lending market account");
     println!("sig: {}", signature);
 }

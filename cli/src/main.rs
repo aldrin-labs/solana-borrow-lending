@@ -30,7 +30,8 @@ fn main() {
                 .about("BLp program id (env BLP)")
                 .takes_value(true),
         )
-        .subcommand(init_lending_market::app());
+        .subcommand(init_lending_market::app())
+        .subcommand(init_reserve::app());
 
     let usage = {
         let mut buffer: Vec<u8> = vec![];
@@ -53,6 +54,9 @@ fn main() {
     match app.subcommand() {
         Some(("init-market", subcmd)) => {
             init_lending_market::handle(program, payer, subcmd)
+        }
+        Some(("init-reserve", subcmd)) => {
+            init_reserve::handle(program, payer, subcmd)
         }
         _ => println!("{}", usage),
     };
@@ -83,14 +87,19 @@ fn cluster(opt: Option<&str>) -> Cluster {
 }
 
 fn payer(opt: Option<&str>) -> Keypair {
-    let env = env::var("PAYER").unwrap_or_default();
-    let keypair = match opt.or_else(|| Some(env.as_str())) {
-        Some("") | None => panic!(
-            "Payer wallet must be supplied as an env PAYER or with --payer"
-        ),
-        Some(path) => read_keypair_file(path)
-            .expect("Cannot read payer wallet file into a keypair"),
-    };
+    let (_, keypair) = load_value_or_env(
+        opt,
+        "PAYER",
+        || {
+            panic!(
+                "Payer wallet must be supplied as an env PAYER or with --payer"
+            )
+        },
+        |path| {
+            read_keypair_file(path)
+                .expect("Cannot read payer wallet file into a keypair")
+        },
+    );
 
     println!("Using gas payer wallet '{}'", keypair.pubkey());
 
@@ -98,13 +107,12 @@ fn payer(opt: Option<&str>) -> Keypair {
 }
 
 fn blp_id(opt: Option<&str>) -> Pubkey {
-    let env = env::var("BLP").unwrap_or_default();
-    let program_id = match opt.or_else(|| Some(env.as_str())) {
-        Some("") | None => borrow_lending::ID,
-        Some(pubkey) => {
-            Pubkey::from_str(pubkey).expect("Invalid BLp id pubkey")
-        }
-    };
+    let (_, program_id) = load_value_or_env(
+        opt,
+        "BLP",
+        || borrow_lending::ID,
+        |pubkey| Pubkey::from_str(pubkey).expect("Invalid BLp id pubkey"),
+    );
 
     println!("Borrow-Lending program ID is '{}'", program_id);
 
