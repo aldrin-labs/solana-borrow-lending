@@ -25,6 +25,7 @@ build_and_test:
     paths:
       - target/deploy/borrow_lending.so
       - target/idl/borrow_lending.json
+      - target/types/borrow_lending.ts
       - target/release/cli
   before_script:
     # necessary for anchor-client
@@ -63,10 +64,18 @@ build_and_test:
     - wget "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb"
     - sudo dpkg -i "pandoc-${PANDOC_VERSION}-1-amd64.deb"
     - cargo install pandoc-katex
+    # TODO: move this to a docker image
+    - rustup component add llvm-tools-preview
+    - cargo install grcov
   script:
+    # required for code coverage
+    - rustup override set nightly
+
+    # generates docs.rs style page
     - cargo doc --lib --no-deps --document-private-items
     - cp -r target/doc public
     - cp -r docs public/docs
+
     # generates public index html file from README
     - node bin/prepareReadme.js |
       pandoc -t html --standalone --filter pandoc-katex
@@ -74,6 +83,10 @@ build_and_test:
       --css https://pandoc.org/demo/pandoc.css
       --metadata title="Program borrow-lending"
       -o public/index.html
+
+    # generate code coverage report
+    - ./bin/codecov.sh
+    - cp -r target/debug/coverage public
 
 # This job publishes pages to
 # https://crypto_project.gitlab.io/defi/borrow-lending
@@ -90,5 +103,4 @@ pages_manual:
   stage: pages
   when: manual
   except:
-    - main
     - develop

@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use std::cmp::Ordering;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, Default)]
 pub struct LastUpdate {
@@ -34,14 +33,60 @@ impl LastUpdate {
     }
 }
 
-impl PartialEq for LastUpdate {
-    fn eq(&self, other: &Self) -> bool {
-        self.slot == other.slot
-    }
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-impl PartialOrd for LastUpdate {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.slot.partial_cmp(&other.slot)
+    #[test]
+    fn it_defaults_to_stale() {
+        let slot = 10;
+        let last_update = LastUpdate::new(slot);
+        assert!(last_update.stale);
+        assert_eq!(last_update.slot, slot)
+    }
+
+    #[test]
+    fn it_marks_stale() {
+        let mut last_update = LastUpdate::default();
+        last_update.stale = false;
+
+        last_update.mark_stale();
+        assert!(last_update.stale);
+    }
+
+    #[test]
+    fn it_calculates_slot_elapsed() {
+        let last_update = LastUpdate::new(10);
+
+        assert!(last_update.slots_elapsed(5).is_err());
+        assert_eq!(last_update.slots_elapsed(15).unwrap(), 5);
+    }
+
+    #[test]
+    fn it_returns_stale_if_marked_stale_regardless_of_slot() {
+        let last_update = LastUpdate::new(10);
+        assert!(last_update.is_stale(10).unwrap());
+    }
+
+    #[test]
+    fn it_is_stale_if_behind() {
+        let slot = 10;
+        let mut last_update = LastUpdate::default();
+        last_update.update_slot(slot);
+
+        assert!(last_update
+            .is_stale(slot + consts::MARKET_STALE_AFTER_SLOTS_ELAPSED + 1)
+            .unwrap());
+    }
+
+    #[test]
+    fn it_returns_false_if_not_stale() {
+        let slot = 10;
+        let mut last_update = LastUpdate::default();
+        last_update.update_slot(slot);
+
+        assert!(!last_update
+            .is_stale(slot + consts::MARKET_STALE_AFTER_SLOTS_ELAPSED / 2)
+            .unwrap());
     }
 }

@@ -74,3 +74,20 @@ impl SDecimal {
         self.into()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_is_created_from_u64() {
+        let n: u64 = 17_890;
+
+        let sdec = SDecimal::from(n);
+        let dec = Decimal::from(sdec);
+
+        assert_eq!(dec.try_round_u64().unwrap(), n);
+        assert_eq!(dec.try_ceil_u64().unwrap(), n);
+        assert_eq!(dec.try_floor_u64().unwrap(), n);
+    }
+}
