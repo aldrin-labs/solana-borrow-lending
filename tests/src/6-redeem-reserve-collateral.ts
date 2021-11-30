@@ -31,18 +31,29 @@ export function test(
     });
 
     beforeEach("deposit liquidity", async () => {
-      depositAccounts = await reserve.depositLiquidity(50);
+      depositAccounts = await reserve.deposit(50);
     });
 
     it("fails if destination liquidity wallet equals reserve liquidity wallet");
     it("fails if source collateral wallet equals reserve collateral wallet");
 
+    it("fails if token program mismatches reserve", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        reserve.redeem(depositAccounts, 50, {
+          tokenProgram: Keypair.generate().publicKey,
+        })
+      ).to.be.rejectedWith(/Program ID was not as expected/);
+
+      stdCapture.restore();
+    });
+
     it("fails if reserve stale", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const refreshReserve = false;
       await expect(
-        reserve.redeemCollateral(depositAccounts, 50, refreshReserve)
+        reserve.redeem(depositAccounts, 50, { refreshReserve: false })
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain("needs to be refreshed");
@@ -51,7 +62,7 @@ export function test(
     it("must deposit at least some liquidity", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      await expect(reserve.redeemCollateral(depositAccounts, 0)).to.be.rejected;
+      await expect(reserve.redeem(depositAccounts, 0)).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain("amount provided cannot be zero");
     });
@@ -63,7 +74,7 @@ export function test(
       const oldCollateralMintInfo =
         await reserve.accounts.reserveCollateralMint.getMintInfo();
 
-      await reserve.redeemCollateral(depositAccounts, collateralAmount);
+      await reserve.redeem(depositAccounts, collateralAmount);
 
       const reserveInfo = await reserve.fetch();
       expect(reserveInfo.lastUpdate.stale).to.be.true;

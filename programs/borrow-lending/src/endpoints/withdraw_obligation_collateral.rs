@@ -48,10 +48,6 @@ pub struct WithdrawObligationCollateral<'info> {
             eq. reserve's col. supply"),
     )]
     pub destination_collateral_wallet: AccountInfo<'info>,
-    /// We don't need to check that the provided token account is correct
-    /// because the source collateral wallet is defined in the reserve config
-    /// and the collateral transfer will fail if this isn't the token program
-    /// owning it.
     pub token_program: Program<'info, Token>,
     pub clock: Sysvar<'info, Clock>,
 }

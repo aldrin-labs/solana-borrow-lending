@@ -48,7 +48,7 @@ export function test(
             depositedSrmCollateralAmount
           );
 
-        await obligation.depositCollateral(
+        await obligation.deposit(
           reserveSrm,
           sourceCollateralWallet,
           depositedSrmCollateralAmount
@@ -83,7 +83,7 @@ export function test(
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
-        obligation.borrow(reserveDoge, 300, destinationDogeLiquidityWallet)
+        obligation.borrow(reserveDoge, destinationDogeLiquidityWallet, 300)
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain(
@@ -94,18 +94,10 @@ export function test(
     it("fails if borrower is not signed", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const sign = false;
-      const refresh = true;
       await expect(
-        obligation.borrow(
-          reserveDoge,
-          10,
-          destinationDogeLiquidityWallet,
-          undefined,
-          refresh,
-          refresh,
-          sign
-        )
+        obligation.borrow(reserveDoge, destinationDogeLiquidityWallet, 10, {
+          sign: false,
+        })
       ).to.be.rejected;
 
       stdCapture.restore();
@@ -118,7 +110,7 @@ export function test(
       obligation.borrower = Keypair.generate();
 
       await expect(
-        obligation.borrow(reserveDoge, 10, destinationDogeLiquidityWallet)
+        obligation.borrow(reserveDoge, destinationDogeLiquidityWallet, 10)
       ).to.be.rejected;
 
       obligation.borrower = originalBorrower;
@@ -126,18 +118,25 @@ export function test(
       expect(stdCapture.restore()).to.contain("owner is not allowed");
     });
 
+    it("fails if token program mismatches reserve", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        obligation.borrow(reserveDoge, destinationDogeLiquidityWallet, 10, {
+          tokenProgram: Keypair.generate().publicKey,
+        })
+      ).to.be.rejectedWith(/Program ID was not as expected/);
+
+      stdCapture.restore();
+    });
+
     it("fails if reserve stale", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const refreshReserve = false;
       await expect(
-        obligation.borrow(
-          reserveDoge,
-          10,
-          destinationDogeLiquidityWallet,
-          undefined,
-          refreshReserve
-        )
+        obligation.borrow(reserveDoge, destinationDogeLiquidityWallet, 10, {
+          refreshReserve: false,
+        })
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.match(/Reserve .* is stale/);
@@ -146,17 +145,10 @@ export function test(
     it("fails if obligation stale", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const refreshReserve = true;
-      const refreshObligation = false;
       await expect(
-        obligation.borrow(
-          reserveDoge,
-          10,
-          destinationDogeLiquidityWallet,
-          undefined,
-          refreshReserve,
-          refreshObligation
-        )
+        obligation.borrow(reserveDoge, destinationDogeLiquidityWallet, 10, {
+          refreshObligation: false,
+        })
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain("ObligationStale");
@@ -167,7 +159,7 @@ export function test(
 
       const emptyObligation = await market.addObligation();
       await expect(
-        emptyObligation.borrow(reserveDoge, 10, destinationDogeLiquidityWallet)
+        emptyObligation.borrow(reserveDoge, destinationDogeLiquidityWallet, 10)
       ).to.be.rejected;
 
       stdCapture.restore();
@@ -192,7 +184,7 @@ export function test(
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
-        obligation.borrow(differentReserve, 10, differentDestination)
+        obligation.borrow(differentReserve, differentDestination, 10)
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain("LendingMarketMismatch");
@@ -206,7 +198,7 @@ export function test(
       reserveDoge.accounts.reserveLiquidityWallet = Keypair.generate();
 
       await expect(
-        obligation.borrow(reserveDoge, 10, destinationDogeLiquidityWallet)
+        obligation.borrow(reserveDoge, destinationDogeLiquidityWallet, 10)
       ).to.be.rejected;
 
       reserveDoge.accounts.reserveLiquidityWallet =
@@ -223,8 +215,8 @@ export function test(
       await expect(
         obligation.borrow(
           reserveDoge,
-          10,
-          reserveDoge.accounts.reserveLiquidityWallet.publicKey
+          reserveDoge.accounts.reserveLiquidityWallet.publicKey,
+          10
         )
       ).to.be.rejected;
 
@@ -241,7 +233,7 @@ export function test(
       reserveDoge.accounts.reserveLiquidityFeeRecvWallet = Keypair.generate();
 
       await expect(
-        obligation.borrow(reserveDoge, 10, destinationDogeLiquidityWallet)
+        obligation.borrow(reserveDoge, destinationDogeLiquidityWallet, 10)
       ).to.be.rejected;
 
       reserveDoge.accounts.reserveLiquidityFeeRecvWallet =
@@ -256,8 +248,8 @@ export function test(
       const borrowDogeLiquidity = 100;
       await obligation.borrow(
         reserveDoge,
-        borrowDogeLiquidity,
-        destinationDogeLiquidityWallet
+        destinationDogeLiquidityWallet,
+        borrowDogeLiquidity
       );
       sourceDogeLiquidity -= borrowDogeLiquidity;
 
@@ -300,9 +292,9 @@ export function test(
       const borrowDogeLiquidity = 100;
       await obligation.borrow(
         reserveDoge,
-        borrowDogeLiquidity,
         destinationDogeLiquidityWallet,
-        hostFeeReceiver
+        borrowDogeLiquidity,
+        { hostFeeReceiver }
       );
       sourceDogeLiquidity -= borrowDogeLiquidity;
 

@@ -84,13 +84,23 @@ export class Obligation {
     });
   }
 
-  public async depositCollateral(
+  public async deposit(
     reserve: Reserve,
     sourceCollateralWallet: PublicKey,
     collateralAmount: number,
-    refreshReserve: boolean = true,
-    sign: boolean = true
+    opt: {
+      sign?: boolean;
+      refreshReserve?: boolean;
+      tokenProgram?: PublicKey;
+    } = {}
   ) {
+    const { refreshReserve, sign, tokenProgram } = {
+      refreshReserve: true,
+      sign: true,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      ...opt,
+    };
+
     await this.market.program.rpc.depositObligationCollateral(
       new BN(collateralAmount),
       {
@@ -102,7 +112,7 @@ export class Obligation {
           destinationCollateralWallet:
             reserve.accounts.reserveCollateralWallet.publicKey,
           clock: SYSVAR_CLOCK_PUBKEY,
-          tokenProgram: TOKEN_PROGRAM_ID,
+          tokenProgram,
         },
         signers: sign ? [this.borrower] : [],
         instructions: refreshReserve ? [reserve.refreshInstruction()] : [],
@@ -112,14 +122,25 @@ export class Obligation {
     this.reservesToRefresh.add(reserve);
   }
 
-  public async withdrawCollateral(
+  public async withdraw(
     reserve: Reserve,
     destinationCollateralWallet: PublicKey,
     collateralAmount: number,
-    refreshReserve: boolean = true,
-    refreshObligation: boolean = true,
-    sign: boolean = true
+    opt: {
+      sign?: boolean;
+      refreshReserve?: boolean;
+      refreshObligation?: boolean;
+      tokenProgram?: PublicKey;
+    } = {}
   ) {
+    const { refreshObligation, refreshReserve, sign, tokenProgram } = {
+      refreshReserve: true,
+      refreshObligation: true,
+      sign: true,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      ...opt,
+    };
+
     const instructions = [];
     if (refreshReserve) {
       instructions.push(...this.refreshReservesInstructions());
@@ -141,7 +162,7 @@ export class Obligation {
           sourceCollateralWallet:
             reserve.accounts.reserveCollateralWallet.publicKey,
           clock: SYSVAR_CLOCK_PUBKEY,
-          tokenProgram: TOKEN_PROGRAM_ID,
+          tokenProgram,
         },
         signers: sign ? [this.borrower] : [],
         instructions,
@@ -151,13 +172,30 @@ export class Obligation {
 
   public async borrow(
     reserve: Reserve,
-    liquidityAmount: number,
     destinationLiquidityWallet: PublicKey,
-    hostFeeReceiver?: PublicKey,
-    refreshReserve: boolean = true,
-    refreshObligation: boolean = true,
-    sign: boolean = true
+    liquidityAmount: number,
+    opt: {
+      hostFeeReceiver?: PublicKey;
+      refreshReserve?: boolean;
+      refreshObligation?: boolean;
+      sign?: boolean;
+      tokenProgram?: PublicKey;
+    } = {}
   ) {
+    const {
+      refreshObligation,
+      hostFeeReceiver,
+      refreshReserve,
+      sign,
+      tokenProgram,
+    } = {
+      refreshReserve: true,
+      refreshObligation: true,
+      sign: true,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      ...opt,
+    };
+
     // deduplicates reserves in case
     const reserves = new Set<Reserve>();
     reserves.add(reserve);
@@ -187,7 +225,7 @@ export class Obligation {
             reserve.accounts.reserveLiquidityWallet.publicKey,
           destinationLiquidityWallet,
           clock: SYSVAR_CLOCK_PUBKEY,
-          tokenProgram: TOKEN_PROGRAM_ID,
+          tokenProgram,
         },
         signers: sign ? [this.borrower] : [],
         instructions: Array.from(instructions),
@@ -210,10 +248,21 @@ export class Obligation {
     reserve: Reserve,
     sourceLiquidityWallet: PublicKey,
     liquidityAmount: number,
-    refreshReserve: boolean = true,
-    refreshObligation: boolean = true,
-    sign: boolean = true
+    opt: {
+      refreshReserve?: boolean;
+      refreshObligation?: boolean;
+      sign?: boolean;
+      tokenProgram?: PublicKey;
+    } = {}
   ) {
+    const { tokenProgram, refreshReserve, refreshObligation, sign } = {
+      refreshReserve: true,
+      refreshObligation: true,
+      sign: true,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      ...opt,
+    };
+
     const instructions = [];
     if (refreshReserve) {
       instructions.push(...this.refreshReservesInstructions());
@@ -233,7 +282,7 @@ export class Obligation {
           destinationLiquidityWallet:
             reserve.accounts.reserveLiquidityWallet.publicKey,
           clock: SYSVAR_CLOCK_PUBKEY,
-          tokenProgram: TOKEN_PROGRAM_ID,
+          tokenProgram,
         },
         signers: sign ? [this.borrower] : [],
         instructions,
@@ -247,12 +296,32 @@ export class Obligation {
     withdrawReserve: Reserve,
     sourceLiquidityWallet: PublicKey,
     destinationCollateralWallet: PublicKey,
-    liquidator = this.borrower,
-    refreshObligation = true,
-    refreshRepayReserve = true,
-    refreshWithdrawReserve = true,
-    sign = true
+    opt: {
+      liquidator?: Keypair;
+      refreshObligation?: boolean;
+      refreshRepayReserve?: boolean;
+      refreshWithdrawReserve?: boolean;
+      tokenProgram?: PublicKey;
+      sign?: boolean;
+    } = {}
   ) {
+    const {
+      sign,
+      tokenProgram,
+      liquidator,
+      refreshWithdrawReserve,
+      refreshRepayReserve,
+      refreshObligation,
+    } = {
+      liquidator: this.borrower,
+      refreshObligation: true,
+      refreshRepayReserve: true,
+      refreshWithdrawReserve: true,
+      sign: true,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      ...opt,
+    };
+
     const instructions = [];
     if (refreshRepayReserve && refreshWithdrawReserve) {
       instructions.push(...this.refreshReservesInstructions());
@@ -283,7 +352,7 @@ export class Obligation {
             repayReserve.accounts.reserveLiquidityWallet.publicKey,
           sourceLiquidityWallet,
           clock: SYSVAR_CLOCK_PUBKEY,
-          tokenProgram: TOKEN_PROGRAM_ID,
+          tokenProgram,
         },
         signers: sign ? [liquidator] : [],
         instructions,
