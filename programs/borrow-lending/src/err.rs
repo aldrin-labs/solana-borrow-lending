@@ -120,6 +120,12 @@ pub fn insufficient_funds(
     ProgramError::InsufficientFunds
 }
 
+pub fn oracle(msg: impl AsRef<str>) -> ProgramError {
+    msg!("[InvalidOracleConfig] {}", msg.as_ref());
+
+    ErrorCode::InvalidOracleConfig.into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

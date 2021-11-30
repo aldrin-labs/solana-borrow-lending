@@ -34,7 +34,10 @@ import {
   uploadOracleProduct,
 } from "./pyth";
 import { LendingMarket } from "./lending-market";
-import { ONE_LIQ_TO_COL_INITIAL_PRICE } from "./consts";
+import {
+  LIQ_MINTED_TO_RESEVE_SOURCE_WALLET,
+  ONE_LIQ_TO_COL_INITIAL_PRICE,
+} from "./consts";
 
 export interface ReserveConfig {
   conf: {
@@ -92,7 +95,8 @@ export class ReserveBuilder {
       oracleProgram,
       owner,
       accounts.oraclePrice.publicKey,
-      (await market.connection.getSlot()) + 2, // go bit into future so that finalize can be called within next ~second
+      // go bit into future so that finalize can be called within next ~second
+      (await market.connection.getSlot()) + 10,
       oraclePriceBin(oracleMarket)
     );
     await waitForCommit();
@@ -219,25 +223,40 @@ export class Reserve {
     opt: {
       refreshReserve?: boolean;
       tokenProgram?: PublicKey;
+      sourceLiquidityWallet?: PublicKey;
+      destinationCollateralWallet?: PublicKey;
     } = {}
   ): Promise<DepositReserveLiquidityAccounts> {
-    const { refreshReserve, tokenProgram } = {
+    let {
+      refreshReserve,
+      tokenProgram,
+      sourceLiquidityWallet,
+      destinationCollateralWallet,
+    } = {
       tokenProgram: TOKEN_PROGRAM_ID,
       refreshReserve: true,
       ...opt,
     };
 
     const funder = Keypair.generate();
-    const sourceLiquidityWallet =
-      await this.accounts.liquidityMint.createAccount(funder.publicKey);
-    await this.accounts.liquidityMint.mintTo(
-      sourceLiquidityWallet,
-      this.accounts.liquidityMintAuthority,
-      [],
-      liquidityAmount
-    );
-    const destinationCollateralWallet =
-      await this.accounts.reserveCollateralMint.createAccount(funder.publicKey);
+    if (!sourceLiquidityWallet) {
+      sourceLiquidityWallet = await this.accounts.liquidityMint.createAccount(
+        funder.publicKey
+      );
+      await this.accounts.liquidityMint.mintTo(
+        sourceLiquidityWallet,
+        this.accounts.liquidityMintAuthority,
+        [],
+        liquidityAmount
+      );
+    }
+
+    if (!destinationCollateralWallet) {
+      destinationCollateralWallet =
+        await this.accounts.reserveCollateralMint.createAccount(
+          funder.publicKey
+        );
+    }
 
     await this.market.program.rpc.depositReserveLiquidity(
       this.market.bumpSeed,
@@ -306,7 +325,7 @@ export class Reserve {
     const sourceCollateralWallet =
       await this.accounts.reserveCollateralMint.createAccount(owner);
 
-    await this.refreshOraclePrice(10);
+    // await this.refreshOraclePrice(999);
 
     const depositAccounts = await this.deposit(
       collateralAmount / ONE_LIQ_TO_COL_INITIAL_PRICE
@@ -374,7 +393,7 @@ async function createReserveAccounts(
     sourceLiquidityWallet,
     liquidityMintAuthority,
     [],
-    10000
+    LIQ_MINTED_TO_RESEVE_SOURCE_WALLET
   );
 
   // prepare empty oracle stub accounts

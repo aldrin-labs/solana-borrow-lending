@@ -1,11 +1,11 @@
-import { Program } from "@project-serum/anchor";
+import { Program, BN } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
 import { PublicKey, Keypair } from "@solana/web3.js";
 import { expect } from "chai";
 import { LendingMarket } from "./lending-market";
 import { Obligation } from "./obligation";
 import { Reserve } from "./reserve";
-import { CaptureStdoutAndStderr } from "./helpers";
+import { CaptureStdoutAndStderr, ONE_WAD, u192ToBN } from "./helpers";
 
 export function test(
   program: Program<BorrowLending>,
@@ -13,7 +13,8 @@ export function test(
   shmemProgramId: PublicKey
 ) {
   describe("withdraw_obligation_collateral", () => {
-    let sourceCollateralWalletAmount = 10;
+    const initialSourceCollateralWalletAmount = 10;
+    const initialReserveLiqAmount = 200;
     let market: LendingMarket,
       obligation: Obligation,
       reserve: Reserve,
@@ -23,37 +24,37 @@ export function test(
       market = await LendingMarket.init(program, owner, shmemProgramId);
     });
 
-    before("initialize reserve", async () => {
-      reserve = await market.addReserve(50);
+    beforeEach("initialize reserve", async () => {
+      reserve = await market.addReserve(initialReserveLiqAmount);
+      await reserve.refreshOraclePrice(999);
     });
 
-    before("initialize obligation", async () => {
+    beforeEach("initialize obligation", async () => {
       obligation = await market.addObligation();
     });
 
-    before("gift reserve collateral to borrower and deposit it", async () => {
-      const sourceCollateralWallet =
-        await reserve.createCollateralWalletWithCollateral(
-          obligation.borrower.publicKey,
-          sourceCollateralWalletAmount
-        );
+    beforeEach(
+      "gift reserve collateral to borrower and deposit it",
+      async () => {
+        const sourceCollateralWallet =
+          await reserve.createCollateralWalletWithCollateral(
+            obligation.borrower.publicKey,
+            initialSourceCollateralWalletAmount
+          );
 
-      await obligation.deposit(
-        reserve,
-        sourceCollateralWallet,
-        sourceCollateralWalletAmount
-      );
-    });
+        await obligation.deposit(
+          reserve,
+          sourceCollateralWallet,
+          initialSourceCollateralWalletAmount
+        );
+      }
+    );
 
     beforeEach("create destination collateral wallet", async () => {
       destinationCollateralWallet =
         await reserve.accounts.reserveCollateralMint.createAccount(
           obligation.borrower.publicKey
         );
-    });
-
-    beforeEach("refresh oracle slot validity", async () => {
-      await reserve.refreshOraclePrice(10);
     });
 
     it("fails if no deposited collateral", async () => {
@@ -182,12 +183,10 @@ export function test(
     });
 
     it("withdraws half of collateral", async () => {
-      await obligation.withdraw(
-        reserve,
-        destinationCollateralWallet,
-        sourceCollateralWalletAmount / 2
-      );
-      sourceCollateralWalletAmount /= 2;
+      const withdraw = initialSourceCollateralWalletAmount / 2;
+      await obligation.withdraw(reserve, destinationCollateralWallet, withdraw);
+      const sourceColWalletAmount =
+        initialSourceCollateralWalletAmount - withdraw;
 
       const obligationInfo = await obligation.fetch();
       expect(obligationInfo.lastUpdate.stale).to.be.true;
@@ -195,7 +194,7 @@ export function test(
         .collateral.inner;
       expect(obligationInfoReserve.depositReserve).to.deep.eq(reserve.id);
       expect(obligationInfoReserve.depositedAmount.toNumber()).to.eq(
-        sourceCollateralWalletAmount
+        sourceColWalletAmount
       );
 
       const destinationCollateralWalletInfo =
@@ -203,7 +202,7 @@ export function test(
           destinationCollateralWallet
         );
       expect(destinationCollateralWalletInfo.amount.toNumber()).to.eq(
-        sourceCollateralWalletAmount
+        sourceColWalletAmount
       );
 
       const reserveCollateralWalletInfo =
@@ -211,7 +210,7 @@ export function test(
           reserve.accounts.reserveCollateralWallet.publicKey
         );
       expect(reserveCollateralWalletInfo.amount.toNumber()).to.eq(
-        sourceCollateralWalletAmount
+        sourceColWalletAmount
       );
     });
 
@@ -219,10 +218,10 @@ export function test(
       await obligation.withdraw(
         reserve,
         destinationCollateralWallet,
-        sourceCollateralWalletAmount * 10 // should withdraw at most what's in the account
+        initialSourceCollateralWalletAmount * 10 // should withdraw at most what's in the account
       );
-      const withdrawnAmount = sourceCollateralWalletAmount;
-      sourceCollateralWalletAmount = 0;
+      const withdrawnAmount = initialSourceCollateralWalletAmount;
+      const sourceColWalletAmount = 0;
 
       const obligationInfo = await obligation.fetch();
       expect(obligationInfo.lastUpdate.stale).to.be.true;
@@ -243,14 +242,55 @@ export function test(
           reserve.accounts.reserveCollateralWallet.publicKey
         );
       expect(reserveCollateralWalletInfo.amount.toNumber()).to.eq(
-        sourceCollateralWalletAmount
+        sourceColWalletAmount
       );
 
-      // TODO: check reserve
+      await reserve.refresh();
+      const reserveInfo = await reserve.fetch();
+      expect(reserveInfo.collateral.mintTotalSupply.toNumber()).to.eq(1010);
+      const liq = reserveInfo.liquidity;
+      expect(liq.availableAmount.toNumber()).to.eq(initialReserveLiqAmount + 2);
+      expect(u192ToBN(liq.borrowedAmount).toNumber()).to.eq(0);
+      // ~ around 100000000xxxxxxxxxxx
+      const lcb = u192ToBN(liq.cumulativeBorrowRate);
+      expect(lcb.gt(ONE_WAD)).to.be.true;
+      expect(lcb.lt(ONE_WAD.mul(new BN(2)))).to.be.true;
+      expect(u192ToBN(liq.marketPrice).toString()).to.eq("7382500000000000000");
     });
 
-    // TODO: these tests can be added only when borrowing is implemented
-    it("cannot withdraw collateral if borrowed lots of assets");
-    it("withdraws collateral as long as enough remains to cover borrows");
+    it("cannot withdraw collateral if borrowed lots of assets", async () => {
+      const dogeReserve = await market.addReserve(
+        initialReserveLiqAmount,
+        undefined,
+        "doge"
+      );
+      const destDogeWallet =
+        await dogeReserve.accounts.liquidityMint.createAccount(owner.publicKey);
+      const borrow = 53;
+      await obligation.borrow(dogeReserve, destDogeWallet, borrow);
+
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        obligation.withdraw(reserve, destinationCollateralWallet, 10)
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain(
+        "cannot exceed maximum withdraw value"
+      );
+    });
+
+    it("withdraws collateral as long as enough remains to cover borrows", async () => {
+      const dogeReserve = await market.addReserve(
+        initialReserveLiqAmount,
+        undefined,
+        "doge"
+      );
+      const destDogeWallet =
+        await dogeReserve.accounts.liquidityMint.createAccount(owner.publicKey);
+
+      await obligation.borrow(dogeReserve, destDogeWallet, 5);
+      await obligation.withdraw(reserve, destinationCollateralWallet, 8);
+    });
   });
 }

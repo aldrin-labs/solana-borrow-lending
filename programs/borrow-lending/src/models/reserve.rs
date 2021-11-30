@@ -25,7 +25,18 @@ pub struct Reserve {
 )]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct ReserveConfig {
-    ///  TODO
+    /// Utilization rate is an indicator of the availability of capital in the
+    /// pool. The interest rate model is used to manage liquidity risk through
+    /// user incentivises to support liquidity:
+    /// * When capital is available: low interest rates to encourage loans.
+    /// * When capital is scarce: high interest rates to encourage repayments
+    ///   of loans and additional deposits.
+    ///
+    /// Liquidity risk materializes when utilization is high, its becomes more
+    /// problematic as  gets closer to 100%. To tailor the model to this
+    /// constraint, the interest rate curve is split in two parts around an
+    /// optimal utilization rate. Before the slope is small, after it starts
+    /// rising sharply. See eq. (3) for more information.
     pub optimal_utilization_rate: PercentageInt,
     /// LTV is the ratio between the maximum allowed borrow value and the
     /// collateral value. Set to 0 to disable use as a collateral.

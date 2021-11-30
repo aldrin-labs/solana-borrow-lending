@@ -1,5 +1,3 @@
-//! TODO: this has been more or less copied from solana's repo, needs clean up
-//!
 //! Math for preserving precision of token amounts which are limited
 //! by the SPL Token program to be at most u64::MAX.
 //!

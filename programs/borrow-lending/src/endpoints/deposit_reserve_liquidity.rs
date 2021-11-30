@@ -36,7 +36,12 @@ pub struct DepositReserveLiquidity<'info> {
             @ err::acc("Reserve col. mint must match reserve conf"),
     )]
     pub reserve_collateral_mint: AccountInfo<'info>,
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = destination_collateral_wallet.key() !=
+            reserve.collateral.supply
+            @ err::acc("Dest. col. wallet mustn't eq. reserve's col. supply")
+    )]
     pub destination_collateral_wallet: AccountInfo<'info>,
     #[account(
         mut,

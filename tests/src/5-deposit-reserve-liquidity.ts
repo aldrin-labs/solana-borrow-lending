@@ -28,7 +28,35 @@ export function test(
       await reserve.refreshOraclePrice();
     });
 
-    it("fails if provided with reserve liquidity wallet as source wallet");
+    it("fails if provided with reserve liquidity wallet as source wallet", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        reserve.deposit(50, {
+          sourceLiquidityWallet:
+            reserve.accounts.reserveLiquidityWallet.publicKey,
+        })
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain(
+        "Reserve liq. wallet mustn't equal source liq. wallet"
+      );
+    });
+
+    it("fails if reserve collateral supply is destination wallet", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        reserve.deposit(50, {
+          destinationCollateralWallet:
+            reserve.accounts.reserveCollateralWallet.publicKey,
+        })
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain(
+        "Dest. col. wallet mustn't eq. reserve's col. supply"
+      );
+    });
 
     it("fails if reserve stale", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
