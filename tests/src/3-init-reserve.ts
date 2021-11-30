@@ -1,11 +1,33 @@
 import { Program } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
-import { PublicKey, Keypair } from "@solana/web3.js";
+import {
+  PublicKey,
+  Keypair,
+  BPF_LOADER_PROGRAM_ID,
+  BpfLoader,
+} from "@solana/web3.js";
 import { expect } from "chai";
-import { CaptureStdoutAndStderr, waitForCommit } from "./helpers";
-import { setOraclePriceSlot } from "./pyth";
+import { readFile } from "fs/promises";
+import {
+  CaptureStdoutAndStderr,
+  createProgramAccounts,
+  ONE_WAD,
+  u192ToBN,
+  waitForCommit,
+} from "./helpers";
+import {
+  oraclePriceBin,
+  oraclePriceBinByteLen,
+  oracleProductBinByteLen,
+  setOraclePriceSlot,
+  uploadOraclePrice,
+} from "./pyth";
 import { LendingMarket } from "./lending-market";
 import { Reserve, ReserveBuilder } from "./reserve";
+import {
+  LIQ_MINTED_TO_RESEVE_SOURCE_WALLET,
+  ONE_LIQ_TO_COL_INITIAL_PRICE,
+} from "./consts";
 
 export function test(
   program: Program<BorrowLending>,
@@ -14,6 +36,20 @@ export function test(
 ) {
   describe("init_reserve", () => {
     let market: LendingMarket;
+    const anotherShmemProgram = Keypair.generate();
+
+    before("deploys another shmem to simulate different oracle", async () => {
+      const programBin = await readFile(
+        "tests/localnet-deps/target/deploy/shmem.so"
+      );
+      BpfLoader.load(
+        program.provider.connection,
+        owner,
+        anotherShmemProgram,
+        programBin,
+        BPF_LOADER_PROGRAM_ID
+      );
+    });
 
     before("initialize lending market", async () => {
       market = await LendingMarket.init(program, owner, shmemProgramId);
@@ -97,6 +133,54 @@ export function test(
       expect(stdCapture.restore()).to.contain("is stale");
     });
 
+    it("fails if oracle product is not owned by lending market's oracle program", async () => {
+      const builder = await ReserveBuilder.new(market, shmemProgramId, owner);
+
+      const anotherOracleProduct = Keypair.generate();
+      builder.accounts.oracleProduct = anotherOracleProduct;
+      await createProgramAccounts(
+        program.provider.connection,
+        anotherShmemProgram.publicKey,
+        owner,
+        [{ keypair: anotherOracleProduct, space: oracleProductBinByteLen() }]
+      );
+      await waitForCommit();
+
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(builder.build(10)).to.be.rejectedWith(
+        /Provided oracle configuration isn't in the right format or range/
+      );
+
+      expect(stdCapture.restore()).to.contain(
+        "Product's owner must be market's oracle program"
+      );
+    });
+
+    it("fails if oracle price is not owned by lending market's oracle program", async () => {
+      const builder = await ReserveBuilder.new(market, shmemProgramId, owner);
+
+      const anotherOraclePrice = Keypair.generate();
+      builder.accounts.oraclePrice = anotherOraclePrice;
+      await createProgramAccounts(
+        program.provider.connection,
+        anotherShmemProgram.publicKey,
+        owner,
+        [{ keypair: anotherOraclePrice, space: oraclePriceBinByteLen() }]
+      );
+      await waitForCommit();
+
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(builder.build(10)).to.be.rejectedWith(
+        /Provided oracle configuration isn't in the right format or range/
+      );
+
+      expect(stdCapture.restore()).to.contain(
+        "Price's owner must be market's oracle program"
+      );
+    });
+
     it("initializes all accounts, transfers liquidity and mints collateral", async () => {
       const liquidityAmount = 10;
 
@@ -104,12 +188,65 @@ export function test(
 
       const reserveAccount = await reserve.fetch();
 
+      expect(reserveAccount.lastUpdate.stale).to.be.true;
       expect(reserveAccount.lendingMarket).to.deep.eq(market.id);
-      expect(reserveAccount.liquidity.availableAmount.toNumber()).to.eq(
-        liquidityAmount
+      const liq = reserveAccount.liquidity;
+      expect(liq.availableAmount.toNumber()).to.eq(liquidityAmount);
+      expect(liq.mintDecimals).to.eq(
+        (await reserve.accounts.liquidityMint.getMintInfo()).decimals
       );
-      // TODO: check the rest reserve account
-      // TODO: check token accounts
+      expect(liq.mint).to.deep.eq(reserve.accounts.liquidityMint.publicKey);
+      expect(liq.supply).to.deep.eq(
+        reserve.accounts.reserveLiquidityWallet.publicKey
+      );
+      expect(liq.feeReceiver).to.deep.eq(
+        reserve.accounts.reserveLiquidityFeeRecvWallet.publicKey
+      );
+      expect(liq.oracle).to.deep.eq(reserve.accounts.oraclePrice.publicKey);
+      expect(u192ToBN(liq.borrowedAmount).toNumber()).to.eq(0);
+      expect(u192ToBN(liq.cumulativeBorrowRate).eq(ONE_WAD)).to.be.true;
+      expect(u192ToBN(liq.marketPrice).toString()).to.eq("7382500000000000000");
+
+      const col = reserveAccount.collateral;
+      expect(col.mint).to.deep.eq(
+        reserve.accounts.reserveCollateralMint.publicKey
+      );
+      expect(col.supply).to.deep.eq(
+        reserve.accounts.reserveCollateralWallet.publicKey
+      );
+      expect(col.mintTotalSupply.toNumber()).to.eq(
+        liquidityAmount * ONE_LIQ_TO_COL_INITIAL_PRICE
+      );
+
+      expect(reserveAccount.config).to.deep.eq(Reserve.defaultConfig().conf);
+
+      const sourceWalletInfo =
+        await reserve.accounts.liquidityMint.getAccountInfo(
+          reserve.accounts.sourceLiquidityWallet
+        );
+      expect(sourceWalletInfo.amount.toNumber()).to.eq(
+        LIQ_MINTED_TO_RESEVE_SOURCE_WALLET - liquidityAmount
+      );
+
+      const destWalletInfo =
+        await reserve.accounts.reserveCollateralMint.getAccountInfo(
+          reserve.accounts.destinationCollateralWallet.publicKey
+        );
+      expect(destWalletInfo.amount.toNumber()).to.eq(
+        liquidityAmount * ONE_LIQ_TO_COL_INITIAL_PRICE
+      );
+
+      const reserveLiqInfo =
+        await reserve.accounts.liquidityMint.getAccountInfo(
+          reserve.accounts.reserveLiquidityWallet.publicKey
+        );
+      expect(reserveLiqInfo.amount.toNumber()).to.eq(liquidityAmount);
+
+      const reserveColInfo =
+        await reserve.accounts.reserveCollateralMint.getAccountInfo(
+          reserve.accounts.reserveCollateralWallet.publicKey
+        );
+      expect(reserveColInfo.amount.toNumber()).to.eq(0);
     });
   });
 }

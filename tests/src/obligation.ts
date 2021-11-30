@@ -3,7 +3,6 @@ import {
   Keypair,
   SYSVAR_CLOCK_PUBKEY,
   TransactionInstruction,
-  Transaction,
 } from "@solana/web3.js";
 import { BN } from "@project-serum/anchor";
 import { LendingMarket } from "./lending-market";

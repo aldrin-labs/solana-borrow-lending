@@ -1,11 +1,16 @@
-import { Program } from "@project-serum/anchor";
+import { Program, BN } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { expect } from "chai";
 import { LendingMarket } from "./lending-market";
 import { Reserve } from "./reserve";
 import { Obligation } from "./obligation";
-import { CaptureStdoutAndStderr, u192ToBN, waitForCommit } from "./helpers";
+import {
+  CaptureStdoutAndStderr,
+  ONE_WAD,
+  u192ToBN,
+  waitForCommit,
+} from "./helpers";
 
 export function test(
   program: Program<BorrowLending>,
@@ -33,6 +38,9 @@ export function test(
         undefined,
         "doge"
       );
+
+      await reserveDoge.refreshOraclePrice(999);
+      await reserveSrm.refreshOraclePrice(999);
     });
 
     before("initialize obligation", async () => {
@@ -71,12 +79,6 @@ export function test(
 
     beforeEach("assert enough assets to borrow", () => {
       expect(sourceDogeLiquidity).to.be.greaterThan(0);
-    });
-
-    beforeEach("refresh oracle slot validity", async () => {
-      await reserveDoge.refreshOraclePrice(15);
-      await reserveSrm.refreshOraclePrice(15);
-      await waitForCommit();
     });
 
     it("cannot borrow more than allowed value of liquidity", async () => {
@@ -270,7 +272,10 @@ export function test(
       const obligationLiquidityInfo =
         obligationInfo.reserves[1].liquidity.inner;
       expect(obligationLiquidityInfo.borrowReserve).to.deep.eq(reserveDoge.id);
-      expect(u192ToBN(obligationLiquidityInfo.borrowedAmount).toString()).to.eq(
+      const obligationBorrowedAmount = u192ToBN(
+        obligationLiquidityInfo.borrowedAmount
+      );
+      expect(obligationBorrowedAmount.toString()).to.eq(
         "102000000000000000000"
       );
       expect(
@@ -285,7 +290,21 @@ export function test(
         borrowDogeLiquidity
       );
 
-      // TODO: check reserve
+      await reserveDoge.refresh();
+      const reserveInfo = await reserveDoge.fetch();
+      const liq = reserveInfo.liquidity;
+      const fees = 2;
+      expect(liq.availableAmount.toNumber()).to.eq(sourceDogeLiquidity - fees);
+      const reserveBorrowedAmount = u192ToBN(liq.borrowedAmount);
+      // due to interest borrowed amount is a bit higher
+      expect(reserveBorrowedAmount.gt(obligationBorrowedAmount)).to.be.true;
+      expect(reserveBorrowedAmount.lt(obligationBorrowedAmount.add(ONE_WAD))).to
+        .be.true;
+      const lcbr = u192ToBN(liq.cumulativeBorrowRate);
+      expect(lcbr.gt(ONE_WAD)).to.be.true;
+      expect(lcbr.lt(ONE_WAD.mul(new BN(2))));
+      expect(u192ToBN(liq.marketPrice).toString()).to.eq("238167000000000000");
+      expect(reserveInfo.collateral.mintTotalSupply.toNumber()).to.eq(2500);
     });
 
     it("borrows liquidity with host fee", async () => {

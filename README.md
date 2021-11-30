@@ -112,7 +112,20 @@ When market owner creates a reserve, they supply configuration with (not only)
 following information:
 
 
-* `optimal_utilization_rate` is $`R^*_u`$, see below;
+* `optimal_utilization_rate` is $`R^*_u`$.
+Utilization rate is an indicator of the availability of capital in the pool.
+The interest rate model is used to manage liquidity risk through user
+incentivizes to support liquidity:
+
+* When capital is available: low interest rates to encourage loans.
+* When capital is scarce: high interest rates to encourage repayments of loans
+  and additional deposits.
+
+Liquidity risk materializes when utilization is high, its becomes more
+problematic as  gets closer to 100%. To tailor the model to this constraint,
+the interest rate curve is split in two parts around an optimal utilization
+rate. Before the slope is small, after it starts rising sharply. See eq. (3)
+for more information.
 
 * `optimal_borrow_rate` is $`R^*_b`$, see below;
 

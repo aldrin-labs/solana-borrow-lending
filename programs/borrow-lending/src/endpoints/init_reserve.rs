@@ -30,12 +30,12 @@ pub struct InitReserve<'info> {
     pub reserve: Box<Account<'info, Reserve>>,
     #[account(
         constraint = *oracle_product.owner == lending_market.oracle_program
-            @ ErrorCode::InvalidOracleConfig,
+            @ err::oracle("Product's owner must be market's oracle program"),
     )]
     pub oracle_product: AccountInfo<'info>,
     #[account(
         constraint = *oracle_price.owner == lending_market.oracle_program
-            @ ErrorCode::InvalidOracleConfig,
+            @ err::oracle("Price's owner must be market's oracle program"),
     )]
     pub oracle_price: AccountInfo<'info>,
     /// From what wallet will liquidity tokens be transferred to the reserve
@@ -56,11 +56,15 @@ pub struct InitReserve<'info> {
     pub destination_collateral_wallet: AccountInfo<'info>,
     /// The reserve wallet in which liquidity tokens will be stored. The
     /// ownership of this account will be transferred to the PDA.
+    ///
+    /// Since `reserve_liquidity_wallet` requires an uninitialized account
+    /// while `source_liquidity_wallet` requires an initialized account,
+    /// they can never be the same.
     #[account(
         zero,
         constraint = source_liquidity_wallet.key() !=
             reserve_liquidity_wallet.key()
-            @ ProgramError::InvalidAccountData,
+            @ err::acc("Source liq. wallet mustn't eq. reserve's liq. wallet"),
     )]
     pub reserve_liquidity_wallet: AccountInfo<'info>,
     pub reserve_liquidity_mint: Account<'info, Mint>,
@@ -100,16 +104,19 @@ pub fn handle(
     let oracle_product =
         pyth::Product::load(&oracle_product_data)?.validate()?;
     if oracle_product.px_acc.val != accounts.oracle_price.key().to_bytes() {
-        msg!(
-            "Pyth product price account does not match the Pyth price provided"
-        );
-        return Err(ErrorCode::InvalidOracleConfig.into());
+        return Err(err::oracle(
+            "Pyth product price account does not match the Pyth price provided",
+        )
+        .into());
     }
 
     let currency = UniversalAssetCurrency::try_from(oracle_product)?;
     if currency != accounts.lending_market.currency {
-        msg!("Lending market quote currency does not match the oracle quote currency");
-        return Err(ErrorCode::InvalidOracleConfig.into());
+        return Err(err::oracle(
+            "Lending market quote currency does not match \
+            the oracle quote currency",
+        )
+        .into());
     }
 
     let oracle_price_data = accounts.oracle_price.try_borrow_data()?;

@@ -34,8 +34,43 @@ export function test(
       depositAccounts = await reserve.deposit(50);
     });
 
-    it("fails if destination liquidity wallet equals reserve liquidity wallet");
-    it("fails if source collateral wallet equals reserve collateral wallet");
+    it("fails if destination liquidity wallet equals reserve liquidity wallet", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        reserve.redeem(
+          {
+            ...depositAccounts,
+            destinationCollateralWallet:
+              reserve.accounts.reserveCollateralWallet.publicKey,
+          },
+          50
+        )
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain(
+        "Source col. wallet mustn't equal to reserve col. wallet"
+      );
+    });
+
+    it("fails if source collateral wallet equals reserve collateral wallet", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        reserve.redeem(
+          {
+            ...depositAccounts,
+            sourceLiquidityWallet:
+              reserve.accounts.reserveLiquidityWallet.publicKey,
+          },
+          50
+        )
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain(
+        "Dest. liq. wallet musn't equal to reserve liq. wallet"
+      );
+    });
 
     it("fails if token program mismatches reserve", async () => {
       const stdCapture = new CaptureStdoutAndStderr();

@@ -7,6 +7,7 @@ import {
   Connection,
   TransactionInstruction,
 } from "@solana/web3.js";
+import { expect } from "chai";
 
 export type PercentInt = { percent: number };
 
@@ -106,4 +107,12 @@ export async function createProgramAccounts(
     payer,
     ...accounts.map((acc) => acc.keypair),
   ]);
+}
+
+export function assertOrderedAsc(a: Array<{ u192: BN[] | U192 }>) {
+  a.reduce((prev, curr, i) => {
+    const n = u192ToBN(curr);
+    expect(n.gt(prev), `Item at index ${i} is not larger than previous`);
+    return n;
+  }, u192ToBN(a.shift()));
 }

@@ -2,7 +2,11 @@ import { Program } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
 import { PublicKey, Keypair } from "@solana/web3.js";
 import { expect } from "chai";
-import { waitForCommit } from "./helpers";
+import {
+  assertOrderedAsc,
+  CaptureStdoutAndStderr,
+  waitForCommit,
+} from "./helpers";
 import { LendingMarket } from "./lending-market";
 import { Obligation } from "./obligation";
 import { Reserve } from "./reserve";
@@ -13,15 +17,22 @@ export function test(
   shmemProgramId: PublicKey
 ) {
   describe("refresh_obligation", () => {
-    let market: LendingMarket, obligation: Obligation;
+    let market: LendingMarket, obligation: Obligation, reserve: Reserve;
 
     before("initialize lending market", async () => {
       market = await LendingMarket.init(program, owner, shmemProgramId);
     });
 
-    before("initialize obligation", async () => {
+    beforeEach("initialize reserve", async () => {
+      reserve = await market.addReserve(50);
+    });
+
+    beforeEach("initialize obligation", async () => {
       obligation = await market.addObligation();
-      await waitForCommit();
+    });
+
+    beforeEach("refresh oracle slot validity", async () => {
+      await reserve.refreshOraclePrice(999);
     });
 
     it("refreshes empty obligation", async () => {
@@ -48,12 +59,113 @@ export function test(
       expect(reserves).to.be.lengthOf(4);
     });
 
-    // TODO: we can add these tests once we can deposit collateral
-    it("fails if deposited collateral account is missing");
-    it("refreshes collateral market value");
+    it("fails if deposited collateral reserve is missing", async () => {
+      await deposit();
 
-    // TODO: we can add these tests once we can deposit liquidity
-    it("fails if deposited liquidity account is missing");
-    it("refreshes liquidity market value and accrues interest");
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      obligation.reservesToRefresh.delete(reserve);
+      await expect(obligation.refresh()).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain(
+        `No valid account provided for reserve \'${reserve.id}\'`
+      );
+    });
+
+    it("refreshes collateral market value", async () => {
+      await deposit();
+
+      const oldObligationInfo = await obligation.fetch();
+      await obligation.refresh();
+      const obligationInfo = await obligation.fetch();
+
+      assertOrderedAsc([
+        oldObligationInfo.depositedValue,
+        obligationInfo.depositedValue,
+      ]);
+      assertOrderedAsc([
+        oldObligationInfo.allowedBorrowValue,
+        obligationInfo.allowedBorrowValue,
+      ]);
+      assertOrderedAsc([
+        oldObligationInfo.unhealthyBorrowValue,
+        obligationInfo.unhealthyBorrowValue,
+      ]);
+      assertOrderedAsc([
+        oldObligationInfo.reserves[0].collateral.inner.marketValue,
+        obligationInfo.reserves[0].collateral.inner.marketValue,
+      ]);
+    });
+
+    it("fails if borrowed liquidity account is missing", async () => {
+      await deposit();
+      const borrowReserve = await borrow();
+
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      obligation.reservesToRefresh.delete(borrowReserve);
+      await expect(obligation.refresh()).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain(
+        `No valid account provided for reserve \'${borrowReserve.id}\'`
+      );
+    });
+
+    it("refreshes liquidity market value and accrues interest", async () => {
+      await deposit();
+      await borrow();
+
+      const oldObligationInfo = await obligation.fetch();
+      await obligation.refresh();
+      const obligationInfo = await obligation.fetch();
+      await new Promise((r) => setTimeout(r, 500)); // accrues interest
+      await obligation.refresh();
+      const latestObligationInfo = await obligation.fetch();
+
+      assertOrderedAsc([
+        oldObligationInfo.borrowedValue,
+        obligationInfo.borrowedValue,
+        latestObligationInfo.borrowedValue,
+      ]);
+      assertOrderedAsc([
+        oldObligationInfo.reserves[1].liquidity.inner.cumulativeBorrowRate,
+        obligationInfo.reserves[1].liquidity.inner.cumulativeBorrowRate,
+        latestObligationInfo.reserves[1].liquidity.inner.cumulativeBorrowRate,
+      ]);
+      assertOrderedAsc([
+        oldObligationInfo.reserves[1].liquidity.inner.borrowedAmount,
+        obligationInfo.reserves[1].liquidity.inner.borrowedAmount,
+        latestObligationInfo.reserves[1].liquidity.inner.borrowedAmount,
+      ]);
+      assertOrderedAsc([
+        oldObligationInfo.reserves[1].liquidity.inner.marketValue,
+        obligationInfo.reserves[1].liquidity.inner.marketValue,
+        latestObligationInfo.reserves[1].liquidity.inner.marketValue,
+      ]);
+    });
+
+    async function deposit() {
+      const sourceCollateralWallet =
+        await reserve.createCollateralWalletWithCollateral(
+          obligation.borrower.publicKey,
+          100
+        );
+
+      await obligation.deposit(reserve, sourceCollateralWallet, 100);
+    }
+
+    async function borrow(): Promise<Reserve> {
+      const borrowReserve = await market.addReserve(200);
+      await borrowReserve.refreshOraclePrice(100);
+      await waitForCommit();
+
+      const destLiquidityWallet =
+        await borrowReserve.accounts.liquidityMint.createAccount(
+          obligation.borrower.publicKey
+        );
+      await obligation.borrow(borrowReserve, destLiquidityWallet, 10);
+
+      return borrowReserve;
+    }
   });
 }

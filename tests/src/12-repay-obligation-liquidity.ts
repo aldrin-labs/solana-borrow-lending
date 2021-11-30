@@ -42,6 +42,9 @@ export function test(
         undefined,
         "doge"
       );
+
+      await reserveDoge.refreshOraclePrice(999);
+      await reserveSrm.refreshOraclePrice(999);
     });
 
     beforeEach("initialize obligation", async () => {
@@ -77,12 +80,6 @@ export function test(
         [],
         initialDogeAmount
       );
-    });
-
-    beforeEach("refresh oracle slot validity", async () => {
-      await reserveDoge.refreshOraclePrice(15);
-      await reserveSrm.refreshOraclePrice(15);
-      await waitForCommit();
     });
 
     beforeEach("borrow liquidity", async () => {

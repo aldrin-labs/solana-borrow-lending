@@ -23,8 +23,9 @@ export function test(
       market = await LendingMarket.init(program, owner, shmemProgramId);
     });
 
-    before("initialize obligation", async () => {
+    before("initialize reserve", async () => {
       reserve = await market.addReserve(50);
+      await reserve.refreshOraclePrice(999);
     });
 
     before("initialize obligation", async () => {
@@ -37,10 +38,6 @@ export function test(
           obligation.borrower.publicKey,
           sourceCollateralWalletAmount
         );
-    });
-
-    beforeEach("refresh oracle slot validity", async () => {
-      await reserve.refreshOraclePrice(10);
     });
 
     it("fails if borrower doesn't match obligation owner", async () => {
