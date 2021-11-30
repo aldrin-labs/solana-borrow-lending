@@ -284,6 +284,7 @@ L_{maxl} = \dfrac{\min\{V_b * κ, L_v\}}{L_v} L_b
 \tag{8}
 ```
 
+
 ## Commands
 Use following anchor command to build the `borrow-lending` program:
 
@@ -301,6 +302,14 @@ and run the tests:
 When debugging or working on a new feature, use
 [mocha's `only`][mocha-exclusive-tests] functionality to avoid running all tests
 every time.
+
+To generate unit test code coverage which can then be accessed at
+`target/debug/coverage/index.html` (requires nightly):
+
+```
+./bin/codecov.sh
+```
+
 
 ## CLI
 To ease BLp setup on devnet and mainnet, this repository provides a simple CLI
