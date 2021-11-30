@@ -69,7 +69,7 @@ export function test(
             10000
           );
 
-        await obligation.depositCollateral(
+        await obligation.deposit(
           reserveSrm,
           sourceCollateralWallet,
           depositedCollateral
@@ -119,8 +119,8 @@ export function test(
 
       await obligation.borrow(
         reserveDoge,
-        borrowedLiquidity,
-        borrowersDogeWallet
+        borrowersDogeWallet,
+        borrowedLiquidity
       );
     });
 
@@ -138,7 +138,6 @@ export function test(
     it("fails if obligation stale", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const refreshObligation = false;
       await expect(
         obligation.liquidate(
           2,
@@ -146,10 +145,26 @@ export function test(
           reserveSrm,
           liquidatorsDogeWallet,
           liquidatorsSrmWallet,
-          liquidator,
-          refreshObligation
+          { liquidator, refreshObligation: false }
         )
       ).to.be.rejected;
+
+      stdCapture.restore();
+    });
+
+    it("fails if token program mismatches reserve", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        obligation.liquidate(
+          2,
+          reserveDoge,
+          reserveSrm,
+          liquidatorsDogeWallet,
+          liquidatorsSrmWallet,
+          { liquidator, tokenProgram: Keypair.generate().publicKey }
+        )
+      ).to.be.rejectedWith(/Program ID was not as expected/);
 
       stdCapture.restore();
     });
@@ -157,8 +172,6 @@ export function test(
     it("fails if liquidator isn't signed", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const sign = false;
-      const refresh = true;
       await expect(
         obligation.liquidate(
           2,
@@ -166,11 +179,7 @@ export function test(
           reserveSrm,
           liquidatorsDogeWallet,
           liquidatorsSrmWallet,
-          liquidator,
-          refresh,
-          refresh,
-          refresh,
-          sign
+          { liquidator, sign: false }
         )
       ).to.be.rejectedWith("Signature verification failed");
 
@@ -187,7 +196,7 @@ export function test(
           reserveSrm,
           liquidatorsDogeWallet,
           liquidatorsSrmWallet,
-          Keypair.generate()
+          { liquidator: Keypair.generate() }
         )
       ).to.be.rejected;
 
@@ -240,11 +249,7 @@ export function test(
         liquidatorsDogeWallet,
         borrowedLiquidity - 1
       );
-      await obligation.depositCollateral(
-        reserveSrm,
-        sourceCollateralWallet,
-        3000
-      );
+      await obligation.deposit(reserveSrm, sourceCollateralWallet, 3000);
 
       const stdCapture = new CaptureStdoutAndStderr();
 
@@ -264,9 +269,6 @@ export function test(
     it("fails if withdraw reserve stale", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const refreshObligation = true;
-      const refreshRepayReserve = true;
-      const refreshWithdrawReserve = false;
       await expect(
         obligation.liquidate(
           2,
@@ -274,10 +276,7 @@ export function test(
           reserveSrm,
           liquidatorsDogeWallet,
           liquidatorsSrmWallet,
-          liquidator,
-          refreshObligation,
-          refreshRepayReserve,
-          refreshWithdrawReserve
+          { liquidator, refreshWithdrawReserve: false }
         )
       ).to.be.rejected;
 
@@ -287,9 +286,6 @@ export function test(
     it("fails if repay reserve stale", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const refreshObligation = true;
-      const refreshRepayReserve = false;
-      const refreshWithdrawReserve = true;
       await expect(
         obligation.liquidate(
           2,
@@ -297,10 +293,7 @@ export function test(
           reserveSrm,
           liquidatorsDogeWallet,
           liquidatorsSrmWallet,
-          liquidator,
-          refreshObligation,
-          refreshRepayReserve,
-          refreshWithdrawReserve
+          { liquidator, refreshRepayReserve: false }
         )
       ).to.be.rejected;
 
@@ -326,7 +319,7 @@ export function test(
           reserveSrm,
           liquidatorsDogeWallet,
           liquidatorsSrmWallet,
-          liquidator
+          { liquidator }
         )
       ).to.be.rejected;
 
@@ -352,7 +345,7 @@ export function test(
           differentReserve,
           liquidatorsDogeWallet,
           liquidatorsSrmWallet,
-          liquidator
+          { liquidator }
         )
       ).to.be.rejected;
 
@@ -369,7 +362,7 @@ export function test(
           reserveSrm,
           reserveDoge.accounts.reserveLiquidityWallet.publicKey,
           liquidatorsSrmWallet,
-          liquidator
+          { liquidator }
         )
       ).to.be.rejected;
 
@@ -388,7 +381,7 @@ export function test(
           reserveSrm,
           reserveSrm.accounts.reserveLiquidityWallet.publicKey,
           liquidatorsSrmWallet,
-          liquidator
+          { liquidator }
         )
       ).to.be.rejected;
 
@@ -407,7 +400,7 @@ export function test(
           reserveSrm,
           liquidatorsDogeWallet,
           reserveDoge.accounts.reserveCollateralWallet.publicKey,
-          liquidator
+          { liquidator }
         )
       ).to.be.rejected;
 
@@ -426,7 +419,7 @@ export function test(
           reserveSrm,
           liquidatorsDogeWallet,
           reserveSrm.accounts.reserveCollateralWallet.publicKey,
-          liquidator
+          { liquidator }
         )
       ).to.be.rejected;
 
@@ -449,7 +442,7 @@ export function test(
           reserveSrm,
           liquidatorsDogeWallet,
           liquidatorsSrmWallet,
-          liquidator
+          { liquidator }
         )
       ).to.be.rejected;
 
@@ -473,7 +466,7 @@ export function test(
           reserveSrm,
           liquidatorsDogeWallet,
           liquidatorsSrmWallet,
-          liquidator
+          { liquidator }
         )
       ).to.be.rejected;
 
@@ -495,7 +488,7 @@ export function test(
           reserveSrm,
           liquidatorsDogeWallet,
           liquidatorsSrmWallet,
-          liquidator
+          { liquidator }
         )
       ).to.be.rejected;
 
@@ -512,7 +505,7 @@ export function test(
         reserveSrm,
         liquidatorsDogeWallet,
         liquidatorsSrmWallet,
-        liquidator
+        { liquidator }
       );
 
       await obligation.refresh();
@@ -552,7 +545,7 @@ export function test(
         reserveSrm,
         liquidatorsDogeWallet,
         liquidatorsSrmWallet,
-        liquidator
+        { liquidator }
       );
 
       await obligation.refresh();

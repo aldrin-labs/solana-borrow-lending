@@ -214,10 +214,19 @@ export class Reserve {
     );
   }
 
-  public async depositLiquidity(
+  public async deposit(
     liquidityAmount: number,
-    refreshReserve: boolean = true
+    opt: {
+      refreshReserve?: boolean;
+      tokenProgram?: PublicKey;
+    } = {}
   ): Promise<DepositReserveLiquidityAccounts> {
+    const { refreshReserve, tokenProgram } = {
+      tokenProgram: TOKEN_PROGRAM_ID,
+      refreshReserve: true,
+      ...opt,
+    };
+
     const funder = Keypair.generate();
     const sourceLiquidityWallet =
       await this.accounts.liquidityMint.createAccount(funder.publicKey);
@@ -243,7 +252,7 @@ export class Reserve {
             this.accounts.reserveLiquidityWallet.publicKey,
           sourceLiquidityWallet,
           destinationCollateralWallet,
-          tokenProgram: TOKEN_PROGRAM_ID,
+          tokenProgram,
           clock: SYSVAR_CLOCK_PUBKEY,
         },
         signers: [funder],
@@ -254,11 +263,20 @@ export class Reserve {
     return { funder, sourceLiquidityWallet, destinationCollateralWallet };
   }
 
-  public async redeemCollateral(
+  public async redeem(
     depositAccounts: DepositReserveLiquidityAccounts,
     collateralAmount: number,
-    refreshReserve: boolean = true
+    opt: {
+      refreshReserve?: boolean;
+      tokenProgram?: PublicKey;
+    } = {}
   ) {
+    const { refreshReserve, tokenProgram } = {
+      refreshReserve: true,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      ...opt,
+    };
+
     await this.market.program.rpc.redeemReserveCollateral(
       this.market.bumpSeed,
       new BN(collateralAmount),
@@ -272,7 +290,7 @@ export class Reserve {
             this.accounts.reserveLiquidityWallet.publicKey,
           destinationLiquidityWallet: depositAccounts.sourceLiquidityWallet,
           sourceCollateralWallet: depositAccounts.destinationCollateralWallet,
-          tokenProgram: TOKEN_PROGRAM_ID,
+          tokenProgram,
           clock: SYSVAR_CLOCK_PUBKEY,
         },
         signers: [depositAccounts.funder],
@@ -290,7 +308,7 @@ export class Reserve {
 
     await this.refreshOraclePrice(10);
 
-    const depositAccounts = await this.depositLiquidity(
+    const depositAccounts = await this.deposit(
       collateralAmount / ONE_LIQ_TO_COL_INITIAL_PRICE
     );
     await this.accounts.reserveCollateralMint.transfer(

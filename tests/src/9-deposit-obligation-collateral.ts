@@ -49,9 +49,8 @@ export function test(
       const originalBorrower = obligation.borrower;
       obligation.borrower = Keypair.generate();
 
-      await expect(
-        obligation.depositCollateral(reserve, sourceCollateralWallet, 10)
-      ).to.be.rejected;
+      await expect(obligation.deposit(reserve, sourceCollateralWallet, 10)).to
+        .be.rejected;
 
       obligation.borrower = originalBorrower;
 
@@ -69,11 +68,7 @@ export function test(
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
-        differentMarketObligation.depositCollateral(
-          reserve,
-          sourceCollateralWallet,
-          10
-        )
+        differentMarketObligation.deposit(reserve, sourceCollateralWallet, 10)
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain(
@@ -84,14 +79,10 @@ export function test(
     it("fails if reserve is stale", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const refreshReserve = false;
       await expect(
-        obligation.depositCollateral(
-          reserve,
-          sourceCollateralWallet,
-          10,
-          refreshReserve
-        )
+        obligation.deposit(reserve, sourceCollateralWallet, 10, {
+          refreshReserve: false,
+        })
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain("[ReserveStale]");
@@ -106,11 +97,7 @@ export function test(
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
-        obligation.depositCollateral(
-          differentReserve,
-          sourceCollateralWallet,
-          10
-        )
+        obligation.deposit(differentReserve, sourceCollateralWallet, 10)
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain("not be used as a collateral");
@@ -120,7 +107,7 @@ export function test(
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
-        obligation.depositCollateral(
+        obligation.deposit(
           reserve,
           reserve.accounts.reserveCollateralWallet.publicKey,
           10
@@ -130,6 +117,18 @@ export function test(
       expect(stdCapture.restore()).to.contain(
         "Destination wallet musn't equal source wallet"
       );
+    });
+
+    it("fails if token program mismatches reserve", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        obligation.deposit(reserve, sourceCollateralWallet, 10, {
+          tokenProgram: Keypair.generate().publicKey,
+        })
+      ).to.be.rejectedWith(/Program ID was not as expected/);
+
+      stdCapture.restore();
     });
 
     it("fails if destination wallet doesn't match supply wallet", async () => {
@@ -142,9 +141,8 @@ export function test(
         reserve.accounts.reserveCollateralWallet;
       reserve.accounts.reserveCollateralWallet = Keypair.generate();
 
-      await expect(
-        obligation.depositCollateral(reserve, sourceCollateralWallet, 10)
-      ).to.be.rejected;
+      await expect(obligation.deposit(reserve, sourceCollateralWallet, 10)).to
+        .be.rejected;
 
       expect(stdCapture.restore()).to.contain(
         "Dest. wallet must match reserve config collateral supply"
@@ -158,9 +156,8 @@ export function test(
     it("fails if collateral amount is zero", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      await expect(
-        obligation.depositCollateral(reserve, sourceCollateralWallet, 0)
-      ).to.be.rejected;
+      await expect(obligation.deposit(reserve, sourceCollateralWallet, 0)).to.be
+        .rejected;
 
       expect(stdCapture.restore()).to.contain(
         "Collateral amount to deposit mustn't be zero"
@@ -170,9 +167,8 @@ export function test(
     it("fails if borrower doesn't have enough collateral", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      await expect(
-        obligation.depositCollateral(reserve, sourceCollateralWallet, 1000)
-      ).to.be.rejected;
+      await expect(obligation.deposit(reserve, sourceCollateralWallet, 1000)).to
+        .be.rejected;
 
       expect(stdCapture.restore()).to.contain("insufficient funds");
     });
@@ -180,22 +176,15 @@ export function test(
     it("fails if borrower isn't signer", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const sign = false;
       await expect(
-        obligation.depositCollateral(
-          reserve,
-          sourceCollateralWallet,
-          10,
-          true,
-          sign
-        )
+        obligation.deposit(reserve, sourceCollateralWallet, 10, { sign: false })
       ).to.be.rejected;
 
       stdCapture.restore();
     });
 
     it("deposits collateral", async () => {
-      await obligation.depositCollateral(reserve, sourceCollateralWallet, 10);
+      await obligation.deposit(reserve, sourceCollateralWallet, 10);
       sourceCollateralWalletAmount -= 10;
 
       const obligationInfo = await obligation.fetch();

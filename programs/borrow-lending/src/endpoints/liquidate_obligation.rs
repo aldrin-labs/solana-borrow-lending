@@ -3,7 +3,7 @@
 //! obligation in the borrower's stead. The motivation is that the liquidator
 //! gets a better deal by multiplying the liquidity market value by a bonus
 //! rate. The liquidity with advantageous value is then exchanged for collateral
-//! which is transferer to the liquidator's destination wallet.
+//! which is transferred to the liquidator's destination wallet.
 //!
 //! One way to think about this action is as a combination of repay liquidity
 //! and withdraw collateral under different market rates.

@@ -33,16 +33,28 @@ export function test(
     it("fails if reserve stale", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const refreshReserve = false;
-      await expect(reserve.depositLiquidity(50, refreshReserve)).to.be.rejected;
+      await expect(reserve.deposit(50, { refreshReserve: false })).to.be
+        .rejected;
 
       expect(stdCapture.restore()).to.contain("needs to be refreshed");
+    });
+
+    it("fails if token program mismatches reserve", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        reserve.deposit(50, {
+          tokenProgram: Keypair.generate().publicKey,
+        })
+      ).to.be.rejectedWith(/Program ID was not as expected/);
+
+      stdCapture.restore();
     });
 
     it("must deposit at least some liquidity", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      await expect(reserve.depositLiquidity(0)).to.be.rejected;
+      await expect(reserve.deposit(0)).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain("amount provided cannot be zero");
     });
@@ -56,7 +68,7 @@ export function test(
       const oldLiquidityMintInfo =
         await reserve.accounts.liquidityMint.getMintInfo();
 
-      const { destinationCollateralWallet } = await reserve.depositLiquidity(
+      const { destinationCollateralWallet } = await reserve.deposit(
         liquidityAmount
       );
 

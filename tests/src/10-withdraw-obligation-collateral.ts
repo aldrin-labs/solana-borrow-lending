@@ -38,7 +38,7 @@ export function test(
           sourceCollateralWalletAmount
         );
 
-      await obligation.depositCollateral(
+      await obligation.deposit(
         reserve,
         sourceCollateralWallet,
         sourceCollateralWalletAmount
@@ -63,11 +63,7 @@ export function test(
 
       emptyObligation.reservesToRefresh.add(reserve);
       await expect(
-        emptyObligation.withdrawCollateral(
-          reserve,
-          destinationCollateralWallet,
-          10
-        )
+        emptyObligation.withdraw(reserve, destinationCollateralWallet, 10)
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain(
@@ -78,16 +74,10 @@ export function test(
     it("fails if instruction isn't signed", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const sign = false;
       await expect(
-        obligation.withdrawCollateral(
-          reserve,
-          destinationCollateralWallet,
-          10,
-          true,
-          true,
-          sign
-        )
+        obligation.withdraw(reserve, destinationCollateralWallet, 10, {
+          sign: false,
+        })
       ).to.be.rejected;
 
       stdCapture.restore();
@@ -96,15 +86,10 @@ export function test(
     it("fails if obligation is stale", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const refreshObligation = false;
       await expect(
-        obligation.withdrawCollateral(
-          reserve,
-          destinationCollateralWallet,
-          10,
-          true,
-          refreshObligation
-        )
+        obligation.withdraw(reserve, destinationCollateralWallet, 10, {
+          refreshObligation: false,
+        })
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain("ObligationStale");
@@ -113,17 +98,25 @@ export function test(
     it("fails if reserve is stale", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const refreshReserve = false;
       await expect(
-        obligation.withdrawCollateral(
-          reserve,
-          destinationCollateralWallet,
-          10,
-          refreshReserve
-        )
+        obligation.withdraw(reserve, destinationCollateralWallet, 10, {
+          refreshReserve: false,
+        })
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain("is stale");
+    });
+
+    it("fails if token program mismatches reserve", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        obligation.withdraw(reserve, destinationCollateralWallet, 10, {
+          tokenProgram: Keypair.generate().publicKey,
+        })
+      ).to.be.rejectedWith(/Program ID was not as expected/);
+
+      stdCapture.restore();
     });
 
     it("fails if reserve's market doesn't match obligation's market", async () => {
@@ -137,11 +130,7 @@ export function test(
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
-        differentObligation.withdrawCollateral(
-          reserve,
-          destinationCollateralWallet,
-          10
-        )
+        differentObligation.withdraw(reserve, destinationCollateralWallet, 10)
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain("LendingMarketMismatch");
@@ -155,7 +144,7 @@ export function test(
       reserve.accounts.reserveCollateralWallet = Keypair.generate();
 
       await expect(
-        obligation.withdrawCollateral(reserve, destinationCollateralWallet, 10)
+        obligation.withdraw(reserve, destinationCollateralWallet, 10)
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain(
@@ -169,7 +158,7 @@ export function test(
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
-        obligation.withdrawCollateral(
+        obligation.withdraw(
           reserve,
           reserve.accounts.reserveCollateralWallet.publicKey,
           10
@@ -184,9 +173,8 @@ export function test(
     it("cannot withdraw zero collateral", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      await expect(
-        obligation.withdrawCollateral(reserve, destinationCollateralWallet, 0)
-      ).to.be.rejected;
+      await expect(obligation.withdraw(reserve, destinationCollateralWallet, 0))
+        .to.be.rejected;
 
       expect(stdCapture.restore()).to.contain(
         "Collateral amount provided cannot be zero"
@@ -194,7 +182,7 @@ export function test(
     });
 
     it("withdraws half of collateral", async () => {
-      await obligation.withdrawCollateral(
+      await obligation.withdraw(
         reserve,
         destinationCollateralWallet,
         sourceCollateralWalletAmount / 2
@@ -228,7 +216,7 @@ export function test(
     });
 
     it("withdraws all collateral", async () => {
-      await obligation.withdrawCollateral(
+      await obligation.withdraw(
         reserve,
         destinationCollateralWallet,
         sourceCollateralWalletAmount * 10 // should withdraw at most what's in the account

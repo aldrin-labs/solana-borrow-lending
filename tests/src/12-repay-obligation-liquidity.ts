@@ -23,7 +23,7 @@ export function test(
     // when we create borrower's doge wallet, we mint them some initial tokens
     const initialDogeAmount = 50;
     // this liquidity is given to the reserve once
-    let sourceDogeLiquidity = 1000;
+    let sourceDogeLiquidity = 2000;
     let depositedSrmCollateralAmount = 50;
     let market: LendingMarket,
       obligation: Obligation,
@@ -57,7 +57,7 @@ export function test(
             depositedSrmCollateralAmount
           );
 
-        await obligation.depositCollateral(
+        await obligation.deposit(
           reserveSrm,
           sourceCollateralWallet,
           depositedSrmCollateralAmount
@@ -93,8 +93,8 @@ export function test(
 
       await obligation.borrow(
         reserveDoge,
-        borrowedLiquidity,
-        borrowerDogeLiquidityWallet
+        borrowerDogeLiquidityWallet,
+        borrowedLiquidity
       );
       await update();
     });
@@ -102,17 +102,10 @@ export function test(
     it("fails if repayer isn't signer", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const refresh = true;
-      const sign = false;
       await expect(
-        obligation.repay(
-          reserveDoge,
-          borrowerDogeLiquidityWallet,
-          10,
-          refresh,
-          refresh,
-          sign
-        )
+        obligation.repay(reserveDoge, borrowerDogeLiquidityWallet, 10, {
+          sign: false,
+        })
       ).to.be.rejected;
 
       stdCapture.restore();
@@ -121,16 +114,10 @@ export function test(
     it("fails if obligation is stale", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const refreshReserve = true;
-      const refreshObligation = false;
       await expect(
-        obligation.repay(
-          reserveDoge,
-          borrowerDogeLiquidityWallet,
-          10,
-          refreshReserve,
-          refreshObligation
-        )
+        obligation.repay(reserveDoge, borrowerDogeLiquidityWallet, 10, {
+          refreshObligation: false,
+        })
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain("ObligationStale");
@@ -139,14 +126,10 @@ export function test(
     it("fails if reserve is stale", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      const refreshReserve = false;
       await expect(
-        obligation.repay(
-          reserveDoge,
-          borrowerDogeLiquidityWallet,
-          10,
-          refreshReserve
-        )
+        obligation.repay(reserveDoge, borrowerDogeLiquidityWallet, 10, {
+          refreshReserve: false,
+        })
       ).to.be.rejected;
 
       expect(stdCapture.restore()).to.match(/Reserve .* is stale/);
@@ -166,6 +149,18 @@ export function test(
       expect(stdCapture.restore()).to.contain(
         "Source liq. wallet mustn't eq. reserve's liq. supply"
       );
+    });
+
+    it("fails if token program mismatches reserve", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        obligation.repay(reserveDoge, borrowerDogeLiquidityWallet, 10, {
+          tokenProgram: Keypair.generate().publicKey,
+        })
+      ).to.be.rejectedWith(/Program ID was not as expected/);
+
+      stdCapture.restore();
     });
 
     it("fails if destination wallet doesn't match reserve's config", async () => {
