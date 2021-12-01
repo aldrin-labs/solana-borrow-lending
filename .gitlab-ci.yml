@@ -15,11 +15,9 @@ build_and_test:
   # https://hub.docker.com/r/cimg/rust/tags
   image: "cimg/rust:${RUST_VERSION}-node"
   cache:
-    key: binaries-cache
+    key: target-1
     paths:
       - target
-      # TODO: export the shmem program to another repo
-      - tests/localnet-deps/target
   artifacts:
     # TODO: upon merging to develop or main, keep artifacts for ~6 months
     paths:
@@ -67,7 +65,6 @@ build_and_test:
     # TODO: move this to a docker image
     - rustup component add llvm-tools-preview
     - cargo install grcov
-    - sudo apt install imagemagick
   script:
     # generates docs.rs style page
     - cargo doc --lib --no-deps --document-private-items
@@ -87,9 +84,6 @@ build_and_test:
     - cargo clean
     - ./bin/codecov.sh
     - cp -r target/debug/coverage public
-    - convert
-        public/coverage/badges/for_the_badge.svg
-        public/coverage/badges/for_the_badge.png
 
 # This job publishes pages to
 # https://crypto_project.gitlab.io/defi/borrow-lending

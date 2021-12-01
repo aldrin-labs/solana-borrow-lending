@@ -1,6 +1,5 @@
-[![Code coverage][project-code-coverage-badge]][project-code-coverage]
-
-* [View Rust docs][project-rust-docs]
+* [Code coverage][project-code-coverage]
+* [Rust docs][project-rust-docs]
 
 A lending platform is a tool where users lend and borrow tokens. A user either
 gets an interest on lent tokens or they get a loan and pay interest.
@@ -467,5 +466,4 @@ create a new lending market with:
 [aave-flash-loans]: https://docs.aave.com/developers/guides/flash-loans
 [podcast-coinsec-ep-46]: https://podcastaddict.com/episode/130756978
 [aave-risk-params]: https://docs.aave.com/risk/asset-risk/risk-parameters
-[project-code-coverage-badge]: https://crypto_project.gitlab.io/defi/borrow-lending/coverage/badges/for_the_badge.png
 [project-code-coverage]: https://crypto_project.gitlab.io/defi/borrow-lending/coverage
