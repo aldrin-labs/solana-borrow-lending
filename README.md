@@ -1,5 +1,40 @@
 * [View Rust docs][project-rust-docs]
 
+A lending platform is a tool where users lend and borrow tokens. A user either
+gets an interest on lent tokens or they get a loan and pay interest.
+
+* When lending tokens a funder gets an interest on their tokens. The interest
+  accumulates and they can withdraw it. (The interest is changing according to
+  the different market conditions.)
+
+* A borrower can only borrow a specific number of tokens. That's limited by the
+  amount of lent tokens by that user. For example, they cannot borrow more than
+  150% of their funded value as another tokens. The borrowing interest rate for
+  each token is always higher than the lending interest rate.
+
+## Example use case
+Let's say Jimmy needs $3,000 for an emergency. He already has $6,000 in ETH.
+Jimmy could use his ETH as collateral to borrow a stablecoin like USDC, that
+way he can count on the value of his borrowed asset to be more stable when he
+pays back the loan and he doesn't have to sell his ETH.
+
+Even though he has to pay back the loan + interest, he is still earning
+interest on his deposited collateral in the background too which helps to
+balance it out more.
+
+In our example, Jimmy used ETH as collateral since he thinks it will increase
+in value and he doesn’t want to sell it. He borrowed USDC and used it to buy
+assets that he thinks will also increase. If that happens he can pay back his
+debt and still keep the ETH as well as keep some of the assets he borrowed as
+profit.  Otherwise, he could just use the USDC to buy more ETH to "leverage" it
+and increase his profit.  Or he could just use the money for an emergency and
+pay it back when ETH is higher so he would sell less of his ETH to pay his debt
+then.
+
+Overall, stablecoins are mostly used for borrowing, while volatile assets which
+users are long on are mostly used as collateral. Hence, the users of the
+protocol still gain great benefits from the addition of these stablecoins.
+
 ## Design
 
 <details>
@@ -117,9 +152,9 @@ Utilization rate is an indicator of the availability of capital in the pool.
 The interest rate model is used to manage liquidity risk through user
 incentivizes to support liquidity:
 
-* When capital is available: low interest rates to encourage loans.
-* When capital is scarce: high interest rates to encourage repayments of loans
-  and additional deposits.
+    * When capital is available: low interest rates to encourage loans.
+    * When capital is scarce: high interest rates to encourage repayments of
+      loans and additional deposits.
 
 Liquidity risk materializes when utilization is high, its becomes more
 problematic as  gets closer to 100%. To tailor the model to this constraint,
@@ -179,7 +214,9 @@ Borrow rate ($`R_b`$) is a key concept for interest calculation.  When $`R_u <
 R^*_u`$, the rate increases slowly with utilization. Otherwise the borrow
 interest rate increases sharply to incentivize more deposit and avoid liquidity
 risk. See the [Aave borrow interest rate documentation][aave-borrow-rate] for
-more information. We use the same interest rate curve.
+more information. We use the same interest rate curve. [This
+article][aave-borrow-rate-2] does also a good job explaining the pros of the
+model.
 
 <details>
 <summary markdown="span">Model for borrow rate calculation (eq. 3)</summary>
@@ -190,6 +227,37 @@ _Legend_: subscript `o` in the image means optimal while in this document we
 use superscript `*`; the x axis represents $`R_u`$.
 
 </details>
+
+### Health factor
+Health factor is the numeric representation of the safety of your deposited
+assets against the borrowed assets and its underlying value.  The higher the
+factor is, the safer the state of your funds are against a liquidation
+scenario.
+
+Depending on the value fluctuation of your deposits, the health factor will
+increase or decrease. If your health factor increases, it will improve your
+borrow position by making the liquidation threshold more unlikely to be
+reached. In the case that the value of your collateralized assets against the
+borrowed assets decreases instead, the health factor is also reduced, causing
+the risk of liquidation to increase.
+
+There is no fixed time period to pay back the loan. As long as your position is
+safe, you can borrow for an undefined period. However, as time passes, the
+accrued interest will grow making your health factor decrease, which might
+result in your deposited assets becoming more likely to be liquidated.
+
+We calculate unhealthy borrow value which is similar to the health factor. See
+[eq. (9)](#equations) for the formula. Once an obligation borrow value exceeds
+$`V_u`$, it is eligible for liquidation.
+
+
+<details>
+<summary markdown="span">Liquidation process chart</summary>
+
+[![Chart showing the liquidation process](docs/liquidation.jpg)][aave-risk-params]
+
+</details>
+
 
 ### Equations
 Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
@@ -202,6 +270,7 @@ Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
 | $`L_v`$      | UAC value of borrowed liquidity |
 | $`L_{maxl}`$ | maximum liquidity amount to liquidate |
 | $`C_s`$      | total minted collateral supply |
+| $`C_d`$      | deposited collateral |
 | $`S_e`$      | elapsed slots |
 | $`S_a`$      | number of slots in a calendar year |
 | $`R_u`$      | utilization rate |
@@ -215,9 +284,11 @@ Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
 | $`R_{maxb}`$ | maximum $`R_b`$ (configurable) |
 | $`V_d`$      | UAC value of deposited collateral |
 | $`V_b`$      | UAC value of borrowed liquidity |
+| $`V_u`$      | unhealthy borrow value |
 | $`V_{maxw}`$ | maximum withdrawable UAC value |
 | $`V_{maxb}`$ | maximum borrowable UAC value (against deposited collateral) |
-| $`κ`$        | constant liquidity close factor |
+| $`\kappa`$   | constant liquidity close factor |
+| $`\epsilon`$ | liquidation threshold in \[0; 1) |
 
 
 ```math
@@ -293,8 +364,17 @@ $`κ`$ is 50% (compiled into the program) and puts a limit on how much borrowed
 value can be liquidated at once.
 
 ```math
-L_{maxl} = \dfrac{\min\{V_b * κ, L_v\}}{L_v} L_b
+L_{maxl} = \dfrac{\min\{V_b * \kappa, L_v\}}{L_v} L_b
 \tag{8}
+```
+
+
+Calculates obligation's unhealthy borrow value by summing over each borrowed
+reserve. See the [health factor docs](#health-factor).
+
+```math
+V_u = \sum C^r_b \epsilon^r
+\tag{9}
 ```
 
 
@@ -378,8 +458,10 @@ create a new lending market with:
 [pyth-srm-usd]: https://pyth.network/markets/#SRM/USD
 [project-rust-docs]: https://crypto_project.gitlab.io/defi/borrow-lending/borrow_lending
 [aave-borrow-rate]: https://docs.aave.com/risk/liquidity-risk/borrow-interest-rate#interest-rate-model
+[aave-borrow-rate-2]: https://medium.com/aave/aave-borrowing-rates-upgraded-f6c8b27973a7
 [port-finance]: https://port.finance
 [solaris]: https://solarisprotocol.com
 [equalizer]: https://equalizer.finance
 [aave-flash-loans]: https://docs.aave.com/developers/guides/flash-loans
 [podcast-coinsec-ep-46]: https://podcastaddict.com/episode/130756978
+[aave-risk-params]: https://docs.aave.com/risk/asset-risk/risk-parameters

@@ -109,6 +109,7 @@ pub fn handle(ctx: Context<RefreshObligation>) -> ProgramResult {
                         .try_mul(loan_to_value_rate)?,
                 )?;
 
+                // ref. eq. (9)
                 let liquidation_threshold_rate = Decimal::from_percent(
                     deposit_reserve.config.liquidation_threshold,
                 );
