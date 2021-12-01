@@ -1,5 +1,6 @@
+[![Code coverage][project-code-coverage-badge]][project-code-coverage]
+
 * [View Rust docs][project-rust-docs]
-* [![Code coverage][project-code-coverage-badge]][project-code-coverage]
 
 A lending platform is a tool where users lend and borrow tokens. A user either
 gets an interest on lent tokens or they get a loan and pay interest.
