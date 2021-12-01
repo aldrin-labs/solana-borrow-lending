@@ -67,6 +67,7 @@ build_and_test:
     # TODO: move this to a docker image
     - rustup component add llvm-tools-preview
     - cargo install grcov
+    - sudo apt install imagemagick
   script:
     # generates docs.rs style page
     - cargo doc --lib --no-deps --document-private-items
@@ -86,6 +87,9 @@ build_and_test:
     - cargo clean
     - ./bin/codecov.sh
     - cp -r target/debug/coverage public
+    - convert
+        public/coverage/badges/for_the_badge.svg
+        public/coverage/badges/for_the_badge.png
 
 # This job publishes pages to
 # https://crypto_project.gitlab.io/defi/borrow-lending

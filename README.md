@@ -467,5 +467,5 @@ create a new lending market with:
 [aave-flash-loans]: https://docs.aave.com/developers/guides/flash-loans
 [podcast-coinsec-ep-46]: https://podcastaddict.com/episode/130756978
 [aave-risk-params]: https://docs.aave.com/risk/asset-risk/risk-parameters
-[project-code-coverage-badge]: https://crypto_project.gitlab.io/defi/borrow-lending/coverage/badges/for_the_badge.svg
+[project-code-coverage-badge]: https://crypto_project.gitlab.io/defi/borrow-lending/coverage/badges/for_the_badge.png
 [project-code-coverage]: https://crypto_project.gitlab.io/defi/borrow-lending/coverage
