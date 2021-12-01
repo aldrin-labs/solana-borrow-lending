@@ -35,3 +35,4 @@ optional = true
 
 [dev-dependencies]
 memoffset = "0.6"
+proptest = "1.0"

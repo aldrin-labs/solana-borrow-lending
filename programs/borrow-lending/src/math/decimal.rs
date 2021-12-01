@@ -224,4 +224,36 @@ mod test {
             a.try_mul(b).unwrap()
         );
     }
+
+    mod custom_u128 {
+        use uint::construct_uint;
+        construct_uint! {
+            pub struct U128(2);
+        }
+    }
+
+    // Solana team's implementation had two number types: U192 and U128. We
+    // removed the latter. This test makes sure that they two were
+    // interchangeable in usage of `from_scaled_val`.
+    #[test]
+    fn test_decimal_same_as_rate() {
+        use custom_u128::U128;
+
+        fn ceil_u192(v: u128) -> u64 {
+            let one = U192::from(consts::WAD);
+            let v = U192::from(v).checked_div(one).unwrap();
+            u64::try_from(v).unwrap()
+        }
+
+        fn ceil_u128(v: u64) -> u64 {
+            let one = U128::from(consts::WAD);
+            let v = U128::from(v).checked_div(one).unwrap();
+            u64::try_from(v).unwrap()
+        }
+
+        assert_eq!(ceil_u128(0), ceil_u192(0));
+        assert_eq!(ceil_u128(1), ceil_u192(1));
+        assert_eq!(ceil_u128(10), ceil_u192(10));
+        assert_eq!(ceil_u128(1_000), ceil_u192(1_000));
+    }
 }
