@@ -47,6 +47,8 @@ pub struct ReserveConfig {
     /// USD worth of assets.
     pub loan_to_value_ratio: PercentageInt,
     /// Bonus a liquidator gets when repaying part of an unhealthy obligation.
+    /// This percentage will be used to multiply the liquidity value, so it
+    /// must be lower than 100%.
     ///
     /// ## Example
     /// If the user has put in 100 USD worth of SOL and borrow 85 USD. If the

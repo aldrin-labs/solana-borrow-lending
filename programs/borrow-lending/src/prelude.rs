@@ -51,8 +51,9 @@ pub mod consts {
     pub const MAX_OBLIGATION_RESERVES: usize = 10;
 
     /// Percentage of an obligation that can be repaid during each liquidation
-    /// call. TODO: What's the point? Doesn't the obligation just grow more
-    /// and more unhealthy with each call because of the liquidation bonus?
+    /// call. After the call, there're fewer borrowed assets than collateral
+    /// because the collateral has been sold for liquidity at a discounted
+    /// rate.
     pub const LIQUIDATION_CLOSE_FACTOR: PercentageInt = PercentageInt::new(50);
 
     /// Obligation borrow amount that is small enough to close out.
