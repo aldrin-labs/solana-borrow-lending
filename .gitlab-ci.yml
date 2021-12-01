@@ -68,9 +68,6 @@ build_and_test:
     - rustup component add llvm-tools-preview
     - cargo install grcov
   script:
-    # required for code coverage
-    - rustup override set nightly
-
     # generates docs.rs style page
     - cargo doc --lib --no-deps --document-private-items
     - cp -r target/doc public
@@ -85,6 +82,8 @@ build_and_test:
       -o public/index.html
 
     # generate code coverage report
+    - rustup override set nightly
+    - cargo clean
     - ./bin/codecov.sh
     - cp -r target/debug/coverage public
 

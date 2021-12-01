@@ -158,6 +158,7 @@ pub fn calculate_market_price(pyth: &Price, clock: &Clock) -> Result<Decimal> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::Unvalidated;
     use std::{fs, mem};
 
     #[test]
@@ -175,6 +176,59 @@ mod tests {
     }
 
     #[test]
+    fn it_validates_product() {
+        let data =
+            fs::read("../../tests/fixtures/srm_usd_product.bin").unwrap();
+
+        let product = Product::load(&data).unwrap().validate().unwrap();
+
+        let mut product2 = clone_product(product);
+        product2.magic += 1;
+        let unvalidated_product2 = Unvalidated(&product2);
+        assert!(unvalidated_product2.validate().is_err());
+
+        let mut product2 = clone_product(product);
+        product2.ver += 1;
+        let unvalidated_product2 = Unvalidated(&product2);
+        assert!(unvalidated_product2.validate().is_err());
+
+        let mut product2 = clone_product(product);
+        product2.atype = AccountType::Price as u32;
+        let unvalidated_product2 = Unvalidated(&product2);
+        assert!(unvalidated_product2.validate().is_err());
+    }
+
+    #[test]
+    fn it_gets_universal_asset_currency_from_product() {
+        let data =
+            fs::read("../../tests/fixtures/srm_usd_product.bin").unwrap();
+
+        let product = Product::load(&data).unwrap().validate().unwrap();
+        assert_eq!(
+            UniversalAssetCurrency::Usd,
+            UniversalAssetCurrency::try_from(product).unwrap()
+        );
+
+        let mut product2 = clone_product(product);
+        let uac = Pubkey::new_unique();
+
+        let key = b"quote_currency".to_vec();
+        let mut attrs = [0u8; PROD_ATTR_SIZE];
+        attrs[0] = key.len() as u8; // length of the attribute name
+        attrs[1..(key.len() + 1)].copy_from_slice(&key); // attribute name
+        attrs[key.len() + 1] = 32; // pubkey length
+        attrs[(key.len() + 2)..(key.len() + 2 + 32)]
+            .copy_from_slice(&uac.to_bytes()); // insert pubkey
+
+        product2.attr = attrs;
+
+        assert_eq!(
+            UniversalAssetCurrency::Pubkey { address: uac },
+            UniversalAssetCurrency::try_from(&product2).unwrap()
+        );
+    }
+
+    #[test]
     fn it_loads_price() {
         let data = fs::read("../../tests/fixtures/srm_usd_price.bin").unwrap();
 
@@ -185,6 +239,22 @@ mod tests {
         let price = price.unwrap();
 
         assert_eq!(price.agg.price, 7382500000);
+    }
+
+    #[test]
+    fn it_calculates_market_price() {
+        let data = fs::read("../../tests/fixtures/srm_usd_price.bin").unwrap();
+
+        let price = Price::load(&data).unwrap().validate().unwrap();
+        let mut clock = Clock::default();
+        clock.slot = price.valid_slot;
+
+        assert_eq!(
+            Decimal::from(7_3825u128)
+                .try_div(Decimal::from(10_000u128))
+                .unwrap(),
+            calculate_market_price(price, &clock).unwrap()
+        );
     }
 
     #[test]
@@ -200,5 +270,18 @@ mod tests {
     #[test]
     fn it_has_stable_product_price_offset() {
         assert_eq!(offset_of!(Product, px_acc), 16);
+    }
+
+    fn clone_product(product: &Product) -> Product {
+        Product {
+            magic: product.magic,
+            ver: product.ver,
+            atype: product.atype,
+            size: product.size,
+            px_acc: AccKey {
+                val: product.px_acc.val.clone(),
+            },
+            attr: product.attr.clone(),
+        }
     }
 }

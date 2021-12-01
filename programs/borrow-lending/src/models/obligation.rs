@@ -27,7 +27,9 @@ pub enum ObligationReserve {
     Liquidity { inner: ObligationLiquidity },
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(
+    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Default,
+)]
 pub struct ObligationCollateral {
     pub deposit_reserve: Pubkey,
     pub deposited_amount: u64,
@@ -298,6 +300,12 @@ impl Obligation {
     }
 }
 
+impl Default for ObligationLiquidity {
+    fn default() -> Self {
+        Self::new(Pubkey::default())
+    }
+}
+
 impl ObligationLiquidity {
     pub fn new(borrow_reserve: Pubkey) -> Self {
         Self {
@@ -391,5 +399,231 @@ impl ObligationCollateral {
             .checked_sub(collateral_amount)
             .ok_or(ErrorCode::MathOverflow)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_defaults_to_obligation_reserve() {
+        assert_eq!(ObligationReserve::default(), ObligationReserve::Empty);
+        let obligation = Obligation::default();
+        obligation
+            .reserves
+            .iter()
+            .for_each(|r| assert_eq!(r, &ObligationReserve::Empty));
+
+        assert!(!obligation.has_borrows());
+        assert!(!obligation.has_deposits());
+        assert!(obligation.is_deposited_value_zero());
+        assert!(obligation.is_borrowed_value_zero());
+        assert!(obligation.max_withdraw_value().is_err());
+    }
+
+    #[test]
+    fn it_deposits_collateral() {
+        let reserve1 = Pubkey::new_unique();
+        let reserve2 = Pubkey::new_unique();
+        let mut obligation = Obligation::default();
+
+        obligation.deposit(reserve1, 50).unwrap();
+        assert_eq!(
+            obligation.reserves[0],
+            ObligationReserve::Collateral {
+                inner: ObligationCollateral {
+                    deposited_amount: 50,
+                    deposit_reserve: reserve1,
+                    ..Default::default()
+                }
+            }
+        );
+
+        obligation.deposit(reserve2, 30).unwrap();
+        assert_eq!(
+            obligation.reserves[1],
+            ObligationReserve::Collateral {
+                inner: ObligationCollateral {
+                    deposited_amount: 30,
+                    deposit_reserve: reserve2,
+                    ..Default::default()
+                }
+            }
+        );
+
+        obligation.deposit(reserve1, 50).unwrap();
+        assert_eq!(
+            obligation.reserves[0],
+            ObligationReserve::Collateral {
+                inner: ObligationCollateral {
+                    deposited_amount: 100,
+                    deposit_reserve: reserve1,
+                    ..Default::default()
+                }
+            }
+        );
+
+        assert!(obligation.get_liquidity(reserve1).is_err());
+        assert!(obligation.get_liquidity(reserve2).is_err());
+        assert_eq!(
+            obligation.get_collateral(reserve1).unwrap(),
+            (
+                0,
+                &ObligationCollateral {
+                    deposit_reserve: reserve1,
+                    deposited_amount: 100,
+                    ..Default::default()
+                }
+            )
+        );
+        assert_eq!(
+            obligation.get_collateral(reserve2).unwrap(),
+            (
+                1,
+                &ObligationCollateral {
+                    deposit_reserve: reserve2,
+                    deposited_amount: 30,
+                    ..Default::default()
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn it_withdraws_collateral() {
+        let reserve1 = Pubkey::new_unique();
+        let reserve2 = Pubkey::new_unique();
+        let mut obligation = Obligation::default();
+
+        obligation.deposit(reserve1, 10).unwrap();
+        obligation.deposit(reserve2, 10).unwrap();
+
+        obligation.withdraw(5, 0).unwrap();
+        assert_eq!(
+            obligation.reserves[0],
+            ObligationReserve::Collateral {
+                inner: ObligationCollateral {
+                    deposited_amount: 5,
+                    deposit_reserve: reserve1,
+                    ..Default::default()
+                }
+            }
+        );
+        assert_eq!(
+            obligation.reserves[1],
+            ObligationReserve::Collateral {
+                inner: ObligationCollateral {
+                    deposited_amount: 10,
+                    deposit_reserve: reserve2,
+                    ..Default::default()
+                }
+            }
+        );
+
+        assert!(obligation.withdraw(6, 0).is_err());
+        obligation.withdraw(5, 0).unwrap();
+        assert_eq!(obligation.reserves[0], ObligationReserve::Empty);
+        assert_eq!(
+            obligation.reserves[1],
+            ObligationReserve::Collateral {
+                inner: ObligationCollateral {
+                    deposited_amount: 10,
+                    deposit_reserve: reserve2,
+                    ..Default::default()
+                }
+            }
+        );
+
+        obligation.withdraw(10, 1).unwrap();
+        obligation
+            .reserves
+            .iter()
+            .for_each(|r| assert_eq!(r, &ObligationReserve::Empty));
+    }
+
+    #[test]
+    fn it_borrows_liquidity() {
+        let reserve1 = Pubkey::new_unique();
+        let reserve2 = Pubkey::new_unique();
+        let mut obligation = Obligation::default();
+
+        obligation.borrow(reserve1, 50u64.into()).unwrap();
+        assert_eq!(
+            obligation.reserves[0],
+            ObligationReserve::Liquidity {
+                inner: ObligationLiquidity {
+                    borrowed_amount: 50.into(),
+                    borrow_reserve: reserve1,
+                    ..Default::default()
+                }
+            }
+        );
+
+        obligation.borrow(reserve2, 30u64.into()).unwrap();
+        assert_eq!(
+            obligation.reserves[1],
+            ObligationReserve::Liquidity {
+                inner: ObligationLiquidity {
+                    borrowed_amount: 30.into(),
+                    borrow_reserve: reserve2,
+                    ..Default::default()
+                }
+            }
+        );
+
+        obligation.borrow(reserve1, 50u64.into()).unwrap();
+        assert_eq!(
+            obligation.reserves[0],
+            ObligationReserve::Liquidity {
+                inner: ObligationLiquidity {
+                    borrowed_amount: 100.into(),
+                    borrow_reserve: reserve1,
+                    ..Default::default()
+                }
+            }
+        );
+
+        assert!(obligation.get_collateral(reserve1).is_err());
+        assert!(obligation.get_collateral(reserve2).is_err());
+        assert_eq!(
+            obligation.get_liquidity(reserve1).unwrap(),
+            (
+                0,
+                &ObligationLiquidity {
+                    borrow_reserve: reserve1,
+                    borrowed_amount: 100.into(),
+                    ..Default::default()
+                }
+            )
+        );
+        assert_eq!(
+            obligation.get_liquidity(reserve2).unwrap(),
+            (
+                1,
+                &ObligationLiquidity {
+                    borrow_reserve: reserve2,
+                    borrowed_amount: 30.into(),
+                    ..Default::default()
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn it_returns_obligation_as_stale() {
+        let mut obligation = Obligation::default();
+
+        let mut clock = Clock::default();
+        clock.slot = 10;
+
+        obligation.last_update.update_slot(10);
+        assert!(!obligation.is_stale(&clock));
+
+        obligation.last_update.update_slot(9);
+        assert!(obligation.is_stale(&clock));
+
+        obligation.last_update.update_slot(11);
+        assert!(obligation.is_stale(&clock)); // overflow
     }
 }

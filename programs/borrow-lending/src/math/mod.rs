@@ -74,3 +74,14 @@ impl From<u8> for PercentageInt {
         Self { percent: p }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_compares_percentages() {
+        assert!(PercentageInt::new(10) == PercentageInt::new(10));
+        assert!(PercentageInt::new(11) != PercentageInt::new(10));
+    }
+}
