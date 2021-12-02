@@ -90,4 +90,13 @@ mod tests {
         assert_eq!(dec.try_ceil_u64().unwrap(), n);
         assert_eq!(dec.try_floor_u64().unwrap(), n);
     }
+
+    #[test]
+    fn test_basic_operations() {
+        let dec = Decimal::one().try_div(Decimal::from(2u128)).unwrap();
+        let mut sdec = SDecimal::from(dec);
+        assert_eq!(sdec, sdec.clone());
+        let dec = Decimal::from(&mut sdec);
+        assert_eq!(dec.to_string(), sdec.to_dec().to_string());
+    }
 }

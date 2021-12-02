@@ -42,3 +42,9 @@ impl UniversalAssetCurrency {
     const USD_RAW: [u8; 32] =
         *b"USD\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
 }
+
+impl Default for UniversalAssetCurrency {
+    fn default() -> Self {
+        Self::Usd
+    }
+}

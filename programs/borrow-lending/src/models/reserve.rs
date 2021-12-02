@@ -606,6 +606,86 @@ mod tests {
     use proptest::prelude::*;
     use std::cmp::Ordering;
 
+    #[cfg(feature = "serde")]
+    #[test]
+    fn it_deserializes_config_from_json() {
+        assert!(serde_json::from_str::<ReserveConfig>(
+            r#"{
+              "optimalUtilizationRate": { "percent": 50 },
+              "loanToValueRatio": { "percent": 90 },
+              "liquidationBonus": { "percent": 2 },
+              "liquidationThreshold": { "percent": 96 },
+              "minBorrowRate": { "percent": 1 },
+              "optimalBorrowRate": { "percent": 5 },
+              "maxBorrowRate": { "percent": 10 },
+              "fees": {
+                "borrowFee": { "u192": [10000000000000000, 0, 0] },
+                "flashLoanFee": { "u192": [1000000000000000, 0, 0] },
+                "hostFee": { "percent": 2 }
+              }
+            }"#
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn it_borrows_reserve_liquidity() {
+        let mut liq = ReserveLiquidity::default();
+        liq.available_amount = 50;
+
+        assert!(liq.borrow(51u64.into()).is_err());
+        assert!(liq.borrow(25u64.into()).is_ok());
+        assert_eq!(liq.available_amount, 25);
+        assert_eq!(liq.borrowed_amount.to_dec(), 25u64.into());
+    }
+
+    #[test]
+    fn it_repays_reserve_liquidity() {
+        let mut liq = ReserveLiquidity::default();
+        liq.available_amount = 50u64;
+        liq.borrowed_amount = Decimal::from(20u64).into();
+
+        assert!(liq.repay(5u64, Decimal::from(5u64)).is_ok());
+        assert_eq!(Decimal::from(15u64), liq.borrowed_amount.into());
+
+        assert!(liq.repay(5u64, Decimal::from(40u64)).is_ok());
+        assert_eq!(Decimal::zero(), liq.borrowed_amount.into());
+    }
+
+    #[test]
+    fn test_borrow_amount_with_fees() {
+        let mut reserve = Reserve::default();
+
+        reserve.liquidity.market_price =
+            Decimal::one().try_mul(Decimal::from(35u64)).unwrap().into();
+        reserve.config.fees.borrow_fee = Decimal::from_percent(70u8).into();
+
+        let (
+            borrow,
+            FeesCalculation {
+                borrow_fee,
+                host_fee,
+            },
+        ) = reserve.borrow_amount_with_fees(10, 1000u64.into()).unwrap();
+        assert_eq!(host_fee, 0);
+        assert_eq!(borrow_fee, 7);
+        assert_eq!(borrow, Decimal::from(17u64));
+
+        reserve.config.fees.host_fee = 30u8.into();
+        let (
+            borrow,
+            FeesCalculation {
+                borrow_fee,
+                host_fee,
+            },
+        ) = reserve.borrow_amount_with_fees(10, 1000u64.into()).unwrap();
+        assert_eq!(host_fee, 2);
+        assert_eq!(borrow_fee, 7);
+        assert_eq!(borrow, Decimal::from(17u64));
+
+        assert!(reserve.borrow_amount_with_fees(10, 100u64.into()).is_err());
+    }
+
     #[test]
     fn test_deposit_liquidity() {
         let mut reserve = Reserve::default();
