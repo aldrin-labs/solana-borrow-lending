@@ -28,7 +28,14 @@ pub enum ObligationReserve {
 }
 
 #[derive(
-    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Default,
+    AnchorSerialize,
+    AnchorDeserialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    PartialEq,
+    Default,
 )]
 pub struct ObligationCollateral {
     pub deposit_reserve: Pubkey,
@@ -36,7 +43,9 @@ pub struct ObligationCollateral {
     pub market_value: SDecimal,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(
+    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Eq, PartialEq,
+)]
 pub struct ObligationLiquidity {
     pub borrow_reserve: Pubkey,
     /// Borrow rate used for calculating interest.
@@ -405,6 +414,34 @@ impl ObligationCollateral {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
+    const MAX_COMPOUNDED_INTEREST: u64 = 100; // 10,000%
+
+    #[test]
+    fn it_fails_if_wrong_input_to_accrue_interest() {
+        assert!(ObligationLiquidity {
+            cumulative_borrow_rate: Decimal::zero().into(),
+            ..Default::default()
+        }
+        .accrue_interest(Decimal::one())
+        .is_err());
+
+        assert!(ObligationLiquidity {
+            cumulative_borrow_rate: Decimal::from(2u64).into(),
+            ..Default::default()
+        }
+        .accrue_interest(Decimal::one())
+        .is_err());
+
+        assert!(ObligationLiquidity {
+            cumulative_borrow_rate: Decimal::one().into(),
+            borrowed_amount: Decimal::from(u64::MAX).into(),
+            ..Default::default()
+        }
+        .accrue_interest(Decimal::from(10 * MAX_COMPOUNDED_INTEREST))
+        .is_err());
+    }
 
     #[test]
     fn it_defaults_to_obligation_reserve() {
@@ -625,5 +662,168 @@ mod tests {
 
         obligation.last_update.update_slot(11);
         assert!(obligation.is_stale(&clock)); // overflow
+    }
+
+    #[test]
+    fn it_fails_to_withdraw_liquidity_or_repay_collateral() {
+        let mut obligation = Obligation::default();
+        obligation.deposit(Pubkey::new_unique(), 10).unwrap();
+        obligation
+            .borrow(Pubkey::new_unique(), 10u64.into())
+            .unwrap();
+
+        assert!(obligation.withdraw(10, 1).is_err());
+        assert!(obligation.withdraw(10, 0).is_ok());
+
+        assert!(obligation.repay(10u64.into(), 0).is_err());
+        assert!(obligation.repay(10u64.into(), 1).is_ok());
+    }
+
+    #[test]
+    fn it_decides_whether_healthy() {
+        let mut obligation = Obligation::default();
+
+        obligation.borrowed_value = Decimal::one().into();
+        obligation.unhealthy_borrow_value = Decimal::zero().into();
+        assert!(!obligation.is_healthy());
+
+        obligation.borrowed_value = Decimal::zero().into();
+        obligation.unhealthy_borrow_value = Decimal::one().into();
+        assert!(obligation.is_healthy());
+    }
+
+    #[test]
+    fn it_cannot_deposit_nor_borrow_11th_reserve() {
+        let mut obligation = Obligation::default();
+        obligation.reserves = [ObligationReserve::Collateral {
+            inner: ObligationCollateral::default(),
+        }; consts::MAX_OBLIGATION_RESERVES];
+
+        assert!(obligation.deposit(Pubkey::new_unique(), 10).is_err());
+        assert!(obligation
+            .borrow(Pubkey::new_unique(), 10u64.into())
+            .is_err());
+    }
+
+    #[test]
+    fn it_calculates_remaining_borrow_value() {
+        let mut obligation = Obligation::default();
+
+        obligation.allowed_borrow_value =
+            Decimal::one().try_mul(Decimal::from(2u64)).unwrap().into();
+        obligation.borrowed_value = Decimal::one().into();
+        assert_eq!(obligation.remaining_borrow_value(), Decimal::one());
+
+        obligation.allowed_borrow_value = Decimal::one().into();
+        obligation.borrowed_value =
+            Decimal::one().try_mul(Decimal::from(2u64)).unwrap().into();
+        assert_eq!(obligation.remaining_borrow_value(), Decimal::zero());
+    }
+
+    // Creates rates (r1, r2) where 0 < r1 <= r2 <= 100*r1
+    prop_compose! {
+        fn cumulative_rates()(rate in 1..=u128::MAX)(
+            current_rate in Just(rate),
+            max_new_rate in rate..=rate.saturating_mul(MAX_COMPOUNDED_INTEREST as u128),
+        ) -> (u128, u128) {
+            (current_rate, max_new_rate)
+        }
+    }
+
+    const MAX_BORROWED: u128 = u64::MAX as u128 * consts::WAD as u128;
+
+    // Creates liquidity amounts (repay, borrow) where repay < borrow
+    prop_compose! {
+        fn repay_partial_amounts()(amount in 1..=u64::MAX)(
+            repay_amount in Just(consts::WAD as u128 * amount as u128),
+            borrowed_amount in (consts::WAD as u128 * amount as u128 + 1)..=MAX_BORROWED,
+        ) -> (u128, u128) {
+            (repay_amount, borrowed_amount)
+        }
+    }
+
+    // Creates liquidity amounts (repay, borrow) where repay >= borrow
+    prop_compose! {
+        fn repay_full_amounts()(amount in 1..=u64::MAX)(
+            repay_amount in Just(consts::WAD as u128 * amount as u128),
+        ) -> (u128, u128) {
+            (repay_amount, repay_amount)
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn repay_partial(
+            (repay_amount, borrowed_amount) in repay_partial_amounts(),
+        ) {
+            let borrowed =
+                Decimal::from_scaled_val(borrowed_amount);
+            let repay_amount_wads = Decimal::from_scaled_val(repay_amount);
+            let mut obligation = Obligation::default();
+            obligation.reserves[0] = ObligationReserve::Liquidity {
+                inner: ObligationLiquidity {
+                    borrowed_amount: borrowed.into(),
+                    ..Default::default()
+                }
+            };
+
+            obligation.repay(repay_amount_wads, 0)?;
+            assert!(
+                matches!(
+                    obligation.reserves[0],
+                    ObligationReserve::Liquidity {
+                        inner: ObligationLiquidity {
+                            borrowed_amount,
+                            ..
+                        }
+                    }
+                    if borrowed > borrowed_amount.into()
+                        && Decimal::zero() < borrowed_amount.into()
+                )
+            );
+        }
+
+        #[test]
+        fn repay_full(
+            (repay_amount, borrowed_amount) in repay_full_amounts(),
+        ) {
+            let borrowed = Decimal::from_scaled_val(borrowed_amount);
+            let repay_amount = Decimal::from_scaled_val(repay_amount);
+            let mut obligation = Obligation::default();
+            obligation.reserves[0] = ObligationReserve::Liquidity {
+                inner: ObligationLiquidity {
+                    borrowed_amount: borrowed.into(),
+                    ..Default::default()
+                }
+            };
+
+            obligation.repay(repay_amount, 0)?;
+            assert_eq!(obligation.reserves[0], ObligationReserve::Empty);
+        }
+
+        #[test]
+        fn accrue_interest(
+            (current_borrow_rate, new_borrow_rate) in cumulative_rates(),
+            borrowed_amount in 0..=u64::MAX,
+        ) {
+            let cumulative_borrow_rate = Decimal::one()
+                .try_add(Decimal::from_scaled_val(current_borrow_rate))?;
+            let borrowed = Decimal::from(borrowed_amount);
+            let mut liquidity = ObligationLiquidity {
+                cumulative_borrow_rate: cumulative_borrow_rate.into(),
+                borrowed_amount: borrowed.into(),
+                ..Default::default()
+            };
+
+            let next_cumulative_borrow_rate = Decimal::one()
+                .try_add(Decimal::from_scaled_val(new_borrow_rate))?;
+            liquidity.accrue_interest(next_cumulative_borrow_rate)?;
+
+            if next_cumulative_borrow_rate > cumulative_borrow_rate {
+                assert!(borrowed < liquidity.borrowed_amount.into());
+            } else {
+                assert!(borrowed == liquidity.borrowed_amount.into());
+            }
+        }
     }
 }

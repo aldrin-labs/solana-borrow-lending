@@ -2,6 +2,7 @@ use crate::prelude::*;
 use std::fmt::Display;
 
 #[error]
+#[derive(PartialEq, Eq)]
 pub enum ErrorCode {
     #[msg("Provided owner does not match the market owner")]
     InvalidMarketOwner, // 300

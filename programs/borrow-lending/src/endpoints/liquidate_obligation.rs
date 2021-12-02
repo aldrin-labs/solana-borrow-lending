@@ -128,21 +128,16 @@ pub fn handle(
         return Err(ErrorCode::InvalidAmount.into());
     }
 
-    let (collateral_index, collateral) = accounts
-        .obligation
-        .get_collateral(accounts.withdraw_reserve.key())?;
-    // TODO: move this check into the calc function and test it
-    if collateral.market_value.to_dec() == Decimal::zero() {
-        return Err(err::empty_collateral("Obligation deposit value is zero"));
-    }
-
-    let (liquidity_index, liquidity) = accounts
-        .obligation
-        .get_liquidity(accounts.repay_reserve.key())?;
-    // TODO: move this check into the calc function and test it
-    if liquidity.market_value.to_dec() == Decimal::zero() {
-        return Err(err::empty_liquidity("Obligation borrow value is zero"));
-    }
+    let ConcernedReserves {
+        collateral_index,
+        collateral,
+        liquidity_index,
+        liquidity,
+    } = get_concerned_reserves(
+        &accounts.obligation,
+        accounts.withdraw_reserve.key(),
+        accounts.repay_reserve.key(),
+    )?;
 
     let LiquidationAmounts {
         settle_amount,
@@ -155,16 +150,6 @@ pub fn handle(
         liquidity_amount,
         accounts.withdraw_reserve.config.liquidation_bonus.into(),
     )?;
-
-    // TODO: move these checks into the calc function and test it
-    if repay_amount == 0 {
-        msg!("Liquidation is too small to transfer liquidity");
-        return Err(ErrorCode::LiquidationTooSmall.into());
-    }
-    if withdraw_amount == 0 {
-        msg!("Liquidation is too small to receive collateral");
-        return Err(ErrorCode::LiquidationTooSmall.into());
-    }
 
     // the liquidator repayed liquidity
     accounts
@@ -198,22 +183,59 @@ pub fn handle(
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct LiquidationAmounts {
+struct LiquidationAmounts {
     /// Amount of liquidity that is settled from the obligation. It includes
     /// the amount of loan that was defaulted if collateral is depleted.
-    pub settle_amount: Decimal,
+    settle_amount: Decimal,
     /// Amount that will be repaid as u64
-    pub repay_amount: u64,
+    repay_amount: u64,
     /// Amount of collateral to withdraw in exchange for repay amount
-    pub withdraw_amount: u64,
+    withdraw_amount: u64,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ConcernedReserves<'a> {
+    collateral: &'a ObligationCollateral,
+    collateral_index: usize,
+    liquidity: &'a ObligationLiquidity,
+    liquidity_index: usize,
+}
+
+fn get_concerned_reserves<'a>(
+    obligation: &'a Obligation,
+    withdraw_reserve: Pubkey,
+    repay_reserve: Pubkey,
+) -> Result<ConcernedReserves<'a>> {
+    let (collateral_index, collateral) =
+        obligation.get_collateral(withdraw_reserve)?;
+    if collateral.market_value.to_dec() == Decimal::zero() {
+        return Err(
+            err::empty_collateral("Obligation deposit value is zero").into()
+        );
+    }
+
+    let (liquidity_index, liquidity) =
+        obligation.get_liquidity(repay_reserve)?;
+    if liquidity.market_value.to_dec() == Decimal::zero() {
+        return Err(
+            err::empty_liquidity("Obligation borrow value is zero").into()
+        );
+    }
+
+    Ok(ConcernedReserves {
+        collateral_index,
+        collateral,
+        liquidity_index,
+        liquidity,
+    })
 }
 
 /// Liquidate some or all of an unhealthy obligation. The amount to liquidate
 /// gives us one of two possible maximums. The other is given by eq. (8).
 ///
-/// If the borrowed liquidity is less than `consts::LIQUIDATION_CLOSE_AMOUNT`
+/// If the borrowed liquidity is less than [`consts::LIQUIDATION_CLOSE_AMOUNT`]
 /// then it gets liquidated whole. Otherwise eq. (8) tells us that at most
-/// `const:LIQUIDATION_CLOSE_FACTOR` (e.g. 50%) can be liquidated at once.
+/// [`const:LIQUIDATION_CLOSE_FACTOR`] (e.g. 50%) can be liquidated at once.
 fn calculate_liquidation_amounts(
     liquidity: &ObligationLiquidity,
     collateral: &ObligationCollateral,
@@ -305,6 +327,15 @@ fn calculate_liquidation_amounts(
         }
     }
 
+    if repay_amount == 0 {
+        msg!("Liquidation is too small to transfer liquidity");
+        return Err(ErrorCode::LiquidationTooSmall.into());
+    }
+    if withdraw_amount == 0 {
+        msg!("Liquidation is too small to receive collateral");
+        return Err(ErrorCode::LiquidationTooSmall.into());
+    }
+
     Ok(LiquidationAmounts {
         settle_amount,
         repay_amount,
@@ -350,6 +381,48 @@ mod tests {
     const OBL_BORR_VAL: u64 = 1500;
 
     const AMOUNT_TO_LIQUIDATE: u64 = 100;
+
+    #[test]
+    fn xd() {
+        let mut xd = Obligation::default();
+        let withdraw_reserve = Pubkey::new_unique();
+        let repay_reserve = Pubkey::new_unique();
+
+        let mut col = ObligationCollateral {
+            deposit_reserve: withdraw_reserve,
+            market_value: Decimal::from(5u64).into(),
+            ..Default::default()
+        };
+        xd.reserves[0] = ObligationReserve::Collateral { inner: col.clone() };
+        let mut liq = ObligationLiquidity {
+            borrow_reserve: repay_reserve,
+            market_value: Decimal::from(3u64).into(),
+            ..Default::default()
+        };
+        xd.reserves[1] = ObligationReserve::Liquidity { inner: liq.clone() };
+
+        assert_eq!(
+            get_concerned_reserves(&xd, withdraw_reserve, repay_reserve)
+                .unwrap(),
+            ConcernedReserves {
+                collateral_index: 0,
+                collateral: &col,
+                liquidity_index: 1,
+                liquidity: &liq
+            }
+        );
+
+        col.market_value = Decimal::zero().into();
+        xd.reserves[0] = ObligationReserve::Collateral { inner: col.clone() };
+        assert!(get_concerned_reserves(&xd, withdraw_reserve, repay_reserve)
+            .is_err());
+        col.market_value = Decimal::from(5u64).into();
+
+        liq.market_value = Decimal::zero().into();
+        xd.reserves[1] = ObligationReserve::Liquidity { inner: liq.clone() };
+        assert!(get_concerned_reserves(&xd, withdraw_reserve, repay_reserve)
+            .is_err());
+    }
 
     #[test]
     fn test_calculate_liquidation_when_liq_val_less_than_col_val() {
@@ -526,5 +599,41 @@ mod tests {
                 withdraw_amount: 50,
             },
         );
+    }
+
+    #[test]
+    fn it_fails_if_settle_amount_is_zero() {
+        let mut col = ObligationCollateral::new(Default::default());
+        col.deposited_amount = 80u64.into();
+        col.market_value = 570u64.into();
+        let liq = ObligationLiquidity::new(Default::default());
+
+        assert!(calculate_liquidation_amounts(
+            &liq,
+            &col,
+            OBL_BORR_VAL.into(),
+            AMOUNT_TO_LIQUIDATE,
+            B_5P.into(),
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn it_fails_if_withdraw_amount_is_zero() {
+        let mut col = ObligationCollateral::new(Default::default());
+        col.market_value = 300u64.into();
+
+        let mut liq = ObligationLiquidity::new(Default::default());
+        liq.borrowed_amount = 100u64.into();
+        liq.market_value = 500u64.into();
+
+        assert!(calculate_liquidation_amounts(
+            &liq,
+            &col,
+            OBL_BORR_VAL.into(),
+            AMOUNT_TO_LIQUIDATE,
+            B_5P.into(),
+        )
+        .is_err());
     }
 }

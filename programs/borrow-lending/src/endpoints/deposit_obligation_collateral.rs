@@ -24,7 +24,7 @@ pub struct DepositObligationCollateral<'info> {
         constraint = reserve.lending_market == obligation.lending_market
             @ err::market_mismatch(),
         constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
-        constraint = 0u8 != reserve.config.loan_to_value_ratio.into()
+        constraint = 0u8 != u8::from(reserve.config.loan_to_value_ratio)
             @ err::cannot_use_as_collateral(),
     )]
     pub reserve: Box<Account<'info, Reserve>>,
