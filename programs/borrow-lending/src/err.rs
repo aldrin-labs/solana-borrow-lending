@@ -55,6 +55,12 @@ pub enum ErrorCode {
     LiquidationTooSmall,
 }
 
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
 pub fn acc(msg: impl AsRef<str>) -> ProgramError {
     msg!("[InvalidAccountInput] {}", msg.as_ref());
 
