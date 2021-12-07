@@ -8,6 +8,7 @@ import { Keypair, BPF_LOADER_PROGRAM_ID, BpfLoader } from "@solana/web3.js";
 import * as anchor from "@project-serum/anchor";
 import { Program } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
+import { SHMEM_SO_BIN_PATH } from "./consts";
 
 import { test as testInitLendingMarket } from "./1-init-lending-market";
 import { test as testSetLendingMarketOwner } from "./2-set-lending-market-owner";
@@ -54,9 +55,7 @@ describe("borrow-lending", () => {
   });
 
   before("deploy shmem", async () => {
-    const programBin = await readFile(
-      "tests/localnet-deps/target/deploy/shmem.so"
-    );
+    const programBin = await readFile(SHMEM_SO_BIN_PATH);
     BpfLoader.load(
       provider.connection,
       payer,
