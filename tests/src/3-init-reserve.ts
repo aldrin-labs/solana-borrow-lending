@@ -27,6 +27,7 @@ import { Reserve, ReserveBuilder } from "./reserve";
 import {
   LIQ_MINTED_TO_RESEVE_SOURCE_WALLET,
   ONE_LIQ_TO_COL_INITIAL_PRICE,
+  SHMEM_SO_BIN_PATH,
 } from "./consts";
 
 export function test(
@@ -39,9 +40,7 @@ export function test(
     const anotherShmemProgram = Keypair.generate();
 
     before("deploys another shmem to simulate different oracle", async () => {
-      const programBin = await readFile(
-        "tests/localnet-deps/target/deploy/shmem.so"
-      );
+      const programBin = await readFile(SHMEM_SO_BIN_PATH);
       BpfLoader.load(
         program.provider.connection,
         owner,
