@@ -106,8 +106,7 @@ pub fn handle(
     if oracle_product.px_acc.val != accounts.oracle_price.key().to_bytes() {
         return Err(err::oracle(
             "Pyth product price account does not match the Pyth price provided",
-        )
-        .into());
+        ));
     }
 
     let currency = UniversalAssetCurrency::try_from(oracle_product)?;
@@ -115,14 +114,13 @@ pub fn handle(
         return Err(err::oracle(
             "Lending market quote currency does not match \
             the oracle quote currency",
-        )
-        .into());
+        ));
     }
 
     let oracle_price_data = accounts.oracle_price.try_borrow_data()?;
     let oracle_price = pyth::Price::load(&oracle_price_data)?.validate()?;
     let market_price =
-        pyth::calculate_market_price(&oracle_price, &accounts.clock)?;
+        pyth::calculate_market_price(oracle_price, &accounts.clock)?;
 
     accounts.reserve.last_update = LastUpdate::new(accounts.clock.slot);
     accounts.reserve.lending_market = accounts.lending_market.key();
