@@ -201,11 +201,11 @@ struct ConcernedReserves<'a> {
     liquidity_index: usize,
 }
 
-fn get_concerned_reserves<'a>(
-    obligation: &'a Obligation,
+fn get_concerned_reserves(
+    obligation: &Obligation,
     withdraw_reserve: Pubkey,
     repay_reserve: Pubkey,
-) -> Result<ConcernedReserves<'a>> {
+) -> Result<ConcernedReserves<'_>> {
     let (collateral_index, collateral) =
         obligation.get_collateral(withdraw_reserve)?;
     if collateral.market_value.to_dec() == Decimal::zero() {

@@ -451,10 +451,24 @@ create a new lending market with:
   --usd
 ```
 
+
+## PDA and bump seed
+To obtain bump seed and PDA for a specific market, you can use following method
+on the web3's `PublicKey` type:
+
+```typescript
+const [lendingMarketPda, lendingMarketBumpSeed] =
+  await PublicKey.findProgramAddress(
+    [Buffer.from(lendingMarketPublicKey.toBytes())],
+    borrowLendingProgramId
+  );
+```
+
+
 ## `u192`
 For decimal representation we use `u192` type which consists of 3 `u64`
 integers. That is, `u192` is an unsigned integer of 24 bytes. A unit
-representing one is a [wad][wiki-significand] and its value is $`10^18`$.
+representing one is a [wad][wiki-significand] and its value is $`10^{18}`$.
 Therefore, first eighteen decimal digits represent fraction.
 
 What follows are some snippets which illustrate how to convert between types in

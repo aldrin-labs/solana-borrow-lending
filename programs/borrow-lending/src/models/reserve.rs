@@ -513,7 +513,7 @@ impl CollateralExchangeRate {
         &self,
         liquidity_amount: u64,
     ) -> Result<u64> {
-        self.0.try_mul(liquidity_amount)?.try_round_u64()
+        self.0.try_mul(liquidity_amount)?.try_floor_u64()
     }
 
     pub fn collateral_to_liquidity(
@@ -522,7 +522,7 @@ impl CollateralExchangeRate {
     ) -> Result<u64> {
         Decimal::from(collateral_amount)
             .try_div(self.0)?
-            .try_round_u64()
+            .try_floor_u64()
     }
 
     pub fn decimal_collateral_to_liquidity(

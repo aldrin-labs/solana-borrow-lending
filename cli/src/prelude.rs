@@ -30,8 +30,8 @@ pub fn load_value<'a, T>(
     (is_empty, value)
 }
 
-pub fn load_value_or_env<'a, T>(
-    matches: Option<&'a str>,
+pub fn load_value_or_env<T>(
+    matches: Option<&str>,
     env: &'static str,
     on_empty: impl FnOnce() -> T,
     on_value: impl FnOnce(&str) -> T,
