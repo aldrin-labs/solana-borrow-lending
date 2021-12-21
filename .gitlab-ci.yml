@@ -7,6 +7,19 @@ variables:
   KATEX_VERSION: "0.13.9"
 
 
+# runs unit tests in parallel with other build stage jobs
+unit:
+  stage: build
+  image: registry.gitlab.com/crypto_project/defi/infra/rust-solana:latest
+  cache:
+    key: unit-cache-1
+    paths:
+      - target
+  script:
+    - cargo test --lib
+
+
+# builds program and idl in parallel with other build stage jobs
 program:
   stage: build
   image: registry.gitlab.com/crypto_project/defi/infra/rust-solana:latest
@@ -22,11 +35,11 @@ program:
   before_script:
     - npm i
   script:
-    - cargo test --lib
     - anchor build
     - ./bin/test.sh --token "${INFRA_API_TOKEN}"
 
 
+# builds CLI bin in parallel with other build stage jobs
 cli:
   stage: build
   image: registry.gitlab.com/crypto_project/defi/infra/rust-solana:latest

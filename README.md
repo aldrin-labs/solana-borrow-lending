@@ -554,7 +554,7 @@ function u192ToBN(u192: U192 | BN[] | { u192: U192 | BN[] }): BN {
 [mocha-exclusive-tests]: https://mochajs.org/#exclusive-tests
 [pyth-network]: https://pyth.network
 [pyth-srm-usd]: https://pyth.network/markets/#SRM/USD
-[project-rust-docs]: https://crypto_project.gitlab.io/defi/borrow-lending/borrow_lending
+[project-rust-docs]: https://crypto_project.gitlab.io/clockwork/borrow-lending/borrow_lending
 [aave-borrow-rate]: https://docs.aave.com/risk/liquidity-risk/borrow-interest-rate#interest-rate-model
 [aave-borrow-rate-2]: https://medium.com/aave/aave-borrowing-rates-upgraded-f6c8b27973a7
 [port-finance]: https://port.finance
@@ -563,6 +563,6 @@ function u192ToBN(u192: U192 | BN[] | { u192: U192 | BN[] }): BN {
 [aave-flash-loans]: https://docs.aave.com/developers/guides/flash-loans
 [podcast-coinsec-ep-46]: https://podcastaddict.com/episode/130756978
 [aave-risk-params]: https://docs.aave.com/risk/asset-risk/risk-parameters
-[project-code-coverage]: https://crypto_project.gitlab.io/defi/borrow-lending/coverage
+[project-code-coverage]: https://crypto_project.gitlab.io/clockwork/borrow-lending/coverage
 [wiki-significand]: https://en.wikipedia.org/wiki/Significand
-[project-changelog]: https://crypto_project.gitlab.io/defi/borrow-lending/changelog.html
+[project-changelog]: https://crypto_project.gitlab.io/clockwork/borrow-lending/changelog.html
