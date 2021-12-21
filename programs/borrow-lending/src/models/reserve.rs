@@ -546,18 +546,26 @@ impl InputReserveConfig {
 }
 
 impl ReserveFees {
+    pub fn flash_loan_fee(&self, borrow_amount: Decimal) -> Result<u64> {
+        // no host fees on flash loans as its a developer dedicated action
+        let host_fee_rate = Decimal::zero();
+
+        self.calculate(borrow_amount, self.flash_loan_fee.into(), host_fee_rate)
+            .map(|fees| fees.borrow_fee)
+    }
+
     /// Calculate the owner and host fees on borrow
     fn borrow_fees(&self, borrow_amount: Decimal) -> Result<FeesCalculation> {
-        self.calculate(borrow_amount, self.borrow_fee.into())
+        let host_fee_rate = Decimal::from_percent(self.host_fee);
+        self.calculate(borrow_amount, self.borrow_fee.into(), host_fee_rate)
     }
 
     fn calculate(
         &self,
         borrow_amount: Decimal,
         borrow_fee_rate: Decimal,
+        host_fee_rate: Decimal,
     ) -> Result<FeesCalculation> {
-        let host_fee_rate = Decimal::from_percent(self.host_fee);
-
         if borrow_fee_rate > Decimal::zero() && borrow_amount > Decimal::zero()
         {
             let need_to_assess_host_fee = host_fee_rate > Decimal::zero();

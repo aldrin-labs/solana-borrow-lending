@@ -1,7 +1,7 @@
 {
   "description": "Test suite for borrow-lending program",
   "scripts": {
-    "fmt": "prettier --write package.json tests/src bin",
+    "fmt": "prettier --write package.json tests/src",
     "test": "anchor test",
     "test-skip-build": "anchor test --skip-build",
     "check": "tsc --build"

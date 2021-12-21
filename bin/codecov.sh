@@ -15,7 +15,7 @@
 export RUSTFLAGS="-Zinstrument-coverage"
 export LLVM_PROFILE_FILE="blp-%p-%m.profraw"
 export CARGO_INCREMENTAL=0
-export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort"
+export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort -Zgcc-ld=lld"
 export RUSTDOCFLAGS="-Cpanic=abort"
 export RUSTUP_TOOLCHAIN="nightly"
 

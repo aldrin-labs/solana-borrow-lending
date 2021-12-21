@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# IMPORTANT: mainnet won't allow airdrops
-
 set -e
 
 if [ -f .env ]
@@ -9,53 +7,117 @@ then
     export $(cat .env | sed 's/#.*//g' | xargs)
 fi
 
-airdrop_amount=3 # how much wSOL to airdrop, must be more than fund_amount
-fund_amount=2 # transfers assets from source liquidity wallet into reserve's wallet
-# https://pyth.network/markets/?cluster=devnet#SOL/USD
-pyth_product="3Mnn2fX6rQyUsyELYms1sBJyChWofzSNRoqYzvgMVz5E"
-pyth_price="J83w4HKfqxwcq3BEMMkPFSppX3gqekLyLJBexebFVkix"
+cluster="${CLUSTER:-devnet}"
+
+# for example from https://pyth.network/markets/?cluster=devnet#SOL/USD
+# note: make sure that clusters match
+pyth_product=""
+pyth_price=""
+
+# default mint is wSOL
 wsol_mint="So11111111111111111111111111111111111111112"
-config='cli/example-config.json'
+liquidity_mint="${wsol_mint}"
+
+config_path="cli/example-config.json"
+accounts_path=".tmp"
+fund_amount=0 # must be provided as --fund flag
+
+while :; do
+    case $1 in
+        # transfers assets from source liquidity wallet into reserve's wallet
+        # REQUIRED
+        --fund)
+            fund_amount="${2}"
+            shift
+        ;;
+        --conf-path)
+            config_path="${2}"
+            shift
+        ;;
+        --accounts-path)
+            accounts_path="${2}"
+            shift
+        ;;
+        --pyth-product)
+            pyth_product="${2}"
+            shift
+        ;;
+        --pyth-price)
+            pyth_price="${2}"
+            shift
+        ;;
+        --liq-mint)
+            liquidity_mint="${2}"
+            shift
+        ;;
+        *) break
+    esac
+    shift
+done
+
+owner_keypath="${PAYER:-${accounts_path}/owner.json}"
+
+echo "accounts path: ${accounts_path}"
+echo "reserve config path: ${config_path}"
+echo "owner: ${owner_keypath}"
+echo "cluster: ${CLUSTER}"
+echo "fund amount: ${fund_amount}"
+echo "pyth product: ${pyth_product}"
+echo "pyth price: ${pyth_price}"
+echo "liquidity mint: ${liquidity_mint}"
+
+read -p "Do you want to continue? (Y/n) " -n 1 -r
+if ! [[ $REPLY =~ ^[Yy]$ ]]
+then
+    exit 0
+fi
+
+mkdir -p "${accounts_path}"
 
 function gen_keypair {
-    solana-keygen new --no-bip39-passphrase -s -f -o ".tmp/${1}.json"
+    solana-keygen new --no-bip39-passphrase -s -f -o "${accounts_path}/${1}.json"
 }
 
 # generates new keypairs (!! overwrites originals !!)
 gen_keypair reserve # new reserve account
-gen_keypair source_wallet # from this account we fund the reserve liquidity
 gen_keypair dest_wallet # BLp inits this account and transfers collateral to it
 gen_keypair reserve_liq_wallet # where reserve funded liquidity is  stored
 gen_keypair reserve_col_wallet # where reserve deposited collateral is stored
 gen_keypair col_mint # initializes new token mint
 gen_keypair fee_recv # wallet to receive borrow fees into
 
-echo
-echo "airdrops necessary fund amount to source liquidity wallet"
-echo
+# mainnet won't allow airdrops
+if [ "${liquidity_mint}" = "${wsol_mint}" ] && [ "${cluster}" = "devnet" ]; then
+    echo
+    echo "airdrops necessary fund amount to source liquidity wallet"
+    echo
 
-spl-token create-account "${wsol_mint}" .tmp/source_wallet.json --fee-payer "${PAYER}"
-solana airdrop "${airdrop_amount}"
-spl-token unwrap || true
-spl-token wrap "${airdrop_amount}"
-spl-token transfer "${wsol_mint}" "ALL" .tmp/source_wallet.json
-spl-token authorize .tmp/source_wallet.json owner .tmp/owner.json
+    airdrop_amount=$((fund_amount+1)) # +1 to cover fees
+    spl-token create-account "${liquidity_mint}" \
+        "${accounts_path}/source_wallet.json" \
+        --fee-payer "${PAYER}"
+    solana airdrop "${airdrop_amount}"
+    spl-token unwrap || true
+    spl-token wrap "${airdrop_amount}"
+    spl-token transfer "${liquidity_mint}" "ALL" "${accounts_path}/source_wallet.json"
+    spl-token authorize "${accounts_path}/source_wallet.json" \
+        owner "${owner_keypath}"
+fi
 
 echo
 echo "running cli init-reserve"
 echo
 
 ./target/release/cli init-reserve \
-    --owner .tmp/owner.json \
-    --keypair .tmp/reserve.json \
-    --reserve-liq-wallet .tmp/reserve_liq_wallet.json \
-    --reserve-col-wallet .tmp/reserve_col_wallet.json \
-    --collateral-mint .tmp/col_mint.json \
-    --fee-receiver .tmp/fee_recv.json \
-    --dest-wallet .tmp/dest_wallet.json \
-    --source-wallet "$(solana-keygen pubkey .tmp/source_wallet.json)" \
+    --keypair "${accounts_path}/reserve.json" \
+    --reserve-liq-wallet "${accounts_path}/reserve_liq_wallet.json" \
+    --reserve-col-wallet "${accounts_path}/reserve_col_wallet.json" \
+    --collateral-mint "${accounts_path}/col_mint.json" \
+    --fee-receiver "${accounts_path}/fee_recv.json" \
+    --dest-wallet "${accounts_path}/dest_wallet.json" \
+    --source-wallet "$(solana-keygen pubkey ${accounts_path}/source_wallet.json)" \
     --oracle-product "${pyth_product}" \
     --oracle-price "${pyth_price}" \
-    --liquidity-mint "${wsol_mint}" \
-    --config "${config}" \
+    --liquidity-mint "${liquidity_mint}" \
+    --config "${config_path}" \
     --amount "${fund_amount}"

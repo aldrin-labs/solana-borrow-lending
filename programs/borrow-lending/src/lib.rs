@@ -145,4 +145,27 @@ pub mod borrow_lending {
             liquidity_amount,
         )
     }
+
+    /// Flash loan feature as designed by the solana team. Any user can borrow
+    /// any amount of liquidity as long as at the end of the instruction
+    /// all liquidity is repaid and fees are paid too. This endpoint is for SDK
+    /// only, it won't show in the UI.
+    pub fn flash_loan(
+        ctx: Context<FlashLoan>,
+        lending_market_bump_seed: u8,
+        liquidity_amount: u64,
+        target_data_prefix: Vec<u8>,
+    ) -> ProgramResult {
+        endpoints::flash_loan::handle(
+            ctx,
+            lending_market_bump_seed,
+            liquidity_amount,
+            target_data_prefix,
+        )
+    }
+
+    /// Used by the market owner to conditionally turn off/on flash loans.
+    pub fn toggle_flash_loans(ctx: Context<ToggleFlashLoans>) -> ProgramResult {
+        endpoints::toggle_flash_loans::handle(ctx)
+    }
 }

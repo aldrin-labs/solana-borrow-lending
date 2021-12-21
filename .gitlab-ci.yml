@@ -44,13 +44,14 @@ build_and_test:
     paths:
       - public
   script:
+    - rustup override set nightly
     # generates docs.rs style page
     - cargo doc --lib --no-deps --document-private-items
     - cp -r target/doc public
     - cp -r docs public/docs
 
     # generates public index html file from README
-    - node bin/prepareReadme.js |
+    - node /scripts/prepareReadme.js |
       pandoc -t html --standalone --filter pandoc-katex
       --css "https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.css"
       --css https://pandoc.org/demo/pandoc.css
@@ -58,8 +59,6 @@ build_and_test:
       -o public/index.html
 
     # generate code coverage report
-    - rustup override set nightly
-    - cargo clean
     - ./bin/codecov.sh
     - cp -r target/debug/coverage public
 

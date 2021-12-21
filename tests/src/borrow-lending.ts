@@ -23,6 +23,7 @@ import { test as testWithdrawObligationCollateral } from "./10-withdraw-obligati
 import { test as testBorrowObligationLiquidity } from "./11-borrow-obligation-liquidity";
 import { test as testRepayObligationLiquidity } from "./12-repay-obligation-liquidity";
 import { test as testLiquidateObligation } from "./13-liquidate-obligation";
+import { test as testFlashLoan } from "./14-flash-loan";
 
 describe("borrow-lending", () => {
   const provider = anchor.Provider.local();
@@ -78,4 +79,5 @@ describe("borrow-lending", () => {
   testBorrowObligationLiquidity(program, payer, shmemProgram.publicKey);
   testRepayObligationLiquidity(program, payer, shmemProgram.publicKey);
   testLiquidateObligation(program, payer, shmemProgram.publicKey);
+  testFlashLoan(program, payer, shmemProgram.publicKey);
 });

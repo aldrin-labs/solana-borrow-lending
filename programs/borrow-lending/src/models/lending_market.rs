@@ -6,6 +6,7 @@ pub struct LendingMarket {
     pub owner: Pubkey,
     pub oracle_program: Pubkey,
     pub currency: UniversalAssetCurrency,
+    pub enable_flash_loans: bool,
 }
 
 #[cfg(test)]
