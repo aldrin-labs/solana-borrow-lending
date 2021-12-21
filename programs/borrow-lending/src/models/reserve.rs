@@ -123,7 +123,7 @@ pub struct ReserveLiquidity {
     pub mint_decimals: u8,
     pub supply: Pubkey,
     pub fee_receiver: Pubkey,
-    pub oracle: Pubkey,
+    pub oracle: Oracle,
     pub available_amount: u64,
     /// How much liquidity (with precision on 18 digit) is currently borrowed.
     /// The total liquidity supply is `borrowed_amount` + `available_amount`.
@@ -146,7 +146,7 @@ impl Default for ReserveLiquidity {
             mint_decimals: 0,
             supply: Pubkey::default(),
             fee_receiver: Pubkey::default(),
-            oracle: Pubkey::default(),
+            oracle: Oracle::default(),
             market_price: Decimal::zero().into(),
         }
     }

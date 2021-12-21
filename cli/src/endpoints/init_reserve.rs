@@ -18,6 +18,11 @@ pub fn app() -> App<'static> {
     App::new("init-reserve")
         .about("initializes new reserve account")
         .arg(
+            Arg::new("skip-accounts-creation")
+                .long("skip-accounts-creation")
+                .about("won't create accounts with system program"),
+        )
+        .arg(
             Arg::new("owner")
                 .long("owner")
                 .about(
@@ -260,6 +265,8 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         },
     );
 
+    let skip_accounts_creation = matches.is_present("skip-accounts-creation");
+
     let reserve_account_size = 8 + mem::size_of::<Reserve>();
     let with_balance = program
         .rpc()
@@ -311,34 +318,36 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         config
     );
 
-    println!("Creating accounts with system program...");
-    let mut request_builder = program.request();
-    for instruction in create_token_accounts(
-        &program,
-        &token_program_id,
-        &[
-            &destination_collateral_wallet.pubkey(),
-            &reserve_collateral_wallet.pubkey(),
-            &reserve_liquidity_wallet.pubkey(),
-            &fee_receiver.pubkey(),
-        ],
-    ) {
-        request_builder = request_builder.instruction(instruction);
+    if !skip_accounts_creation {
+        println!("Creating accounts with system program...");
+        let mut request_builder = program.request();
+        for instruction in create_token_accounts(
+            &program,
+            &token_program_id,
+            &[
+                &destination_collateral_wallet.pubkey(),
+                &reserve_collateral_wallet.pubkey(),
+                &reserve_liquidity_wallet.pubkey(),
+                &fee_receiver.pubkey(),
+            ],
+        ) {
+            request_builder = request_builder.instruction(instruction);
+        }
+        request_builder = request_builder.instruction(create_token_mint(
+            &program,
+            &token_program_id,
+            &collateral_mint.pubkey(),
+        ));
+        request_builder
+            .signer(&destination_collateral_wallet)
+            .signer(&collateral_mint)
+            .signer(&reserve_liquidity_wallet)
+            .signer(&fee_receiver)
+            .signer(&reserve_collateral_wallet)
+            .signer(&destination_collateral_wallet)
+            .send()
+            .expect("Cannot create necessary accounts");
     }
-    request_builder = request_builder.instruction(create_token_mint(
-        &program,
-        &token_program_id,
-        &collateral_mint.pubkey(),
-    ));
-    request_builder
-        .signer(&destination_collateral_wallet)
-        .signer(&collateral_mint)
-        .signer(&reserve_liquidity_wallet)
-        .signer(&fee_receiver)
-        .signer(&reserve_collateral_wallet)
-        .signer(&destination_collateral_wallet)
-        .send()
-        .expect("Cannot create necessary accounts");
 
     println!("Creating reserve with BLp...");
     let mut transaction = program

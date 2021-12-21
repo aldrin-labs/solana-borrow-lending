@@ -29,14 +29,10 @@ pub struct InitReserve<'info> {
     #[account(zero)]
     pub reserve: Box<Account<'info, Reserve>>,
     #[account(
-        constraint = *oracle_product.owner == lending_market.oracle_program
-            @ err::oracle("Product's owner must be market's oracle program"),
+        constraint = oracle_product.owner == oracle_price.owner
+            @ err::oracle("Product's owner must be prices's owner"),
     )]
     pub oracle_product: AccountInfo<'info>,
-    #[account(
-        constraint = *oracle_price.owner == lending_market.oracle_program
-            @ err::oracle("Price's owner must be market's oracle program"),
-    )]
     pub oracle_price: AccountInfo<'info>,
     /// From what wallet will liquidity tokens be transferred to the reserve
     /// wallet for the initial liquidity amount.
@@ -130,7 +126,7 @@ pub fn handle(
         mint_decimals: accounts.reserve_liquidity_mint.decimals,
         supply: accounts.reserve_liquidity_wallet.key(),
         fee_receiver: accounts.reserve_liquidity_fee_recv_wallet.key(),
-        oracle: accounts.oracle_price.key(),
+        oracle: Oracle::simple_pyth(accounts.oracle_price.key()),
         market_price: market_price.into(),
         ..Default::default()
     };

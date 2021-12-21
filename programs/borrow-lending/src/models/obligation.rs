@@ -4,15 +4,15 @@ use std::cmp::Ordering;
 #[account]
 #[repr(C)]
 pub struct Obligation {
-    pub last_update: LastUpdate,
-    pub lending_market: Pubkey,
     pub owner: Pubkey,
+    pub lending_market: Pubkey,
+    pub last_update: LastUpdate,
     // Ideally we'd use a const generic, but that's not supported by anchor.
     // Second to ideal we'd use a const, but that's not supported either.
     pub reserves: [ObligationReserve; 10],
-    /// Market value of deposits
+    /// Market value of all deposits combined in UAC.
     pub deposited_value: SDecimal,
-    /// Market value of borrows
+    /// Market value of all borrows combined in UAC.
     pub borrowed_value: SDecimal,
     /// The maximum borrow value at the weighted average loan to value ratio.
     pub allowed_borrow_value: SDecimal,
@@ -416,12 +416,18 @@ impl ObligationCollateral {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+    use std::mem;
 
     const MAX_COMPOUNDED_INTEREST: u64 = 100; // 10,000%
 
     #[test]
+    fn it_has_stable_size() {
+        assert_eq!(mem::size_of::<Obligation>(), 1296);
+    }
+
+    #[test]
     fn it_has_stable_owner_offset() {
-        assert_eq!(offset_of!(Obligation, owner), 48);
+        assert_eq!(offset_of!(Obligation, owner), 0);
     }
 
     #[test]

@@ -53,15 +53,6 @@ pub fn app() -> App<'static> {
                 .takes_value(true),
         )
         .arg(
-            Arg::new("oracle")
-                .long("oracle")
-                .about(
-                    "program id of the oracle which owns price accounts \
-                    (env ORACLE_PROGRAM_ID)",
-                )
-                .takes_value(true),
-        )
-        .arg(
             Arg::new("usd")
                 .long("usd")
                 .about("uses USD as universal asset currency"),
@@ -81,18 +72,6 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
             read_keypair_file(path)
                 .expect("Cannot read owner file into a keypair")
         },
-    );
-
-    let (_, oracle) = load_value_or_env(
-        matches.value_of("oracle"),
-        "ORACLE_PROGRAM_ID",
-        || {
-            panic!(
-                "Oracle program id must be provided with \
-                an env ORACLE_PROGRAM_ID or --oracle"
-            )
-        },
-        |pubkey| Pubkey::from_str(pubkey).expect("Invalid oracle pubkey"),
     );
 
     let market = load_keypair(
@@ -127,14 +106,12 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         - size:     {} bytes
         - balance:  {} lamports
         - currency: {:?}
-        - oracle:   '{}'
         - owner:    '{}'
         \n",
         market.pubkey(),
         market_account_size,
         with_balance,
         currency,
-        oracle,
         owner.pubkey()
     );
 
@@ -151,7 +128,6 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         .accounts(Accounts {
             owner: owner.pubkey(),
             lending_market: market.pubkey(),
-            oracle_program: oracle,
         })
         .args(Instruction { currency });
 

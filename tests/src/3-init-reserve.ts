@@ -132,7 +132,7 @@ export function test(
       expect(stdCapture.restore()).to.contain("is stale");
     });
 
-    it("fails if oracle product is not owned by lending market's oracle program", async () => {
+    it("fails if oracle product owner does not match oracle price owner", async () => {
       const builder = await ReserveBuilder.new(market, shmemProgramId, owner);
 
       const anotherOracleProduct = Keypair.generate();
@@ -152,31 +152,7 @@ export function test(
       );
 
       expect(stdCapture.restore()).to.contain(
-        "Product's owner must be market's oracle program"
-      );
-    });
-
-    it("fails if oracle price is not owned by lending market's oracle program", async () => {
-      const builder = await ReserveBuilder.new(market, shmemProgramId, owner);
-
-      const anotherOraclePrice = Keypair.generate();
-      builder.accounts.oraclePrice = anotherOraclePrice;
-      await createProgramAccounts(
-        program.provider.connection,
-        anotherShmemProgram.publicKey,
-        owner,
-        [{ keypair: anotherOraclePrice, space: oraclePriceBinByteLen() }]
-      );
-      await waitForCommit();
-
-      const stdCapture = new CaptureStdoutAndStderr();
-
-      await expect(builder.build(10)).to.be.rejectedWith(
-        /Provided oracle configuration isn't in the right format or range/
-      );
-
-      expect(stdCapture.restore()).to.contain(
-        "Price's owner must be market's oracle program"
+        "Product's owner must be prices's owner"
       );
     });
 
@@ -201,7 +177,11 @@ export function test(
       expect(liq.feeReceiver).to.deep.eq(
         reserve.accounts.reserveLiquidityFeeRecvWallet.publicKey
       );
-      expect(liq.oracle).to.deep.eq(reserve.accounts.oraclePrice.publicKey);
+      expect(liq.oracle).to.deep.eq({
+        simplePyth: {
+          price: reserve.accounts.oraclePrice.publicKey,
+        },
+      });
       expect(u192ToBN(liq.borrowedAmount).toNumber()).to.eq(0);
       expect(u192ToBN(liq.cumulativeBorrowRate).eq(ONE_WAD)).to.be.true;
       expect(u192ToBN(liq.marketPrice).toString()).to.eq("7382500000000000000");

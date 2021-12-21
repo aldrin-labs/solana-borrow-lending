@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [0.4.0] - 2021-12-21
+
+### Removed
+- The `LendingMarket` account type now longer contains oracle program id. This
+  is because it bore no value for correctness. We used it in `init_reserve` to
+  check that an account provided as oracle price and product belong to that
+  oracle program id. But there still is potential for error by using a wrong
+  price account. Therefore, the market owner is still responsible for providing
+  correct account. By removing the oracle program id from lending market, we can
+  more easily support multiple oracle methods.
+
+### Changed
+- `Obligation` order of properties changed to put the owner key as the first
+  property. This change makes it easier to filter for BLp accounts belonging
+  to a user by reducing the offset to a mere 8 byte hash.
+- `ReserveLiquidity` changed property `oracle` type from pubkey to an enum. This
+  will allow us to use different oracle systems in future without migrating accounts.
+
 ## [0.3.0] - 2021-12-20
 
 ### Changed

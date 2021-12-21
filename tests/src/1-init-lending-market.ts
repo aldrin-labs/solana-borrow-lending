@@ -14,7 +14,6 @@ export function test(program: Program<BorrowLending>) {
       const marketInfo = await market.fetch();
       expect(marketInfo.currency).to.deep.eq({ usd: {} });
       expect(marketInfo.owner).to.deep.eq(owner.publicKey);
-      expect(marketInfo.oracleProgram).to.deep.eq(oracle.publicKey);
     });
 
     it("with pubkey", async () => {
@@ -33,7 +32,6 @@ export function test(program: Program<BorrowLending>) {
         pubkey: { address: currency.publicKey },
       });
       expect(marketInfo.owner).to.deep.eq(owner.publicKey);
-      expect(marketInfo.oracleProgram).to.deep.eq(oracle.publicKey);
     });
   });
 }

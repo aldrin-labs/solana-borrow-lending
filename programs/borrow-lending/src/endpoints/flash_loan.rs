@@ -155,7 +155,7 @@ pub fn handle(
             expected_balance_after_flash_loan,
             actual_balance_after_flash_loan
         );
-        return Err(ProgramError::InsufficientFunds.into());
+        return Err(ProgramError::InsufficientFunds);
     }
 
     if fee > 0 {
