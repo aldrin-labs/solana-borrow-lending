@@ -2,7 +2,7 @@
 //! implements some convenience traits over them.
 //!
 //! # Risk
-//! We depend on an oracle (e.g. https://pyth.network) which frequently updates
+//! We depend on an oracle (e.g. <https://pyth.network>) which frequently updates
 //! (e.g.) USD prices of tokens. We define which oracle program to use when we
 //! create a new market.
 //!

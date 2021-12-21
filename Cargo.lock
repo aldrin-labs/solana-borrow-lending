@@ -397,7 +397,7 @@ checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 
 [[package]]
 name = "borrow-lending"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",

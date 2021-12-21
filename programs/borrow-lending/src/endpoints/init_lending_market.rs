@@ -10,7 +10,6 @@ pub struct InitLendingMarket<'info> {
     pub owner: AccountInfo<'info>,
     #[account(zero)]
     pub lending_market: Account<'info, LendingMarket>,
-    pub oracle_program: AccountInfo<'info>,
 }
 
 pub fn handle(
@@ -21,7 +20,6 @@ pub fn handle(
     msg!("init lending market '{}'", accounts.lending_market.key());
 
     accounts.lending_market.owner = accounts.owner.key();
-    accounts.lending_market.oracle_program = accounts.oracle_program.key();
     accounts.lending_market.currency = currency;
 
     Ok(())

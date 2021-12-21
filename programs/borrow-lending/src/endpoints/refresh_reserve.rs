@@ -6,8 +6,11 @@ pub struct RefreshReserve<'info> {
     #[account(mut)]
     pub reserve: Account<'info, Reserve>,
     #[account(
-        constraint = oracle_price.key() == reserve.liquidity.oracle
-            @ ProgramError::InvalidAccountData,
+        constraint = reserve
+            .liquidity
+            .oracle
+            .is_simple_pyth_price(&oracle_price.key())
+            @ err::acc("Oracle kind or price key doesn't match"),
     )]
     pub oracle_price: AccountInfo<'info>,
     pub clock: Sysvar<'info, Clock>,
