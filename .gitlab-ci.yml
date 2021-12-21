@@ -65,6 +65,7 @@ build_and_test:
       -o public/changelog.html
 
     # generate code coverage report
+    - cargo clean
     - ./bin/codecov.sh
     - cp -r target/debug/coverage public
 
