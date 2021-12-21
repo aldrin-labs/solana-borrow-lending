@@ -26,9 +26,14 @@ pub mod consts {
     /// Number of slots to consider oracle provided info stale after.
     pub const ORACLE_STALE_AFTER_SLOTS_ELAPSED: u64 = 5;
 
-    /// Collateral tokens are initially valued at a ratio of 5:1
-    /// (collateral:liquidity) TODO: why?
-    pub const INITIAL_COLLATERAL_RATIO: u64 = 5;
+    /// Collateral tokens are initially valued at a ratio of 1:1
+    /// (collateral:liquidity).
+    ///
+    /// It doesn't really matter what the initial ration is, as math works with
+    /// any and the ratio will eventually drift due to interest accrual.
+    /// A decision to set it to 1:1 was made on borrow lending catch up call on
+    /// 20th December 2021.
+    pub const INITIAL_COLLATERAL_RATIO: u64 = 1;
 
     pub const INITIAL_COLLATERAL_RATE: u64 = INITIAL_COLLATERAL_RATIO * WAD;
 

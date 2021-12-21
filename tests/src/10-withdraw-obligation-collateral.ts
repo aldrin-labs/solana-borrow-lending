@@ -6,6 +6,7 @@ import { LendingMarket } from "./lending-market";
 import { Obligation } from "./obligation";
 import { Reserve } from "./reserve";
 import { CaptureStdoutAndStderr, ONE_WAD, u192ToBN } from "./helpers";
+import { ONE_LIQ_TO_COL_INITIAL_PRICE } from "./consts";
 
 export function test(
   program: Program<BorrowLending>,
@@ -247,9 +248,15 @@ export function test(
 
       await reserve.refresh();
       const reserveInfo = await reserve.fetch();
-      expect(reserveInfo.collateral.mintTotalSupply.toNumber()).to.eq(1010);
+      expect(reserveInfo.collateral.mintTotalSupply.toNumber()).to.eq(
+        initialReserveLiqAmount * ONE_LIQ_TO_COL_INITIAL_PRICE +
+          initialSourceCollateralWalletAmount
+      );
       const liq = reserveInfo.liquidity;
-      expect(liq.availableAmount.toNumber()).to.eq(initialReserveLiqAmount + 2);
+      expect(liq.availableAmount.toNumber()).to.eq(
+        initialReserveLiqAmount +
+          initialSourceCollateralWalletAmount / ONE_LIQ_TO_COL_INITIAL_PRICE
+      );
       expect(u192ToBN(liq.borrowedAmount).toNumber()).to.eq(0);
       // ~ around 100000000xxxxxxxxxxx
       const lcb = u192ToBN(liq.cumulativeBorrowRate);

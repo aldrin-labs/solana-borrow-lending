@@ -698,8 +698,14 @@ mod tests {
     fn test_deposit_liquidity() {
         let mut reserve = Reserve::default();
 
-        assert_eq!(reserve.deposit_liquidity(10).unwrap(), 50);
-        assert_eq!(reserve.deposit_liquidity(12).unwrap(), 60);
+        assert_eq!(
+            reserve.deposit_liquidity(10).unwrap(),
+            10 * consts::INITIAL_COLLATERAL_RATIO
+        );
+        assert_eq!(
+            reserve.deposit_liquidity(12).unwrap(),
+            12 * consts::INITIAL_COLLATERAL_RATIO
+        );
     }
 
     #[test]
@@ -713,8 +719,18 @@ mod tests {
     fn it_deposits_liquidity_and_redeems_collateral() {
         let mut reserve = Reserve::default();
 
-        assert_eq!(reserve.deposit_liquidity(10).unwrap(), 50);
-        assert_eq!(reserve.redeem_collateral(10).unwrap(), 2);
+        assert_eq!(
+            reserve.deposit_liquidity(100).unwrap(),
+            100 * consts::INITIAL_COLLATERAL_RATIO
+        );
+        assert_eq!(
+            reserve.redeem_collateral(10).unwrap(),
+            10 / consts::INITIAL_COLLATERAL_RATIO
+        );
+        assert_eq!(
+            reserve.redeem_collateral(21).unwrap(),
+            21 / consts::INITIAL_COLLATERAL_RATIO
+        );
     }
 
     #[test]

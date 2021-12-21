@@ -11,6 +11,7 @@ import {
   u192ToBN,
   waitForCommit,
 } from "./helpers";
+import { ONE_LIQ_TO_COL_INITIAL_PRICE } from "./consts";
 
 export function test(
   program: Program<BorrowLending>,
@@ -269,13 +270,28 @@ export function test(
       expect(obv.lt(u192ToBN(oldObligationInfo.borrowedValue)));
 
       const odv = u192ToBN(obligationInfo.depositedValue).toString();
-      expect(odv).to.eq("73825000000000000000");
+      expect(odv).to.eq(
+        new BN(369125)
+          .div(new BN(ONE_LIQ_TO_COL_INITIAL_PRICE))
+          .mul(new BN(10).pow(new BN(15)))
+          .toString()
+      );
 
       const oab = u192ToBN(obligationInfo.allowedBorrowValue).toString();
-      expect(oab).to.eq("66442500000000000000");
+      expect(oab).to.eq(
+        new BN(3322125)
+          .div(new BN(ONE_LIQ_TO_COL_INITIAL_PRICE))
+          .mul(new BN(10).pow(new BN(14)))
+          .toString()
+      );
 
       const oub = u192ToBN(obligationInfo.unhealthyBorrowValue).toString();
-      expect(oub).to.eq("70872000000000000000");
+      expect(oub).to.eq(
+        new BN(35436)
+          .div(new BN(ONE_LIQ_TO_COL_INITIAL_PRICE))
+          .mul(new BN(10).pow(new BN(16)))
+          .toString()
+      );
 
       expect(obligationInfo.reserves[0].collateral).to.have.property("inner");
       expect(

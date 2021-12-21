@@ -11,6 +11,7 @@ import {
   u192ToBN,
   waitForCommit,
 } from "./helpers";
+import { ONE_LIQ_TO_COL_INITIAL_PRICE } from "./consts";
 
 export function test(
   program: Program<BorrowLending>,
@@ -30,7 +31,7 @@ export function test(
     // when we create liquidator's doge wallet, we mint them some initial tokens
     const initialDogeAmount = borrowedLiquidity * 3;
 
-    const depositedCollateral = 150;
+    const depositedCollateral = 30 * ONE_LIQ_TO_COL_INITIAL_PRICE;
 
     // this liquidity is given to the reserve on init
     let sourceDogeLiquidity = 3000;
@@ -523,7 +524,7 @@ export function test(
         await reserveSrm.accounts.reserveCollateralMint.getAccountInfo(
           liquidatorsSrmWallet
         );
-      expect(srmCollateralWalletInfo.amount.toNumber()).to.eq(32);
+      expect(srmCollateralWalletInfo.amount.toNumber()).to.eq(6);
       const dogeLiquidityWalletInfo =
         await reserveDoge.accounts.liquidityMint.getAccountInfo(
           liquidatorsDogeWallet

@@ -13,6 +13,8 @@ export function test(
   shmemProgramId: PublicKey
 ) {
   describe("redeem_reserve_collateral", () => {
+    const depositAmount = 50;
+
     let market: LendingMarket,
       reserve: Reserve,
       depositAccounts: DepositReserveLiquidityAccounts;
@@ -31,7 +33,7 @@ export function test(
     });
 
     beforeEach("deposit liquidity", async () => {
-      depositAccounts = await reserve.deposit(50);
+      depositAccounts = await reserve.deposit(depositAmount);
     });
 
     it("fails if destination liquidity wallet equals reserve liquidity wallet", async () => {
@@ -103,25 +105,28 @@ export function test(
     });
 
     it("redeems collateral and receives liquidity", async () => {
-      const collateralAmount = 200;
+      const collateralAmountToRetain = 10;
+      const collateralAmountToRedeem =
+        (depositAmount - collateralAmountToRetain) *
+        ONE_LIQ_TO_COL_INITIAL_PRICE;
 
       const oldReserveInfo = await program.account.reserve.fetch(reserve.id);
       const oldCollateralMintInfo =
         await reserve.accounts.reserveCollateralMint.getMintInfo();
 
-      await reserve.redeem(depositAccounts, collateralAmount);
+      await reserve.redeem(depositAccounts, collateralAmountToRedeem);
 
       const reserveInfo = await reserve.fetch();
       expect(reserveInfo.lastUpdate.stale).to.be.true;
       expect(reserveInfo.liquidity.availableAmount.toNumber()).to.eq(
         oldReserveInfo.liquidity.availableAmount.toNumber() -
-          collateralAmount / ONE_LIQ_TO_COL_INITIAL_PRICE
+          collateralAmountToRedeem / ONE_LIQ_TO_COL_INITIAL_PRICE
       );
 
       const collateralMintInfo =
         await reserve.accounts.reserveCollateralMint.getMintInfo();
       expect(collateralMintInfo.supply.toNumber()).to.eq(
-        oldCollateralMintInfo.supply.toNumber() - collateralAmount
+        oldCollateralMintInfo.supply.toNumber() - collateralAmountToRedeem
       );
       expect(reserveInfo.collateral.mintTotalSupply.toNumber()).to.eq(
         collateralMintInfo.supply.toNumber()
@@ -132,14 +137,16 @@ export function test(
           depositAccounts.sourceLiquidityWallet
         );
       expect(redeemDestinationWallet.amount.toNumber()).to.eq(
-        collateralAmount / ONE_LIQ_TO_COL_INITIAL_PRICE
+        collateralAmountToRedeem / ONE_LIQ_TO_COL_INITIAL_PRICE
       );
 
       const redeemSourceWallet =
         await reserve.accounts.reserveCollateralMint.getAccountInfo(
           depositAccounts.destinationCollateralWallet
         );
-      expect(redeemSourceWallet.amount.toNumber()).to.eq(50);
+      expect(redeemSourceWallet.amount.toNumber()).to.eq(
+        collateralAmountToRetain
+      );
     });
   });
 }

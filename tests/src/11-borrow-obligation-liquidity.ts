@@ -5,12 +5,8 @@ import { expect } from "chai";
 import { LendingMarket } from "./lending-market";
 import { Reserve } from "./reserve";
 import { Obligation } from "./obligation";
-import {
-  CaptureStdoutAndStderr,
-  ONE_WAD,
-  u192ToBN,
-  waitForCommit,
-} from "./helpers";
+import { CaptureStdoutAndStderr, ONE_WAD, u192ToBN } from "./helpers";
+import { ONE_LIQ_TO_COL_INITIAL_PRICE } from "./consts";
 
 export function test(
   program: Program<BorrowLending>,
@@ -18,8 +14,9 @@ export function test(
   shmemProgramId: PublicKey
 ) {
   describe("borrow_obligation_liquidity", () => {
-    let sourceDogeLiquidity = 500;
-    let depositedSrmCollateralAmount = 50;
+    let initialSourceDogeLiquidity = 500;
+    let sourceDogeLiquidity = initialSourceDogeLiquidity;
+    let depositedSrmCollateralAmount = 10 * ONE_LIQ_TO_COL_INITIAL_PRICE;
     let market: LendingMarket,
       obligation: Obligation,
       reserveSrm: Reserve,
@@ -34,7 +31,7 @@ export function test(
     before("initialize reserves", async () => {
       reserveSrm = await market.addReserve(50, undefined, "srm");
       reserveDoge = await market.addReserve(
-        sourceDogeLiquidity,
+        initialSourceDogeLiquidity,
         undefined,
         "doge"
       );
@@ -304,7 +301,9 @@ export function test(
       expect(lcbr.gt(ONE_WAD)).to.be.true;
       expect(lcbr.lt(ONE_WAD.mul(new BN(2))));
       expect(u192ToBN(liq.marketPrice).toString()).to.eq("238167000000000000");
-      expect(reserveInfo.collateral.mintTotalSupply.toNumber()).to.eq(2500);
+      expect(reserveInfo.collateral.mintTotalSupply.toNumber()).to.eq(
+        initialSourceDogeLiquidity * ONE_LIQ_TO_COL_INITIAL_PRICE
+      );
     });
 
     it("borrows liquidity with host fee", async () => {
