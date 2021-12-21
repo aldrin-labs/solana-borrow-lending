@@ -21,4 +21,9 @@ export RUSTUP_TOOLCHAIN="nightly"
 
 cargo test --lib
 
-grcov . -s . --binary-path ./target/debug/ -t html --branch --ignore-not-existing -o ./target/debug/coverage/
+rm -f grcov.log
+grcov . -s . --binary-path ./target/debug/ -t html --branch --log grcov.log --ignore-not-existing -o ./target/debug/coverage/
+
+head grcov.log
+echo "..."
+tail grcov.log

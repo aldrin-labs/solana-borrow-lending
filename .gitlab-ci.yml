@@ -44,7 +44,11 @@ build_and_test:
     paths:
       - public
   script:
+    # generate code coverage report
     - rustup override set nightly
+    - ./bin/codecov.sh
+    - cp -r target/debug/coverage public
+
     # generates docs.rs style page
     - cargo doc --lib --no-deps --document-private-items
     - cp -r target/doc public
@@ -63,10 +67,6 @@ build_and_test:
       pandoc -t html --standalone
       --metadata title="Borrow-lending program"
       -o public/changelog.html
-
-    # generate code coverage report
-    - ./bin/codecov.sh
-    - cp -r target/debug/coverage public
 
 # This job publishes pages to
 # https://crypto_project.gitlab.io/defi/borrow-lending
