@@ -53,6 +53,10 @@ pub enum ErrorCode {
         the amount of liquidity to repay must be higher"
     )]
     LiquidationTooSmall,
+    #[msg("Flash loan target program cannot be BLp")]
+    InvalidFlashLoanTargetProgram,
+    #[msg("Flash loans feature currently not enabled")]
+    FlashLoansDisabled,
 }
 
 impl PartialEq for Error {
@@ -131,6 +135,15 @@ pub fn oracle(msg: impl AsRef<str>) -> ProgramError {
     msg!("[InvalidOracleConfig] {}", msg.as_ref());
 
     ErrorCode::InvalidOracleConfig.into()
+}
+
+pub fn flash_loans_disabled() -> ProgramError {
+    msg!(
+        "[FlashLoansDisabled] You cannot use flash loans as \
+        this feature is currently not enabled"
+    );
+
+    ErrorCode::FlashLoansDisabled.into()
 }
 
 #[cfg(test)]

@@ -132,16 +132,37 @@ the transaction. There is no real world analogy to Flash Loans, so it requires
 some basic understanding of how state is managed within blocks in blockchains.
 (Source: [Aave dev docs][aave-flash-loans])
 
-Flash loans are frequent target of vulnerabilities, a recent large one was [the
+Flash loans are frequent target of vulnerabilities, for example [the
 CREAM attack][podcast-coinsec-ep-46].
 
-Some competitors who offer flash loans as a part of their borrow lending
-offering are [Port Finance][port-finance], [Solaris][solaris] and
-[Equalizer][equalizer] who, albeit on ETH, specializes on flash loans.
+To use the flash loan endpoint, one can provide additional data and accounts
+which will be passed to a target program. The target program is the program
+called by BLp after depositing requested funds into the user's wallet.
 
-After searching through Port's transaction history it seems that flash loan is
-a rarely used feature in their program. In the analysed timespan of ~24h, it
-hasn't been used once.
+The data which are passed into the target program starts at 9th byte (0th byte
+is bump seed, 1st - 8th is `u64` liquidity amount).
+
+BLp doesn't pass any accounts by default, all must be specified as
+additional/remaining accounts.
+
+```typescript
+program.rpc.flashLoan(
+  lendingMarketBumpSeed,
+  new BN(liquidityAmountToBorrow),
+  bufferWhichWillBePassedIntoTheTargetProgram,
+  {
+    accounts: { ... },
+    remainingAccounts: [
+      // ... list of accounts which will be passed to the target program
+    ],
+    ...
+  }
+);
+```
+
+Flash loans are disabled by default. A market owner can toggle the flash loan
+feature on and off. This is useful in case we need swift reaction to a
+vulnerability.
 
 ### Reserve configuration
 When market owner creates a reserve, they supply configuration with (not only)

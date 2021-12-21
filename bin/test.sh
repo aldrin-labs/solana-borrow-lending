@@ -7,7 +7,6 @@ fi
 
 detach=false
 skip_build=false
-shmem_bin_path="bin/shmem.so"
 gitlab_api_token="${GITLAB_PRIVATE_TOKEN}"
 
 while :; do
@@ -25,40 +24,55 @@ while :; do
     shift
 done
 
-if ! test -f "${shmem_bin_path}"; then
-    echo "shmem.so binary is not found at ${shmem_bin_path}"
+auth_header=""
+if [ ! -z "${gitlab_api_token}" ]
+then
+    auth_header="PRIVATE-TOKEN: ${gitlab_api_token}"
+fi
 
-    auth_header=""
-    if [ ! -z "${gitlab_api_token}" ]
-    then
-        auth_header="PRIVATE-TOKEN: ${gitlab_api_token}"
-    fi
+function extract_job_artefacts {
+    local url="${1}"
 
     if [ ! -z "${auth_header}" ]
     then
         echo "Attempting to download shmem from gitlab artefacts..."
         echo
         wget --header "${auth_header}" \
-            -O bin/shmem.zip \
-            "https://gitlab.com/api/v4/projects/31726515/jobs/artifacts/shmem/download?job=shmem" \
+            -O bin/artefacts.zip \
+            "${url}"
 
         if [ $? -eq 0 ]; then
-            echo "Successfully downloaded shmem.zip archive from gitlab"
-            unzip bin/shmem.zip -d bin
-            rm bin/shmem.zip
+            echo "Successfully downloaded artefacts archive from gitlab"
+            unzip bin/artefacts.zip -d bin
+            rm bin/artefacts.zip
         else
-            echo "Cannot download shmem.so from gitlab, terminating"
-            rm -f bin/shmem.zip
+            echo "Cannot download artefacts from gitlab, terminating"
+            rm -f bin/artefacts.zip
             exit 1
         fi
     else
         echo "
-        Either download it from infra gitlab repo, add GITLAB_PRIVATE_TOKEN
+        Either download artefacts into 'bin', add GITLAB_PRIVATE_TOKEN
         env to your .env with read_api access or use --token flag.
         "
         exit 1
     fi
+}
+
+if ! test -f "bin/shmem.so"; then
+    echo "shmem.so binary is not found at bin/shmem.so"
+
+    extract_job_artefacts \
+        "https://gitlab.com/api/v4/projects/31726515/jobs/artifacts/shmem/download?job=shmem"
 fi
+
+if ! test -f "bin/flashloan_target.so"; then
+    echo "shmem.so binary is not found at bin/shmem.so"
+
+    extract_job_artefacts \
+        "https://gitlab.com/api/v4/projects/31726515/jobs/artifacts/flashloan-target/download?job=flashloan-target"
+fi
+
 
 echo "Running tests..."
 echo

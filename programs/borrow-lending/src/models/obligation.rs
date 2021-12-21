@@ -2,6 +2,7 @@ use crate::prelude::*;
 use std::cmp::Ordering;
 
 #[account]
+#[repr(C)]
 pub struct Obligation {
     pub last_update: LastUpdate,
     pub lending_market: Pubkey,
@@ -417,6 +418,11 @@ mod tests {
     use proptest::prelude::*;
 
     const MAX_COMPOUNDED_INTEREST: u64 = 100; // 10,000%
+
+    #[test]
+    fn it_has_stable_owner_offset() {
+        assert_eq!(offset_of!(Obligation, owner), 48);
+    }
 
     #[test]
     fn it_fails_if_wrong_input_to_accrue_interest() {

@@ -4,7 +4,7 @@
 .env
 .mainnet/
 .tmp/
-bin/shmem.so
+bin/*.so
 node_modules
 package-lock.json
 target

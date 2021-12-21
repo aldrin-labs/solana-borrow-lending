@@ -83,6 +83,16 @@ export class LendingMarket {
     this.owner = newOwner;
   }
 
+  public async toggleFlashLoans() {
+    await this.program.rpc.toggleFlashLoans({
+      accounts: {
+        lendingMarket: this.id,
+        owner: this.owner.publicKey,
+      },
+      signers: [this.owner],
+    });
+  }
+
   public async addReserve(
     liquidityAmount: number,
     config: ReserveConfig = Reserve.defaultConfig(),
