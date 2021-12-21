@@ -58,6 +58,12 @@ build_and_test:
       --metadata title="Program borrow-lending"
       -o public/index.html
 
+    # generates public index html file from README
+    - cat CHANGELOG.md |
+      pandoc -t html --standalone
+      --metadata title="Borrow-lending program"
+      -o public/changelog.html
+
     # generate code coverage report
     - ./bin/codecov.sh
     - cp -r target/debug/coverage public

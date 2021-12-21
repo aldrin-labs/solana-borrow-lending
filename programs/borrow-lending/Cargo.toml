@@ -1,6 +1,6 @@
 [package]
 name = "borrow-lending"
-version = "0.2.0"
+version = "0.3.0"
 description = "Aldrin implementation of borrow-lending inspired by Compound"
 edition = "2018"
 

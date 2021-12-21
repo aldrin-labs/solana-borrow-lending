@@ -1,5 +1,6 @@
 * [Code coverage][project-code-coverage]
 * [Rust docs][project-rust-docs]
+* [Changelog][project-changelog]
 
 A lending platform is a tool where users lend and borrow tokens. A user either
 gets an interest on lent tokens or they get a loan and pay interest.
@@ -297,7 +298,8 @@ Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
 | $`S_a`$      | number of slots in a calendar year |
 | $`R_u`$      | utilization rate |
 | $`R_x`$      | exchange rate |
-| $`R_b`$      | borrow rate |
+| $`R_b`$      | borrow rate/APY |
+| $`R_d`$      | deposit rate/APY |
 | $`R_c`$      | cumulative borrow rate |
 | $`R_i`$      | compound interest rate |
 | $`R^*_u`$    | optimal utilization rate (configurable) |
@@ -397,6 +399,15 @@ reserve. See the [health factor docs](#health-factor).
 ```math
 V_u = \sum C^r_b \epsilon^r
 \tag{9}
+```
+
+
+Supply APY is derived from the borrow rate by scaling it down by utilization
+rate:
+
+```math
+R_d = R_u R_b
+\tag{10}
 ```
 
 
@@ -554,3 +565,4 @@ function u192ToBN(u192: U192 | BN[] | { u192: U192 | BN[] }): BN {
 [aave-risk-params]: https://docs.aave.com/risk/asset-risk/risk-parameters
 [project-code-coverage]: https://crypto_project.gitlab.io/defi/borrow-lending/coverage
 [wiki-significand]: https://en.wikipedia.org/wiki/Significand
+[project-changelog]: https://crypto_project.gitlab.io/defi/borrow-lending/changelog.html
