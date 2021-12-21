@@ -1,5 +1,5 @@
 stages:
-  - build_and_test
+  - build
   - pages
 
 
@@ -7,11 +7,11 @@ variables:
   KATEX_VERSION: "0.13.9"
 
 
-build_and_test:
-  stage: build_and_test
+program:
+  stage: build
   image: registry.gitlab.com/crypto_project/defi/infra/rust-solana:latest
   cache:
-    key: target-1
+    key: program-cache-1
     paths:
       - target
   artifacts:
@@ -19,12 +19,25 @@ build_and_test:
       - target/deploy/borrow_lending.so
       - target/idl/borrow_lending.json
       - target/types/borrow_lending.ts
-      - target/release/cli
   before_script:
     - npm i
   script:
-    - cargo test
+    - cargo test --lib
+    - anchor build
     - ./bin/test.sh --token "${INFRA_API_TOKEN}"
+
+
+cli:
+  stage: build
+  image: registry.gitlab.com/crypto_project/defi/infra/rust-solana:latest
+  cache:
+    key: cli-cache-1
+    paths:
+      - target
+  artifacts:
+    paths:
+      - target/release/cli
+  script:
     - cargo build --bin cli --release
     - ./target/release/cli help
 
@@ -37,7 +50,7 @@ build_and_test:
 .pages_job:
   image: registry.gitlab.com/crypto_project/defi/infra/rust-solana:latest
   cache:
-    key: pages-cache
+    key: pages-cache-1
     paths:
       - target
   artifacts:
