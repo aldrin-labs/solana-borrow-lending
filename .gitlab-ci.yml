@@ -35,7 +35,7 @@ program:
   before_script:
     - npm i
   script:
-    - anchor build
+    # both builds the program and tests it
     - ./bin/test.sh --token "${INFRA_API_TOKEN}"
 
 
