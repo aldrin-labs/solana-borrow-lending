@@ -36,7 +36,7 @@ program:
     - npm i
   script:
     # both builds the program and tests it
-    - ./bin/test.sh --token "$(${INFRA_API_TOKEN} | tr -d '\n')"
+    - ./bin/test.sh --token "$(echo ${INFRA_API_TOKEN} | tr -d '\n')"
 
 
 # builds CLI bin in parallel with other build stage jobs
