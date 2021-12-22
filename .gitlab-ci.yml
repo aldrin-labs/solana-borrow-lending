@@ -70,15 +70,16 @@ cli:
     paths:
       - public
   script:
-    # generate code coverage report
     - rustup override set nightly
-    - ./bin/codecov.sh
-    - cp -r target/debug/coverage public
 
     # generates docs.rs style page
     - cargo doc --lib --no-deps --document-private-items
     - cp -r target/doc public
     - cp -r docs public/docs
+
+    # generate code coverage report
+    - ./bin/codecov.sh
+    - cp -r target/debug/coverage public
 
     # generates public index html file from README
     - node /scripts/prepareReadme.js |
