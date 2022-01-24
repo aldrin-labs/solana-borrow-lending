@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 #[derive(Accounts)]
 pub struct RefreshObligation<'info> {
     #[account(mut)]
-    pub obligation: Box<Account<'info, Obligation>>,
+    pub obligation: AccountLoader<'info, Obligation>,
     pub clock: Sysvar<'info, Clock>,
 }
 
@@ -40,11 +40,17 @@ pub fn handle(ctx: Context<RefreshObligation>) -> ProgramResult {
     let accounts = ctx.accounts;
 
     let mut deposited_value = Decimal::zero();
-    let mut borrowed_value = Decimal::zero();
+    // borrow value which must be covered by collateral, doesn't include
+    // leverage multiplier
+    let mut collateralized_borrowed_value = Decimal::zero();
+    // total borrowed assets from reserve funds including leverage multiplier
+    let mut total_borrowed_value = Decimal::zero();
     let mut allowed_borrow_value = Decimal::zero();
     let mut unhealthy_borrow_value = Decimal::zero();
 
-    for reserve in accounts.obligation.reserves.iter_mut() {
+    let mut obligation = accounts.obligation.load_mut()?;
+
+    for reserve in obligation.reserves.iter_mut() {
         match reserve {
             ObligationReserve::Empty => (),
             ObligationReserve::Liquidity { inner: liquidity } => {
@@ -70,8 +76,26 @@ pub fn handle(ctx: Context<RefreshObligation>) -> ProgramResult {
                         .try_div(decimals)?;
                 liquidity.market_value = updated_market_value.into();
 
-                borrowed_value =
-                    borrowed_value.try_add(updated_market_value)?;
+                match liquidity.loan_kind {
+                    LoanKind::Standard => {
+                        collateralized_borrowed_value =
+                            collateralized_borrowed_value
+                                .try_add(updated_market_value)?;
+                    }
+                    LoanKind::YieldFarming { leverage } => {
+                        // For example user borrows $600 at 3x leverage, which
+                        // is 300%. Then 600 / 300 * 100 = $200 must be
+                        // collateralized.
+                        collateralized_borrowed_value =
+                            collateralized_borrowed_value.try_add(
+                                updated_market_value
+                                    .try_div(Decimal::from(leverage))?,
+                            )?;
+                    }
+                }
+
+                total_borrowed_value =
+                    total_borrowed_value.try_add(updated_market_value)?;
             }
             ObligationReserve::Collateral { inner: collateral } => {
                 let deposit_reserve = get_reserve(
@@ -123,15 +147,14 @@ pub fn handle(ctx: Context<RefreshObligation>) -> ProgramResult {
         }
     }
 
-    accounts.obligation.deposited_value = deposited_value.into();
-    accounts.obligation.borrowed_value = borrowed_value.into();
-    accounts.obligation.allowed_borrow_value = allowed_borrow_value.into();
-    accounts.obligation.unhealthy_borrow_value = unhealthy_borrow_value.into();
+    obligation.deposited_value = deposited_value.into();
+    obligation.allowed_borrow_value = allowed_borrow_value.into();
+    obligation.unhealthy_borrow_value = unhealthy_borrow_value.into();
+    obligation.total_borrowed_value = total_borrowed_value.into();
+    obligation.collateralized_borrowed_value =
+        collateralized_borrowed_value.into();
 
-    accounts
-        .obligation
-        .last_update
-        .update_slot(accounts.clock.slot);
+    obligation.last_update.update_slot(accounts.clock.slot);
 
     Ok(())
 }

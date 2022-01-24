@@ -41,7 +41,8 @@ export function test(
     it("fails if oracle price is outdated", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
-      await reserve.refreshOraclePrice(-10); // put it into the past
+      // put it into the past
+      await reserve.refreshOraclePrice(-(await market.connection.getSlot()));
       await waitForCommit();
 
       await expect(reserve.refresh()).to.be.rejected;

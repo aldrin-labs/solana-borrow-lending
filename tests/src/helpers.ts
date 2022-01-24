@@ -39,6 +39,10 @@ export function numberToU192(n: number): U192 {
     throw new Error("u192 is unsigned, number cannot be less than zero");
   }
 
+  if (n === 0) {
+    return [new BN(0), new BN(0), new BN(0)];
+  }
+
   const wad = n < 1 ? ONE_WAD.div(new BN(1 / n)) : ONE_WAD.mul(new BN(n));
   const bytes = wad.toArray("le", 3 * 8); // 3 * u64
 
@@ -63,6 +67,16 @@ export function u192ToBN(u192: U192 | BN[] | { u192: U192 | BN[] }): BN {
     ],
     ordering
   );
+}
+
+export function u192FromBytes(b: Buffer, offset: number = 0): { u192: U192 } {
+  return {
+    u192: [
+      new BN(b.slice(offset, offset + 8), undefined, "le"),
+      new BN(b.slice(offset + 8, offset + 16), undefined, "le"),
+      new BN(b.slice(offset + 16, offset + 24), undefined, "le"),
+    ],
+  };
 }
 
 export function numberToU64(n: number): Buffer {
@@ -116,4 +130,32 @@ export function assertOrderedAsc(a: Array<{ u192: BN[] | U192 }>) {
     expect(n.gt(prev), `Item at index ${i} is not larger than previous`);
     return n;
   }, u192ToBN(a.shift()));
+}
+
+export async function createEmptyAccount(
+  connection: Connection,
+  payer: Keypair,
+  programId: PublicKey,
+  space: number
+) {
+  const farmingTicket = Keypair.generate();
+  const farmingTicketRent = await connection.getMinimumBalanceForRentExemption(
+    space
+  );
+  const tx = new Transaction();
+  tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash;
+  await connection.sendTransaction(
+    tx.add(
+      SystemProgram.createAccount({
+        fromPubkey: payer.publicKey,
+        newAccountPubkey: farmingTicket.publicKey,
+        lamports: farmingTicketRent,
+        space: space,
+        programId,
+      })
+    ),
+    [payer, farmingTicket]
+  );
+
+  return farmingTicket.publicKey;
 }

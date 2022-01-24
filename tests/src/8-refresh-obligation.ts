@@ -116,16 +116,24 @@ export function test(
       await borrow();
 
       const oldObligationInfo = await obligation.fetch();
+      expect(oldObligationInfo.reserves[1]).to.have.property("liquidity");
       await obligation.refresh();
       const obligationInfo = await obligation.fetch();
+      expect(obligationInfo.reserves[1]).to.have.property("liquidity");
       await new Promise((r) => setTimeout(r, 500)); // accrues interest
       await obligation.refresh();
       const latestObligationInfo = await obligation.fetch();
+      expect(latestObligationInfo.reserves[1]).to.have.property("liquidity");
 
       assertOrderedAsc([
-        oldObligationInfo.borrowedValue,
-        obligationInfo.borrowedValue,
-        latestObligationInfo.borrowedValue,
+        oldObligationInfo.totalBorrowedValue,
+        obligationInfo.totalBorrowedValue,
+        latestObligationInfo.totalBorrowedValue,
+      ]);
+      assertOrderedAsc([
+        oldObligationInfo.collateralizedBorrowedValue,
+        obligationInfo.collateralizedBorrowedValue,
+        latestObligationInfo.collateralizedBorrowedValue,
       ]);
       assertOrderedAsc([
         oldObligationInfo.reserves[1].liquidity.inner.cumulativeBorrowRate,

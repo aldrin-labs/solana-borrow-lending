@@ -1,6 +1,8 @@
 * [Code coverage][project-code-coverage]
 * [Rust docs][project-rust-docs]
 * [Changelog][project-changelog]
+* Solana v1.7.17
+* Anchor v0.20.1
 
 A lending platform is a tool where users lend and borrow tokens. A user either
 gets an interest on lent tokens or they get a loan and pay interest.
@@ -193,8 +195,8 @@ for more information.
 Say that a user deposit 100 USD worth of SOL, according to the currently LTV of
 85% for Solana the users are able to borrow up to 85 USD worth of assets.
 
-* `liquidation_threshold` is loan to value ratio at which an obligation can be
-  liquidated.
+* `liquidation_threshold` is an unhealthy loan to value ratio at which an
+obligation can be liquidated.
 
 In another words, liquidation threshold is the ratio between borrow amount and
 the collateral value at which the users are subject to liquidation.
@@ -202,6 +204,7 @@ the collateral value at which the users are subject to liquidation.
 Say that a user deposit 100 USD worth of SOL and borrow 85 USD worth of assets,
 according to the currently liquidation threshold of 90%, the user is subject to
 liquidation if the value of the assets that they borrow has increased 90 USD.
+Liquidation threshold is always greater than `loan_to_value_ratio`.
 
 * `liquidation_bonus` is a bonus a liquidator gets when repaying part of an
   unhealthy obligation.
@@ -282,6 +285,66 @@ $`V_u`$, it is eligible for liquidation.
 </details>
 
 
+### Leverage yield farming
+Also referred to as L-Farming, LYF or leveraged position, is a special type of
+borrow enabled by staking algorithms of AMMs. A user can perform borrow
+undercollateralized borrow because BLp makes sure the borrowed funds are
+deposited into AMM and never touch a user's wallet. A leverage is a ratio of
+total loan to the collateralized part. With e.g. 3x leverage, a user can borrow
+300 USD with only 100 USD worth of collateral.
+
+A leveraged position can be repaid using the same endpoint as vanilla loan. The
+liquidation endpoint also works for a leveraged position. There are 3 endpoints
+for LYF:
+1. `open` creates a new position. A user can borrow either base or quote
+   currency and then has an option to swap one into another, or provide their
+   own funds to the position. We track only the loan, as when they close the
+   position all extra funds besides the loan are left to the borrower.
+2. `close` unstakes LP tokens and with swaps ends up only with tokens of the
+   mint of the reserve which the loan was opened for. If we _opened_ the
+   position with loan of 1 BTC and swapped half of them into ETH, then on
+   _closing_ the ETH would be swapped back into BTC and loan repaid. Usually,
+   this endpoint has to be called by the borrower. However, in a pathological
+   case of liquidation where the borrower has no more collateral of any kind in
+   their obligation, this endpoint can be called by anyone as it works like
+   liquidation.
+3. `compound` harvests farmed tokens of an AMM's farming ticket. It calculates
+   the price of those harvested token because the caller must provide a reserve
+   of this mint with a valid oracle. Then it calculates the price of an LP
+   token of the AMM's pool that's being farmed. Then it stakes appropriate
+   amount of LP tokens in a new farming ticket, and leaves the harvested
+   rewards in the caller's wallet. Only Aldrin's compound bot is allowed to
+   call this endpoint.
+
+To summarize, the first part of the liquidation process works the same way as
+with vanilla BL. The second part, once there is nothing more to liquidate, is
+to call the `close` endpoint as a liquidator.
+
+To get an overview of all open leveraged positions, search the blockchain for
+accounts of type `FarmingReceipt` owned by the BLp. This type contains
+additional information such as leverage, borrow reserve and obligation.
+
+At the moment, we only work with Aldrin's AMM. However, plan is to support
+other platforms, such as Orca, in future.
+
+#### PDA
+The AMM's APIs allow us to set authority over a farming ticket which relates
+the staked funds to an owner. The authority we set is a PDA with 4 seeds:
+lending market pubkey, borrowed reserve pubkey, obligation pubkey and leverage
+`u64` as 8 little-endian bytes.
+
+We have the lending market in the seed to not conflate them. We have the
+obligation in the seed to know which borrower has access to the farming ticket.
+We have the reserve in the seed to know which resource was lent to stake the
+LPs. We have the leverage in the seed because that uniquely identifies loans.
+
+Without the leverage info a user could create two leveraged position in the
+same reserve, one small and other large. And then close the small position with
+the farming ticket from the large one, thereby running away with the
+difference. Using this PDA helps us associate the specific loan
+([`ObligationLiquidity`]) exactly.
+
+
 ### Equations
 Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
 
@@ -314,12 +377,14 @@ Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
 | $`\kappa`$   | constant liquidity close factor |
 | $`\epsilon`$ | liquidation threshold in \[0; 1) |
 
+⌐
 
 ```math
 R_u = \dfrac{L_b}{L_s}
 \tag{1}
 ```
 
+⊢
 
 Exchange rate is simply ratio of collateral to liquidity in the supply. However,
 if there's no liquidity or collateral in the supply, the ratio defaults to a
@@ -330,6 +395,7 @@ R_x = \dfrac{C_s}{L_s}
 \tag{2}
 ```
 
+⊢
 
 See the docs in [borrow rate section](#borrow-rate).
 
@@ -344,6 +410,7 @@ R_b =
 \tag{3}
 ```
 
+⊢
 
 We define the compound interest period to equal one slot. To get the `i`
 parameter of the standard [compound interest formula][compound-interest-formula]
@@ -354,6 +421,7 @@ R_i = (1 + \dfrac{R_b}{S_a})^{S_e}
 \tag{4}
 ```
 
+⊢
 
 Once per slot we update the liquidity supply with interest rate:
 
@@ -362,6 +430,7 @@ L^{'}_s = L_s R_i
 \tag{5}
 ```
 
+⊢
 
 Eq. (6) describes how interest accrues on borrowed liquidity. $`R^{'}_c`$ is
 the latest cum. borrow rate at time of update while $`R_c`$ is the cum. borrow
@@ -372,6 +441,7 @@ L^{'}_o = \dfrac{R^{'}_c}{R_c} L_o
 \tag{6}
 ```
 
+⊢
 
 Maximum UAC value to withdraw from an obligation is given by a ratio of
 borrowed value to maximum allowed borrow value:
@@ -381,6 +451,7 @@ V_{maxw} = V_d - \dfrac{V_b}{V_{maxb}} V_d
 \tag{7}
 ```
 
+⊢
 
 Eq. (8) gives us maximum liquidation amount of liquidity which a liquidator
 cannot go over. (Although they can liquidate less than that.) The close factor
@@ -392,6 +463,7 @@ L_{maxl} = \dfrac{\min\{V_b * \kappa, L_v\}}{L_v} L_b
 \tag{8}
 ```
 
+⊢
 
 Calculates obligation's unhealthy borrow value by summing over each borrowed
 reserve. See the [health factor docs](#health-factor).
@@ -401,6 +473,7 @@ V_u = \sum C^r_b \epsilon^r
 \tag{9}
 ```
 
+⊢
 
 Supply APY is derived from the borrow rate by scaling it down by utilization
 rate:
@@ -410,6 +483,7 @@ R_d = R_u R_b
 \tag{10}
 ```
 
+⌙
 
 ## Commands
 Use following anchor command to build the `borrow-lending` program:
@@ -495,6 +569,15 @@ const [lendingMarketPda, lendingMarketBumpSeed] =
     borrowLendingProgramId
   );
 ```
+
+
+## Obligation custom parsing logic
+Unfortunately, anchor doesn't correctly parse array of enums serialized data if
+they are repr(packed), which is a must for zero copy. We therefore provide a
+custom method for parsing the data.
+
+See the `obligation.ts` module in tests and its method
+`fromBytesSkipDiscriminatorCheck`.
 
 
 ## `u192`

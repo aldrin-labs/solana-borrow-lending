@@ -33,7 +33,7 @@ program:
       - target/idl/borrow_lending.json
       - target/types/borrow_lending.ts
   before_script:
-    - npm i
+    - yarn
   script:
     # both builds the program and tests it
     - ./bin/test.sh --token "$(echo ${INFRA_API_TOKEN} | tr -d '\n')"

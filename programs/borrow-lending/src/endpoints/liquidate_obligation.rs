@@ -46,23 +46,13 @@ pub struct LiquidateObligation<'info> {
             mustn't eq. repay reserve col. supply"),
     )]
     pub destination_collateral_wallet: AccountInfo<'info>,
-    #[account(
-        mut,
-        constraint = !obligation.is_stale(&clock) @ err::obligation_stale(),
-        constraint = !obligation.is_deposited_value_zero()
-            @ err::empty_collateral("Collateral deposited value is zero"),
-        constraint = !obligation.is_borrowed_value_zero()
-            @ err::empty_liquidity("Liquidity deposited value is zero"),
-        constraint = !obligation.is_healthy() @ err::obligation_healthy(),
-    )]
-    pub obligation: Box<Account<'info, Obligation>>,
+    #[account(mut)]
+    pub obligation: AccountLoader<'info, Obligation>,
     /// A reserve from which the obligation borrowed liquidity. The liquidator
     /// will pay from their source liquidity wallet and get a better value
     /// on the liquidity than market value as a reward.
     #[account(
         mut,
-        constraint = repay_reserve.lending_market == obligation.lending_market
-            @ err::market_mismatch(),
         constraint = !repay_reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
     pub repay_reserve: Box<Account<'info, Reserve>>,
@@ -84,8 +74,6 @@ pub struct LiquidateObligation<'info> {
     /// reward, they earn more collateral and profit.
     #[account(
         mut,
-        constraint = withdraw_reserve.lending_market == obligation.lending_market
-            @ err::market_mismatch(),
         constraint = !withdraw_reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
     pub withdraw_reserve: Box<Account<'info, Reserve>>,
@@ -114,18 +102,41 @@ pub fn handle(
     ctx: Context<LiquidateObligation>,
     lending_market_bump_seed: u8,
     liquidity_amount: u64,
+    loan_kind: LoanKind,
 ) -> ProgramResult {
     let accounts = ctx.accounts;
     msg!(
         "liquidate obligation '{}' amount {} at slot {}",
         accounts.obligation.key(),
         liquidity_amount,
-        accounts.clock.slot
+        accounts.clock.slot,
     );
 
     if liquidity_amount == 0 {
         msg!("Liquidity amount provided cannot be zero");
         return Err(ErrorCode::InvalidAmount.into());
+    }
+
+    let mut obligation = accounts.obligation.load_mut()?;
+    if accounts.withdraw_reserve.lending_market != obligation.lending_market {
+        return Err(err::market_mismatch());
+    }
+    if accounts.repay_reserve.lending_market != obligation.lending_market {
+        return Err(err::market_mismatch());
+    }
+    if obligation.is_stale(&accounts.clock) {
+        return Err(err::obligation_stale());
+    }
+    if obligation.is_deposited_value_zero() {
+        return Err(err::empty_collateral(
+            "Collateral deposited value is zero",
+        ));
+    }
+    if obligation.is_borrowed_value_zero() {
+        return Err(err::empty_liquidity("Liquidity deposited value is zero"));
+    }
+    if obligation.is_healthy() {
+        return Err(err::obligation_healthy());
     }
 
     let ConcernedReserves {
@@ -134,9 +145,10 @@ pub fn handle(
         liquidity_index,
         liquidity,
     } = get_concerned_reserves(
-        &accounts.obligation,
+        &obligation,
         accounts.withdraw_reserve.key(),
         accounts.repay_reserve.key(),
+        loan_kind,
     )?;
 
     let LiquidationAmounts {
@@ -146,7 +158,7 @@ pub fn handle(
     } = calculate_liquidation_amounts(
         liquidity,
         collateral,
-        accounts.obligation.borrowed_value.to_dec(),
+        obligation.collateralized_borrowed_value.to_dec(),
         liquidity_amount,
         accounts.withdraw_reserve.config.liquidation_bonus.into(),
     )?;
@@ -156,14 +168,12 @@ pub fn handle(
         .repay_reserve
         .liquidity
         .repay(repay_amount, settle_amount)?;
-    accounts.obligation.repay(settle_amount, liquidity_index)?;
+    obligation.repay(settle_amount, liquidity_index)?;
 
     // and gets collateral in exchange
-    accounts
-        .obligation
-        .withdraw(withdraw_amount, collateral_index)?;
+    obligation.withdraw(withdraw_amount, collateral_index)?;
 
-    accounts.obligation.last_update.mark_stale();
+    obligation.last_update.mark_stale();
     accounts.repay_reserve.last_update.mark_stale();
 
     token::transfer(accounts.into_repay_liquidity_context(), repay_amount)?;
@@ -205,6 +215,7 @@ fn get_concerned_reserves(
     obligation: &Obligation,
     withdraw_reserve: Pubkey,
     repay_reserve: Pubkey,
+    loan_kind: LoanKind,
 ) -> Result<ConcernedReserves<'_>> {
     let (collateral_index, collateral) =
         obligation.get_collateral(withdraw_reserve)?;
@@ -215,7 +226,7 @@ fn get_concerned_reserves(
     }
 
     let (liquidity_index, liquidity) =
-        obligation.get_liquidity(repay_reserve)?;
+        obligation.get_liquidity(repay_reserve, loan_kind)?;
     if liquidity.market_value.to_dec() == Decimal::zero() {
         return Err(
             err::empty_liquidity("Obligation borrow value is zero").into()
@@ -383,8 +394,8 @@ mod tests {
     const AMOUNT_TO_LIQUIDATE: u64 = 100;
 
     #[test]
-    fn xd() {
-        let mut xd = Obligation::default();
+    fn test_get_concerned_reserves() {
+        let mut obligation = Obligation::default();
         let withdraw_reserve = Pubkey::new_unique();
         let repay_reserve = Pubkey::new_unique();
 
@@ -393,17 +404,24 @@ mod tests {
             market_value: Decimal::from(5u64).into(),
             ..Default::default()
         };
-        xd.reserves[0] = ObligationReserve::Collateral { inner: col.clone() };
+        obligation.reserves[0] =
+            ObligationReserve::Collateral { inner: col.clone() };
         let mut liq = ObligationLiquidity {
             borrow_reserve: repay_reserve,
             market_value: Decimal::from(3u64).into(),
             ..Default::default()
         };
-        xd.reserves[1] = ObligationReserve::Liquidity { inner: liq.clone() };
+        obligation.reserves[1] =
+            ObligationReserve::Liquidity { inner: liq.clone() };
 
         assert_eq!(
-            get_concerned_reserves(&xd, withdraw_reserve, repay_reserve)
-                .unwrap(),
+            get_concerned_reserves(
+                &obligation,
+                withdraw_reserve,
+                repay_reserve,
+                LoanKind::Standard
+            )
+            .unwrap(),
             ConcernedReserves {
                 collateral_index: 0,
                 collateral: &col,
@@ -413,15 +431,27 @@ mod tests {
         );
 
         col.market_value = Decimal::zero().into();
-        xd.reserves[0] = ObligationReserve::Collateral { inner: col.clone() };
-        assert!(get_concerned_reserves(&xd, withdraw_reserve, repay_reserve)
-            .is_err());
+        obligation.reserves[0] =
+            ObligationReserve::Collateral { inner: col.clone() };
+        assert!(get_concerned_reserves(
+            &obligation,
+            withdraw_reserve,
+            repay_reserve,
+            LoanKind::Standard
+        )
+        .is_err());
         col.market_value = Decimal::from(5u64).into();
 
         liq.market_value = Decimal::zero().into();
-        xd.reserves[1] = ObligationReserve::Liquidity { inner: liq.clone() };
-        assert!(get_concerned_reserves(&xd, withdraw_reserve, repay_reserve)
-            .is_err());
+        obligation.reserves[1] =
+            ObligationReserve::Liquidity { inner: liq.clone() };
+        assert!(get_concerned_reserves(
+            &obligation,
+            withdraw_reserve,
+            repay_reserve,
+            LoanKind::Standard
+        )
+        .is_err());
     }
 
     #[test]
@@ -429,7 +459,8 @@ mod tests {
         let mut col = ObligationCollateral::new(Default::default());
         col.deposited_amount = 80u64.into();
         col.market_value = 570u64.into();
-        let mut liq = ObligationLiquidity::new(Default::default());
+        let mut liq =
+            ObligationLiquidity::new(Default::default(), LoanKind::Standard);
         liq.borrowed_amount = 100u64.into();
         liq.market_value = 500u64.into();
 
@@ -457,7 +488,8 @@ mod tests {
         let mut col = ObligationCollateral::new(Default::default());
         col.deposited_amount = 80u64.into();
         col.market_value = 570u64.into();
-        let mut liq = ObligationLiquidity::new(Default::default());
+        let mut liq =
+            ObligationLiquidity::new(Default::default(), LoanKind::Standard);
         liq.borrowed_amount = 100u64.into();
         liq.market_value = 900u64.into();
 
@@ -487,7 +519,8 @@ mod tests {
         let mut col = ObligationCollateral::new(Default::default());
         col.deposited_amount = 80u64.into();
         col.market_value = Decimal::from(7875u64).try_div(10).unwrap().into();
-        let mut liq = ObligationLiquidity::new(Default::default());
+        let mut liq =
+            ObligationLiquidity::new(Default::default(), LoanKind::Standard);
         liq.borrowed_amount = 100u64.into();
         liq.market_value = 800u64.into();
 
@@ -518,7 +551,8 @@ mod tests {
         let mut col = ObligationCollateral::new(Default::default());
         col.deposited_amount = 80u64.into();
         col.market_value = 570u64.into();
-        let mut liq = ObligationLiquidity::new(Default::default());
+        let mut liq =
+            ObligationLiquidity::new(Default::default(), LoanKind::Standard);
         liq.borrowed_amount =
             Decimal::from(consts::LIQUIDATION_CLOSE_AMOUNT - 1).into();
         liq.market_value = 500u64.into();
@@ -548,7 +582,8 @@ mod tests {
         let mut col = ObligationCollateral::new(Default::default());
         col.deposited_amount = 7u64.into();
         col.market_value = 10u64.into();
-        let mut liq = ObligationLiquidity::new(Default::default());
+        let mut liq =
+            ObligationLiquidity::new(Default::default(), LoanKind::Standard);
         liq.borrowed_amount =
             Decimal::from(consts::LIQUIDATION_CLOSE_AMOUNT - 1).into();
         liq.market_value = 500u64.into();
@@ -577,7 +612,8 @@ mod tests {
         let mut col = ObligationCollateral::new(Default::default());
         col.deposited_amount = 50u64.into();
         col.market_value = 105u64.into();
-        let mut liq = ObligationLiquidity::new(Default::default());
+        let mut liq =
+            ObligationLiquidity::new(Default::default(), LoanKind::Standard);
         liq.borrowed_amount =
             Decimal::from(consts::LIQUIDATION_CLOSE_AMOUNT - 1).into();
         liq.market_value = 100u64.into();
@@ -606,7 +642,8 @@ mod tests {
         let mut col = ObligationCollateral::new(Default::default());
         col.deposited_amount = 80u64.into();
         col.market_value = 570u64.into();
-        let liq = ObligationLiquidity::new(Default::default());
+        let liq =
+            ObligationLiquidity::new(Default::default(), LoanKind::Standard);
 
         assert!(calculate_liquidation_amounts(
             &liq,
@@ -623,7 +660,8 @@ mod tests {
         let mut col = ObligationCollateral::new(Default::default());
         col.market_value = 300u64.into();
 
-        let mut liq = ObligationLiquidity::new(Default::default());
+        let mut liq =
+            ObligationLiquidity::new(Default::default(), LoanKind::Standard);
         liq.borrowed_amount = 100u64.into();
         liq.market_value = 500u64.into();
 

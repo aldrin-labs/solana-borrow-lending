@@ -22,7 +22,7 @@ pub struct FlashLoan<'info> {
         constraint = lending_market.enable_flash_loans
             @ err::flash_loans_disabled(),
     )]
-    pub lending_market: Account<'info, LendingMarket>,
+    pub lending_market: Box<Account<'info, LendingMarket>>,
     #[account(
         seeds = [reserve.lending_market.as_ref()],
         bump = lending_market_bump_seed,
@@ -32,13 +32,13 @@ pub struct FlashLoan<'info> {
         mut,
         constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
-    pub reserve: Account<'info, Reserve>,
+    pub reserve: Box<Account<'info, Reserve>>,
     #[account(
         mut,
         constraint = source_liquidity_wallet.key() == reserve.liquidity.supply
             @ err::acc("Source liq. wallet must eq. reserve's liq. supply"),
     )]
-    pub source_liquidity_wallet: Account<'info, TokenAccount>,
+    pub source_liquidity_wallet: Box<Account<'info, TokenAccount>>,
     #[account(mut)]
     pub destination_liquidity_wallet: AccountInfo<'info>,
     #[account(
@@ -108,29 +108,11 @@ pub fn handle(
         liquidity_amount,
     )?;
 
-    let mut flash_loan_instruction_accounts = vec![];
-    let mut flash_loan_instruction_account_infos = vec![];
-    for account_info in ctx.remaining_accounts {
-        flash_loan_instruction_accounts.push(AccountMeta {
-            pubkey: *account_info.key,
-            is_signer: account_info.is_signer,
-            is_writable: account_info.is_writable,
-        });
-        flash_loan_instruction_account_infos.push(account_info.clone());
-    }
-
-    let mut data =
-        Vec::with_capacity(target_data_prefix.len() + mem::size_of::<u64>());
-    data.extend_from_slice(&target_data_prefix);
-    data.extend_from_slice(&returned_amount_required.to_le_bytes());
-
-    invoke(
-        &Instruction {
-            program_id: accounts.target_program.key(),
-            accounts: flash_loan_instruction_accounts,
-            data,
-        },
-        &flash_loan_instruction_account_infos[..],
+    invoke_with_remaining_accounts(
+        accounts.target_program.key(),
+        target_data_prefix,
+        returned_amount_required,
+        ctx.remaining_accounts,
     )?;
 
     // Refreshing reserve is not necessary as the borrow lending program cannot
@@ -166,6 +148,41 @@ pub fn handle(
             fee,
         )?;
     }
+
+    Ok(())
+}
+
+#[inline(never)]
+fn invoke_with_remaining_accounts(
+    target_program: Pubkey,
+    target_data_prefix: Vec<u8>,
+    returned_amount_required: u64,
+    remaining_accounts: &[AccountInfo<'_>],
+) -> ProgramResult {
+    let mut flash_loan_instruction_accounts = vec![];
+    let mut flash_loan_instruction_account_infos = vec![];
+    for account_info in remaining_accounts {
+        flash_loan_instruction_accounts.push(AccountMeta {
+            pubkey: *account_info.key,
+            is_signer: account_info.is_signer,
+            is_writable: account_info.is_writable,
+        });
+        flash_loan_instruction_account_infos.push(account_info.clone());
+    }
+
+    let mut data =
+        Vec::with_capacity(target_data_prefix.len() + mem::size_of::<u64>());
+    data.extend_from_slice(&target_data_prefix);
+    data.extend_from_slice(&returned_amount_required.to_le_bytes());
+
+    invoke(
+        &Instruction {
+            program_id: target_program,
+            accounts: flash_loan_instruction_accounts,
+            data,
+        },
+        &flash_loan_instruction_account_infos[..],
+    )?;
 
     Ok(())
 }

@@ -67,10 +67,21 @@ if ! test -f "bin/shmem.so"; then
 fi
 
 if ! test -f "bin/flashloan_target.so"; then
-    echo "shmem.so binary is not found at bin/shmem.so"
+    echo "flashloan_target.so binary is not found at bin/flashloan_target.so"
 
     extract_job_artefacts \
         "https://gitlab.com/api/v4/projects/31726515/jobs/artifacts/flashloan-target/download?job=flashloan-target"
+fi
+
+if ! test -d "bin/amm"; then
+    echo "amm artefacts are not found at bin/amm"
+
+    extract_job_artefacts \
+        "https://gitlab.com/api/v4/projects/28196727/jobs/artifacts/develop/download?job=build_and_test"
+
+    mv bin/target bin/amm
+
+    npm run init-amm-idl
 fi
 
 

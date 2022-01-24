@@ -1,3 +1,5 @@
+pub mod amm;
+mod farming_receipt;
 mod last_update;
 mod lending_market;
 mod obligation;
@@ -6,6 +8,7 @@ pub mod pyth;
 mod reserve;
 
 use crate::prelude::*;
+pub use farming_receipt::*;
 pub use last_update::*;
 pub use lending_market::*;
 pub use obligation::*;

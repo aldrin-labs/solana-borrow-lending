@@ -24,7 +24,9 @@ pub mod consts {
     pub const MARKET_STALE_AFTER_SLOTS_ELAPSED: u64 = 1;
 
     /// Number of slots to consider oracle provided info stale after.
-    pub const ORACLE_STALE_AFTER_SLOTS_ELAPSED: u64 = 5;
+    ///
+    /// TBD: https://gitlab.com/crypto_project/clockwork/borrow-lending/-/issues/30
+    pub const ORACLE_STALE_AFTER_SLOTS_ELAPSED: u64 = 20;
 
     /// Collateral tokens are initially valued at a ratio of 1:1
     /// (collateral:liquidity).
@@ -63,4 +65,38 @@ pub mod consts {
 
     /// Obligation borrow amount that is small enough to close out.
     pub const LIQUIDATION_CLOSE_AMOUNT: u64 = 2;
+
+    /// > The current implementation sets block time to 800ms. From: https://docs.solana.com/cluster/synchronization
+    ///
+    /// # Opening
+    /// While having as fresh prices as possible for vanilla borrowing is vital,
+    /// here we can allow some slippage of a few seconds as a tradeoff. The
+    /// tradeoff is transaction size. Simply put, there is no way we can
+    /// interact with AMM and touch all those accounts we need, if we are
+    /// required to refresh reserves in the same transaction. In order to
+    /// implement this feature for more than 2 reserves, this tradeoff is a
+    /// must. It's not risky to allow this tradeoff because the funds never
+    /// actually reach the borrower possession. If they found a way to exploit
+    /// the allowed delay, that would mean they could create their position
+    /// with collateral which instead of covering e.g. 1/3 in case of 3x
+    /// leverage, would cover less due to a sudden market fluctuation. However,
+    /// their position will be liquidated the very next moment and they cannot
+    /// run away with the funds because closing a position requires repaying
+    /// based on amount, not market price. Therefore, no funds are lost to the
+    /// BLp.
+    ///
+    /// # Closing
+    /// It would seem that we don't need to refresh obligation at the first
+    /// glance, but we do because we need to calculate latest interest.
+    /// However, we only need to do this in the last ~N blocks, not
+    /// necessarily in the same transaction. Thanks to that we can ignore
+    /// the problem of how many reserves can be refreshed at once in
+    /// [`crate::endpoints::leverage_farming::aldrin::close`]
+    /// endpoint, and all that matters is how many reserves can be refreshed
+    /// at once in [`crate::endpoints::leverage_farming::aldrin::open`]
+    /// endpoint.
+    pub const MAX_OBLIGATION_REFRESH_BLOCKS_ELAPSED_FOR_LEVERAGED_POSITION:
+        u64 = 10;
+
+    pub const MAX_UTILIZATION_RATE: PercentageInt = PercentageInt::new(95);
 }

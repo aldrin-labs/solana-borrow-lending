@@ -5,8 +5,10 @@
 .mainnet/
 .tmp/
 bin/*.so
+bin/amm
 node_modules
 package-lock.json
+yarn.lock
 target
 test-ledger
 grcov.log

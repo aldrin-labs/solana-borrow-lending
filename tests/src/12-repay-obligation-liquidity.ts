@@ -260,14 +260,14 @@ export function test(
       const obligationInfo = await obligation.fetch();
       expect(
         u192ToBN(obligationInfo.depositedValue).lt(
-          u192ToBN(obligationInfo.borrowedValue)
+          u192ToBN(obligationInfo.collateralizedBorrowedValue)
         )
       );
       // should be about ~123xxxxxxxxxxxxxxxxx
-      const obv = u192ToBN(obligationInfo.borrowedValue);
+      const obv = u192ToBN(obligationInfo.collateralizedBorrowedValue);
       expect(obv.gt(ONE_WAD.mul(new BN(12)))).to.be.true;
       expect(obv.lt(ONE_WAD.mul(new BN(13)))).to.be.true;
-      expect(obv.lt(u192ToBN(oldObligationInfo.borrowedValue)));
+      expect(obv.lt(u192ToBN(oldObligationInfo.collateralizedBorrowedValue)));
 
       const odv = u192ToBN(obligationInfo.depositedValue).toString();
       expect(odv).to.eq(
@@ -336,7 +336,10 @@ export function test(
       await obligation.refresh();
       const obligationInfo = await obligation.fetch();
       expect(obligationInfo.reserves[1]).to.deep.eq({ empty: {} });
-      expect(u192ToBN(obligationInfo.borrowedValue).toNumber()).to.eq(0);
+      expect(
+        u192ToBN(obligationInfo.collateralizedBorrowedValue).toNumber()
+      ).to.eq(0);
+      expect(u192ToBN(obligationInfo.totalBorrowedValue).toNumber()).to.eq(0);
 
       await reserveDoge.refresh();
       const reserveInfo = await reserveDoge.fetch();

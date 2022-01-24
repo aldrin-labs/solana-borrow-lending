@@ -1,8 +1,7 @@
 use crate::prelude::*;
 use std::cmp::Ordering;
 
-#[account]
-#[repr(C)]
+#[account(zero_copy)]
 pub struct Obligation {
     pub owner: Pubkey,
     pub lending_market: Pubkey,
@@ -12,8 +11,19 @@ pub struct Obligation {
     pub reserves: [ObligationReserve; 10],
     /// Market value of all deposits combined in UAC.
     pub deposited_value: SDecimal,
-    /// Market value of all borrows combined in UAC.
-    pub borrowed_value: SDecimal,
+    /// Market value of all borrows combined in UAC which must be covered by
+    /// collateral. This doesn't include the undercollateralized value of
+    /// leverage yield farming loans.
+    ///
+    /// That is, if a user borrows $300 worth of assets at 3x leverage, only
+    /// $100 are projected to this value.
+    pub collateralized_borrowed_value: SDecimal,
+    /// Market value of all borrows combined in UAC including leverage farming
+    /// loans.
+    ///
+    /// That is, if a user borrows $300 worth of assets at 3x leverage, all
+    /// $300 are projected to this value.
+    pub total_borrowed_value: SDecimal,
     /// The maximum borrow value at the weighted average loan to value ratio.
     pub allowed_borrow_value: SDecimal,
     /// The dangerous borrow value at the weighted average liquidation
@@ -21,11 +31,11 @@ pub struct Obligation {
     pub unhealthy_borrow_value: SDecimal,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(AnchorDeserialize, AnchorSerialize, Copy, Clone, Debug, PartialEq)]
 pub enum ObligationReserve {
     Empty,
-    Collateral { inner: ObligationCollateral },
     Liquidity { inner: ObligationLiquidity },
+    Collateral { inner: ObligationCollateral },
 }
 
 #[derive(
@@ -47,11 +57,35 @@ pub struct ObligationCollateral {
 #[derive(
     AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Eq, PartialEq,
 )]
+pub enum LoanKind {
+    Standard,
+    /// Only a fraction of the [`ObligationLiquidity`] `borrow_amount` must
+    /// be collateralized. This fraction is given by the leverage. E.g. for
+    /// 3x leverage it's 300%, and therefore 1/3 of the `borrow_amount` must
+    /// be collateralized.
+    YieldFarming {
+        leverage: Leverage,
+    },
+}
+
+impl Default for LoanKind {
+    fn default() -> Self {
+        Self::Standard
+    }
+}
+
+#[derive(
+    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Eq, PartialEq,
+)]
 pub struct ObligationLiquidity {
     pub borrow_reserve: Pubkey,
+    /// Distinguishes between different kinds of loans we provide to users.
+    pub loan_kind: LoanKind,
     /// Borrow rate used for calculating interest.
     pub cumulative_borrow_rate: SDecimal,
-    /// Amount of liquidity borrowed plus interest.
+    /// Amount of liquidity borrowed plus interest. In case of leveraged
+    /// position, this includes the total borrowed, not just the smaller
+    /// collateralized fraction.
     pub borrowed_amount: SDecimal,
     pub market_value: SDecimal,
 }
@@ -73,7 +107,8 @@ impl Default for Obligation {
             lending_market: Pubkey::default(),
             owner: Pubkey::default(),
             deposited_value: Decimal::zero().into(),
-            borrowed_value: Decimal::zero().into(),
+            collateralized_borrowed_value: Decimal::zero().into(),
+            total_borrowed_value: Decimal::zero().into(),
             allowed_borrow_value: Decimal::zero().into(),
             unhealthy_borrow_value: Decimal::zero().into(),
         }
@@ -83,6 +118,15 @@ impl Default for Obligation {
 impl Obligation {
     pub fn is_stale(&self, clock: &Clock) -> bool {
         self.last_update.is_stale(clock.slot).unwrap_or(true)
+    }
+
+    pub fn is_stale_for_leverage(&self, clock: &Clock) -> bool {
+        // see the const docs
+        let max_slots_elapsed =
+        consts::MAX_OBLIGATION_REFRESH_BLOCKS_ELAPSED_FOR_LEVERAGED_POSITION;
+        self.last_update.stale
+            || self.last_update.slots_elapsed(clock.slot).unwrap_or(0)
+                > max_slots_elapsed
     }
 
     /// Withdraw collateral and remove it from deposits if zeroed out
@@ -131,17 +175,24 @@ impl Obligation {
     }
 
     pub fn is_borrowed_value_zero(&self) -> bool {
-        self.borrowed_value.to_dec() == Decimal::zero()
+        // we can use whichever, collateralized or total here, because if one
+        // is zero the other as well
+        self.collateralized_borrowed_value.to_dec() == Decimal::zero()
     }
 
     pub fn is_healthy(&self) -> bool {
-        self.borrowed_value.to_dec() < self.unhealthy_borrow_value.to_dec()
+        // we use collateralized borrowed value because we don't want to count
+        // leverage towards liquidation threshold
+        self.collateralized_borrowed_value.to_dec()
+            < self.unhealthy_borrow_value.to_dec()
     }
 
     // ref. eq. (7)
     pub fn max_withdraw_value(&self) -> Result<Decimal> {
+        // we use collateralized borrow value because that leveraged loan
+        // counts towards the limit only once, not X times (e.g. 3x)
         let required_deposit_value = self
-            .borrowed_value
+            .collateralized_borrowed_value
             .to_dec()
             .try_mul(self.deposited_value.to_dec())?
             .try_div(self.allowed_borrow_value.to_dec())?;
@@ -177,13 +228,15 @@ impl Obligation {
     pub fn get_liquidity(
         &self,
         key: Pubkey,
+        loan_kind: LoanKind,
     ) -> Result<(usize, &ObligationLiquidity)> {
         self.reserves
             .iter()
             .enumerate()
             .find_map(|(index, reserve)| match reserve {
                 ObligationReserve::Liquidity { ref inner }
-                    if inner.borrow_reserve == key =>
+                    if inner.borrow_reserve == key
+                        && inner.loan_kind == loan_kind =>
                 {
                     Some((index, inner))
                 }
@@ -237,6 +290,7 @@ impl Obligation {
         &mut self,
         reserve_key: Pubkey,
         liquidity_amount: Decimal,
+        loan_kind: LoanKind,
     ) -> Result<()> {
         let mut first_empty = None;
         for (i, reserve) in self.reserves.iter_mut().enumerate() {
@@ -244,8 +298,10 @@ impl Obligation {
                 ObligationReserve::Empty if first_empty.is_none() => {
                     first_empty = Some(i);
                 }
+                // loan kind must be the same too if we want to squash loans
                 ObligationReserve::Liquidity { ref mut inner }
-                    if inner.borrow_reserve == reserve_key =>
+                    if inner.borrow_reserve == reserve_key
+                        && inner.loan_kind == loan_kind =>
                 {
                     inner.borrow(liquidity_amount)?;
                     return Ok(());
@@ -255,7 +311,8 @@ impl Obligation {
         }
 
         if let Some(i) = first_empty {
-            let mut liquidity = ObligationLiquidity::new(reserve_key);
+            let mut liquidity =
+                ObligationLiquidity::new(reserve_key, loan_kind);
             liquidity.borrow(liquidity_amount)?;
             self.reserves[i] =
                 ObligationReserve::Liquidity { inner: liquidity };
@@ -301,25 +358,27 @@ impl Obligation {
     }
 
     /// Calculate the maximum liquidity value that can be borrowed by
-    /// subtracting allowed borrow value from actual borrow value.
-    pub fn remaining_borrow_value(&self) -> Decimal {
+    /// subtracting allowed borrow value from the actual borrow value which
+    /// needs to be collateralized.
+    pub fn remaining_collateralized_borrow_value(&self) -> Decimal {
         self.allowed_borrow_value
             .to_dec()
-            .try_sub(self.borrowed_value.to_dec())
+            .try_sub(self.collateralized_borrowed_value.to_dec())
             .unwrap_or_else(|_| Decimal::zero())
     }
 }
 
 impl Default for ObligationLiquidity {
     fn default() -> Self {
-        Self::new(Pubkey::default())
+        Self::new(Pubkey::default(), LoanKind::default())
     }
 }
 
 impl ObligationLiquidity {
-    pub fn new(borrow_reserve: Pubkey) -> Self {
+    pub fn new(borrow_reserve: Pubkey, loan_kind: LoanKind) -> Self {
         Self {
             borrow_reserve,
+            loan_kind,
             market_value: Decimal::zero().into(),
             borrowed_amount: Decimal::zero().into(),
             cumulative_borrow_rate: Decimal::one().into(),
@@ -412,6 +471,27 @@ impl ObligationCollateral {
     }
 }
 
+// Amount of liquidity that is settled from the obligation and amount of tokens
+// to transfer to the reserve's liquidity wallet from borrower's source wallet.
+//
+// ## Output
+// The repay amount is similar to liquidity but at most equal to the
+// borrowed amount which guarantees that the repayer never overpays.
+//
+// The settle amount is decimal representation of the repay amount and is
+// equal to the repay amount unless the repayer requested to repay all of
+// their loan, in which case the repay amount is ceiled version of the
+// settle amount.
+pub fn calculate_repay_amounts(
+    liquidity_amount: u64,
+    borrowed_amount: Decimal,
+) -> Result<(u64, Decimal)> {
+    let settle_amount = Decimal::from(liquidity_amount).min(borrowed_amount);
+    let repay_amount = settle_amount.try_ceil_u64()?;
+
+    Ok((repay_amount, settle_amount))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -422,7 +502,12 @@ mod tests {
 
     #[test]
     fn it_has_stable_size() {
-        assert_eq!(mem::size_of::<Obligation>(), 1296);
+        assert_eq!(mem::size_of::<Obligation>(), 1480);
+        assert_eq!(mem::size_of::<ObligationCollateral>(), 64);
+        assert_eq!(mem::size_of::<ObligationLiquidity>(), 120);
+        assert_eq!(mem::size_of::<ObligationReserve>(), 128);
+        assert_eq!(mem::size_of::<LoanKind>(), 16);
+        assert_eq!(mem::size_of::<LastUpdate>(), 16);
     }
 
     #[test]
@@ -513,8 +598,12 @@ mod tests {
             }
         );
 
-        assert!(obligation.get_liquidity(reserve1).is_err());
-        assert!(obligation.get_liquidity(reserve2).is_err());
+        assert!(obligation
+            .get_liquidity(reserve1, LoanKind::Standard)
+            .is_err());
+        assert!(obligation
+            .get_liquidity(reserve2, LoanKind::Standard)
+            .is_err());
         assert_eq!(
             obligation.get_collateral(reserve1).unwrap(),
             (
@@ -597,7 +686,9 @@ mod tests {
         let reserve2 = Pubkey::new_unique();
         let mut obligation = Obligation::default();
 
-        obligation.borrow(reserve1, 50u64.into()).unwrap();
+        obligation
+            .borrow(reserve1, 50u64.into(), LoanKind::Standard)
+            .unwrap();
         assert_eq!(
             obligation.reserves[0],
             ObligationReserve::Liquidity {
@@ -609,19 +700,27 @@ mod tests {
             }
         );
 
-        obligation.borrow(reserve2, 30u64.into()).unwrap();
+        let yield_farm = LoanKind::YieldFarming {
+            leverage: Leverage::new(u64::MAX),
+        };
+        obligation
+            .borrow(reserve2, 30u64.into(), yield_farm)
+            .unwrap();
         assert_eq!(
             obligation.reserves[1],
             ObligationReserve::Liquidity {
                 inner: ObligationLiquidity {
                     borrowed_amount: 30.into(),
                     borrow_reserve: reserve2,
+                    loan_kind: yield_farm,
                     ..Default::default()
                 }
             }
         );
 
-        obligation.borrow(reserve1, 50u64.into()).unwrap();
+        obligation
+            .borrow(reserve1, 50u64.into(), LoanKind::Standard)
+            .unwrap();
         assert_eq!(
             obligation.reserves[0],
             ObligationReserve::Liquidity {
@@ -636,7 +735,9 @@ mod tests {
         assert!(obligation.get_collateral(reserve1).is_err());
         assert!(obligation.get_collateral(reserve2).is_err());
         assert_eq!(
-            obligation.get_liquidity(reserve1).unwrap(),
+            obligation
+                .get_liquidity(reserve1, LoanKind::Standard)
+                .unwrap(),
             (
                 0,
                 &ObligationLiquidity {
@@ -647,12 +748,13 @@ mod tests {
             )
         );
         assert_eq!(
-            obligation.get_liquidity(reserve2).unwrap(),
+            obligation.get_liquidity(reserve2, yield_farm).unwrap(),
             (
                 1,
                 &ObligationLiquidity {
                     borrow_reserve: reserve2,
                     borrowed_amount: 30.into(),
+                    loan_kind: yield_farm,
                     ..Default::default()
                 }
             )
@@ -681,7 +783,7 @@ mod tests {
         let mut obligation = Obligation::default();
         obligation.deposit(Pubkey::new_unique(), 10).unwrap();
         obligation
-            .borrow(Pubkey::new_unique(), 10u64.into())
+            .borrow(Pubkey::new_unique(), 10u64.into(), LoanKind::Standard)
             .unwrap();
 
         assert!(obligation.withdraw(10, 1).is_err());
@@ -695,11 +797,11 @@ mod tests {
     fn it_decides_whether_healthy() {
         let mut obligation = Obligation::default();
 
-        obligation.borrowed_value = Decimal::one().into();
+        obligation.collateralized_borrowed_value = Decimal::one().into();
         obligation.unhealthy_borrow_value = Decimal::zero().into();
         assert!(!obligation.is_healthy());
 
-        obligation.borrowed_value = Decimal::zero().into();
+        obligation.collateralized_borrowed_value = Decimal::zero().into();
         obligation.unhealthy_borrow_value = Decimal::one().into();
         assert!(obligation.is_healthy());
     }
@@ -713,23 +815,29 @@ mod tests {
 
         assert!(obligation.deposit(Pubkey::new_unique(), 10).is_err());
         assert!(obligation
-            .borrow(Pubkey::new_unique(), 10u64.into())
+            .borrow(Pubkey::new_unique(), 10u64.into(), LoanKind::Standard)
             .is_err());
     }
 
     #[test]
-    fn it_calculates_remaining_borrow_value() {
+    fn it_calculates_remaining_collateralized_borrow_value() {
         let mut obligation = Obligation::default();
 
         obligation.allowed_borrow_value =
             Decimal::one().try_mul(Decimal::from(2u64)).unwrap().into();
-        obligation.borrowed_value = Decimal::one().into();
-        assert_eq!(obligation.remaining_borrow_value(), Decimal::one());
+        obligation.collateralized_borrowed_value = Decimal::one().into();
+        assert_eq!(
+            obligation.remaining_collateralized_borrow_value(),
+            Decimal::one()
+        );
 
         obligation.allowed_borrow_value = Decimal::one().into();
-        obligation.borrowed_value =
+        obligation.collateralized_borrowed_value =
             Decimal::one().try_mul(Decimal::from(2u64)).unwrap().into();
-        assert_eq!(obligation.remaining_borrow_value(), Decimal::zero());
+        assert_eq!(
+            obligation.remaining_collateralized_borrow_value(),
+            Decimal::zero()
+        );
     }
 
     // Creates rates (r1, r2) where 0 < r1 <= r2 <= 100*r1

@@ -50,10 +50,8 @@ impl Decimal {
     }
 
     /// Create scaled decimal from percent value
-    pub fn from_percent(percent: impl Into<PercentageInt>) -> Self {
-        Self(U192::from(
-            percent.into().percent as u64 * consts::PERCENT_SCALER,
-        ))
+    pub fn from_percent(percent: impl Into<u64>) -> Self {
+        Self(U192::from(percent.into() * consts::PERCENT_SCALER))
     }
 
     /// Return raw scaled value if it fits within u128
@@ -212,6 +210,14 @@ mod test {
     #[test]
     fn test_checked_pow() {
         assert_eq!(Decimal::one(), Decimal::one().try_pow(u64::MAX).unwrap());
+    }
+
+    #[test]
+    fn test_from_percent() {
+        assert_eq!(
+            Decimal::from_percent(200u64),
+            Decimal::one().try_mul(2).unwrap()
+        );
     }
 
     #[test]

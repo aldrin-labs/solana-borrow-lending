@@ -48,8 +48,12 @@ export interface ReserveConfig {
     minBorrowRate: PercentInt;
     optimalBorrowRate: PercentInt;
     maxBorrowRate: PercentInt;
+    maxLeverage: {
+      percent: BN;
+    };
     fees: {
       borrowFee: { u192: U192 };
+      leverageFee: { u192: U192 };
       hostFee: PercentInt;
       flashLoanFee: { u192: U192 };
     };
@@ -166,8 +170,10 @@ export class Reserve {
         minBorrowRate: { percent: 1 },
         optimalBorrowRate: { percent: 5 },
         maxBorrowRate: { percent: 10 },
+        maxLeverage: { percent: new BN(300) },
         fees: {
           borrowFee: { u192: numberToU192(0.01) },
+          leverageFee: { u192: numberToU192(0.001) },
           flashLoanFee: { u192: numberToU192(0.001) },
           hostFee: { percent: 2 },
         },

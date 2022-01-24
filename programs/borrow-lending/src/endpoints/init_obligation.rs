@@ -4,19 +4,19 @@ use crate::prelude::*;
 pub struct InitObligation<'info> {
     #[account(signer)]
     pub owner: AccountInfo<'info>,
-    pub lending_market: Account<'info, LendingMarket>,
+    pub lending_market: Box<Account<'info, LendingMarket>>,
     /// Create a new obligation which is linked to a lending market.
     #[account(zero)]
-    pub obligation: Box<Account<'info, Obligation>>,
+    pub obligation: AccountLoader<'info, Obligation>,
     pub clock: Sysvar<'info, Clock>,
 }
 
 pub fn handle(ctx: Context<InitObligation>) -> ProgramResult {
-    let accounts = ctx.accounts;
+    let obligation = &mut ctx.accounts.obligation.load_init()?;
 
-    accounts.obligation.owner = accounts.owner.key();
-    accounts.obligation.lending_market = accounts.lending_market.key();
-    accounts.obligation.last_update = LastUpdate::new(accounts.clock.slot);
+    obligation.owner = ctx.accounts.owner.key();
+    obligation.lending_market = ctx.accounts.lending_market.key();
+    obligation.last_update = LastUpdate::new(ctx.accounts.clock.slot);
 
     Ok(())
 }

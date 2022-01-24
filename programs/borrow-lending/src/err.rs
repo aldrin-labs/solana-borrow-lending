@@ -5,7 +5,7 @@ use std::fmt::Display;
 #[derive(PartialEq, Eq)]
 pub enum ErrorCode {
     #[msg("Provided owner does not match the market owner")]
-    InvalidMarketOwner, // 300
+    InvalidMarketOwner, // 6000
     #[msg("Operation would result in an overflow")]
     MathOverflow,
     #[msg("Provided configuration isn't in the right format or range")]
@@ -27,13 +27,15 @@ pub enum ErrorCode {
     #[msg("Interest rate cannot be negative")]
     NegativeInterestRate,
     #[msg("Provided accounts must belong to the same market")]
-    LendingMarketMismatch, // 310
+    LendingMarketMismatch, // 6010
     #[msg("Reserve cannot be used as a collateral")]
     ReserveCollateralDisabled,
     #[msg("Number of reserves associated with a single obligation is limited")]
     ObligationReserveLimit,
     #[msg("No collateral deposited in this obligation")]
     ObligationCollateralEmpty,
+    #[msg("Not enough collateral to perform this action")]
+    ObligationCollateralTooLow,
     #[msg("No liquidity borrowed in this obligation")]
     ObligationLiquidityEmpty,
     #[msg("Cannot withdraw zero collateral")]
@@ -57,12 +59,45 @@ pub enum ErrorCode {
     InvalidFlashLoanTargetProgram,
     #[msg("Flash loans feature currently not enabled")]
     FlashLoansDisabled,
+    #[msg("Cannot unstake given amount of LP without restaking them")]
+    FarmingTicketHasMoreLpTokensThanRequested,
+    #[msg(
+        "Cannot unstake given amount of LP because the amount is insufficient"
+    )]
+    FarmingTicketHasLessLpTokensThanRequested,
+    #[msg(
+        "The compounding caller mustn't keep any LP tokens, all compounded \
+        tokens must be restaked. Similarly, the caller shouldn't lose any
+        LP tokens."
+    )]
+    AllFarmedLpTokensMustBeCompounded,
+    #[msg(
+        "When opening a leveraged position, all borrowed tokens must be \
+        deposited, meaning they cannot have more tokens than at the beginning of
+        the instruction"
+    )]
+    OpeningLeveragePositionMustNotLeaveTokensInUserPossession,
+    #[msg("Expected AMM pool account")]
+    NotAmmPoolAccount,
+    #[msg(
+        "The total UAC worth of LP tokens to stake during compounding must be \
+        at least as much as the UAC worth of farmed tokens minus fee"
+    )]
+    CompoundingLpPriceMustNotBeLessThanFarmPrice,
+    #[msg("Utilization rate cannot go over a threshold value")]
+    BorrowWouldHitCriticalUtilizationRate,
 }
 
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         self == other
     }
+}
+
+pub fn illegal_owner(msg: impl AsRef<str>) -> ProgramError {
+    msg!("[IllegalOwner] {}", msg.as_ref());
+
+    return ProgramError::IllegalOwner;
 }
 
 pub fn acc(msg: impl AsRef<str>) -> ProgramError {
@@ -154,7 +189,7 @@ mod tests {
     #[test]
     fn test_error_conversion() {
         assert_eq!(
-            ProgramError::Custom(300),
+            ProgramError::Custom(6000),
             ErrorCode::InvalidMarketOwner.into()
         );
     }

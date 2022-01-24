@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2022-01-24
+### Added
+- Leverage yield farming endpoints (see README for docs) which `open`, `close`
+  and `compound` leveraged position on Aldrin. `compound` endpoint can be also
+  use for position without leverage. It's seed agnostic, meaning that there are
+  no assumptions made about the PDA which owns the farming ticket. Whereas in
+  `open` and `close`, the PDA is always constructed with lending market, reserve,
+  obligation and leverage data.
+- Condition which prevents any borrow if the reserve's utilization should go
+  over 95%.
+- `Pubkey` of compound bot and `SDecimal` of minimal collateral value in UAC to
+  `LendingMarket` type.
+- `ReserveConfig` now has additional `maxLeverage` settings, and also new fee
+  `leverageFee`, which at the moment doesn't do anything, because fee logic has
+  been removed for now due to compute unit limit.
+- `Reserve` has additional `SDecimal` field `accrued_interest` which is a
+  monotonically increased UAC value of interest collected on borrows.
+- Endpoint to update lending market configuration with `update_lending_market`.
+- Endpoint to update reserve configuration with `update_reserve_config`.
+- Account `FarmingReceipt` which is created when a new leveraged position is
+  opened, and closed when an existing position is closed. It helps us keep track
+  of running leveraged positions for UI discovery and liquidation.
+
+### Changed
+- `Obligation` is now zero copy. However, anchor doesn't correctly represent
+  enum in arrays with zero copy and there still seems to be some offset. Due
+  to this issue, we use a _custom_ deserialization function on frontend when
+  fetching obligation data. See `fromBytesSkipDiscriminatorCheck` method
+  in the `obligation.ts` file.
+- Endpoint `repay_obligation_liquidity` now accepts another argument for
+  leverage.
+- Endpoint `liquidate_obligation` now accepts another argument for leverage.
+- Staleness of an oracle account can now be up to 20 blocks, instead of
+  previous 5.
+- Obligation no longer has `borrowed_value` field. This field has been divided
+  into `collateralized_borrow_value` and `total_borrowed_value`. The former is
+  UAC of how much must obligation collateral cover. The latter is the overall
+  value of the loan. These two will differ only with a leveraged position.
+
+### Removed
+- The necessity for reserve refresh when depositing collateral into obligation.
+
 
 ## [0.4.0] - 2021-12-21
 

@@ -14,16 +14,9 @@ use anchor_spl::token::{self, Token};
 pub struct DepositObligationCollateral<'info> {
     #[account(signer)]
     pub borrower: AccountInfo<'info>,
+    #[account(mut)]
+    pub obligation: AccountLoader<'info, Obligation>,
     #[account(
-        mut,
-        constraint = borrower.key() == obligation.owner
-            @ ProgramError::IllegalOwner,
-    )]
-    pub obligation: Box<Account<'info, Obligation>>,
-    #[account(
-        constraint = reserve.lending_market == obligation.lending_market
-            @ err::market_mismatch(),
-        constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
         constraint = 0u8 != u8::from(reserve.config.loan_to_value_ratio)
             @ err::cannot_use_as_collateral(),
     )]
@@ -55,10 +48,17 @@ pub fn handle(
         return Err(ErrorCode::InvalidAmount.into());
     }
 
-    accounts
-        .obligation
-        .deposit(accounts.reserve.key(), collateral_amount)?;
-    accounts.obligation.last_update.mark_stale();
+    let mut obligation = accounts.obligation.load_mut()?;
+
+    if accounts.borrower.key() != obligation.owner {
+        return Err(ProgramError::IllegalOwner);
+    }
+    if accounts.reserve.lending_market != obligation.lending_market {
+        return Err(err::market_mismatch());
+    }
+
+    obligation.deposit(accounts.reserve.key(), collateral_amount)?;
+    obligation.last_update.mark_stale();
 
     token::transfer(
         accounts.to_deposit_collateral_context(),

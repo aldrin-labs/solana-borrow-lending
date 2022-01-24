@@ -123,7 +123,7 @@ export function test(
         shmemProgramId,
         owner,
         builder.accounts.oraclePrice.publicKey,
-        (await market.connection.getSlot()) - 10 // put it into the past
+        0 // put it into the past
       );
       await waitForCommit();
 
@@ -147,9 +147,7 @@ export function test(
 
       const stdCapture = new CaptureStdoutAndStderr();
 
-      await expect(builder.build(10)).to.be.rejectedWith(
-        /Provided oracle configuration isn't in the right format or range/
-      );
+      await expect(builder.build(10)).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain(
         "Product's owner must be prices's owner"
@@ -197,6 +195,13 @@ export function test(
         liquidityAmount * ONE_LIQ_TO_COL_INITIAL_PRICE
       );
 
+      // unfortunately sometimes the inner representation is padded with zeros,
+      // so we cannot just deep.eq
+      expect(
+        (reserveAccount.config.maxLeverage as any).percent.toNumber()
+      ).to.eq(Reserve.defaultConfig().conf.maxLeverage.percent.toNumber());
+      reserveAccount.config.maxLeverage = Reserve.defaultConfig().conf
+        .maxLeverage as never;
       expect(reserveAccount.config).to.deep.eq(Reserve.defaultConfig().conf);
 
       const sourceWalletInfo =

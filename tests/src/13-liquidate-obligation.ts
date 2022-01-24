@@ -11,7 +11,7 @@ import {
   u192ToBN,
   waitForCommit,
 } from "./helpers";
-import { ONE_LIQ_TO_COL_INITIAL_PRICE } from "./consts";
+import { DEFAULT_SRM_PRICE, ONE_LIQ_TO_COL_INITIAL_PRICE } from "./consts";
 
 export function test(
   program: Program<BorrowLending>,
@@ -21,10 +21,8 @@ export function test(
   describe("liquidate_obligation", () => {
     const liquidator = Keypair.generate();
 
-    // the default price value in the binary
-    const initialSrmPrice = 7382500000;
     // the price after we lower collateral value
-    const dippedSrmPrice = initialSrmPrice / 100;
+    const dippedSrmPrice = DEFAULT_SRM_PRICE / 100;
 
     // this liquidity is borrowed for each test case
     const borrowedLiquidity = 150;
@@ -129,7 +127,7 @@ export function test(
     });
 
     afterEach("resets value of srm", async () => {
-      await reserveSrm.setOraclePrice(initialSrmPrice);
+      await reserveSrm.setOraclePrice(DEFAULT_SRM_PRICE);
       await waitForCommit();
     });
 
@@ -347,7 +345,7 @@ export function test(
         )
       ).to.be.rejected;
 
-      expect(stdCapture.restore()).to.contain("LendingMarketMismatch");
+      stdCapture.restore();
     });
 
     it("fails if source liquidity wallet equals repay reserve supply", async () => {
@@ -597,7 +595,7 @@ export function test(
 
       await obligation.refresh();
       const obligationInfo = await obligation.fetch();
-      const obv = u192ToBN(obligationInfo.borrowedValue);
+      const obv = u192ToBN(obligationInfo.collateralizedBorrowedValue);
       // ~1xxxxxxxxxxxxxxxxxx
       expect(obv.gt(ONE_WAD)).to.be.true;
       expect(obv.lt(ONE_WAD.mul(new BN(2)))).to.be.true;

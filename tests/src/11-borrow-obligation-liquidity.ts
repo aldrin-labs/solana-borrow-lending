@@ -184,9 +184,9 @@ export function test(
 
       await expect(
         obligation.borrow(differentReserve, differentDestination, 10)
-      ).to.be.rejected;
+      ).to.be.rejectedWith(/seeds constraint was violated/);
 
-      expect(stdCapture.restore()).to.contain("LendingMarketMismatch");
+      stdCapture.restore();
     });
 
     it("fails if source liquidity doesn't match reserve's config", async () => {
@@ -258,7 +258,10 @@ export function test(
         "73825000000000000000"
       );
       // this gets updated on next refresh
-      expect(u192ToBN(obligationInfo.borrowedValue).toNumber()).to.eq(0);
+      expect(
+        u192ToBN(obligationInfo.collateralizedBorrowedValue).toNumber()
+      ).to.eq(0);
+      expect(u192ToBN(obligationInfo.totalBorrowedValue).toNumber()).to.eq(0);
 
       expect(obligationInfo.reserves[0])
         .to.have.property("collateral")
@@ -306,6 +309,23 @@ export function test(
       );
     });
 
+    it("fails to borrow liquidity amount larger than fees", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      const borrowDogeLiquidity = 1;
+      await expect(
+        obligation.borrow(
+          reserveDoge,
+          destinationDogeLiquidityWallet,
+          borrowDogeLiquidity
+        )
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain(
+        "Borrow amount is too small to receive liquidity after fees"
+      );
+    });
+
     it("borrows liquidity with host fee", async () => {
       const borrowDogeLiquidity = 100;
       await obligation.borrow(
@@ -322,5 +342,7 @@ export function test(
         );
       expect(hostFeeReceiverInfo.amount.toNumber()).to.eq(1);
     });
+
+    it("cannot borrow if reserve util. rate would grow over 95%");
   });
 }
