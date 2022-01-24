@@ -73,18 +73,6 @@ export function test(
       );
     });
 
-    it("fails if reserve is stale", async () => {
-      const stdCapture = new CaptureStdoutAndStderr();
-
-      await expect(
-        obligation.deposit(reserve, sourceCollateralWallet, 10, {
-          refreshReserve: false,
-        })
-      ).to.be.rejected;
-
-      expect(stdCapture.restore()).to.contain("[ReserveStale]");
-    });
-
     it("fails if loan to value ratio is zero", async () => {
       const config = Reserve.defaultConfig();
       config.conf.loanToValueRatio.percent = 0;
@@ -198,7 +186,10 @@ export function test(
 
       // we need to refresh the obligation for these values to recalculate
       expect(u192ToBN(newCollateral.marketValue).toNumber()).to.eq(0);
-      expect(u192ToBN(obligationInfo.borrowedValue).toNumber()).to.eq(0);
+      expect(
+        u192ToBN(obligationInfo.collateralizedBorrowedValue).toNumber()
+      ).to.eq(0);
+      expect(u192ToBN(obligationInfo.totalBorrowedValue).toNumber()).to.eq(0);
       expect(u192ToBN(obligationInfo.depositedValue).toNumber()).to.eq(0);
       expect(u192ToBN(obligationInfo.allowedBorrowValue).toNumber()).to.eq(0);
       expect(u192ToBN(obligationInfo.unhealthyBorrowValue).toNumber()).to.eq(0);

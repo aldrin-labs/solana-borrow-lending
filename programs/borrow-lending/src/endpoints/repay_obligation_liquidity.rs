@@ -1,6 +1,12 @@
 //! Allows the borrower to repay part or all of their loan against a single
 //! reserve. The caller of this endpoint, the repayer, doesn't have to
 //! necessarily be the owner of the obligation.
+//!
+//! Both [`LoanKind::Standard`] and [`LoanKind::YieldFarming`] can be repaid
+//! this way. However, for leveraged position you should also call
+//! [`crate::endpoints::leveraged_farming::aldrin::close`], because the borrower
+//! might have liquidity staked. See [`crate::endpoints::leverage_farming`] for
+//! more information on how to repay a leveraged loan.
 
 use crate::prelude::*;
 use anchor_spl::token::{self, Token};
@@ -10,15 +16,10 @@ pub struct RepayObligationLiquidity<'info> {
     /// Presumably `obligation.owner` but doesn't have to be.
     #[account(signer)]
     pub repayer: AccountInfo<'info>,
+    #[account(mut)]
+    pub obligation: AccountLoader<'info, Obligation>,
     #[account(
         mut,
-        constraint = !obligation.is_stale(&clock) @ err::obligation_stale(),
-    )]
-    pub obligation: Box<Account<'info, Obligation>>,
-    #[account(
-        mut,
-        constraint = reserve.lending_market == obligation.lending_market
-            @ err::market_mismatch(),
         constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
     pub reserve: Box<Account<'info, Reserve>>,
@@ -42,6 +43,7 @@ pub struct RepayObligationLiquidity<'info> {
 pub fn handle(
     ctx: Context<RepayObligationLiquidity>,
     liquidity_amount: u64,
+    loan_kind: LoanKind,
 ) -> ProgramResult {
     let accounts = ctx.accounts;
 
@@ -50,8 +52,17 @@ pub fn handle(
         return Err(ErrorCode::InvalidAmount.into());
     }
 
+    let mut obligation = accounts.obligation.load_mut()?;
+
+    if obligation.is_stale(&accounts.clock) {
+        return Err(err::obligation_stale());
+    }
+    if accounts.reserve.lending_market != obligation.lending_market {
+        return Err(err::market_mismatch());
+    }
+
     let (liquidity_index, liquidity) =
-        accounts.obligation.get_liquidity(accounts.reserve.key())?;
+        obligation.get_liquidity(accounts.reserve.key(), loan_kind)?;
     if liquidity.borrowed_amount.to_dec() == Decimal::zero() {
         return Err(err::empty_liquidity("Liquidity borrowed amount is zero"));
     }
@@ -80,26 +91,14 @@ pub fn handle(
         .repay(repay_amount, settle_amount)?;
 
     // and removes the owed amount from the obligation
-    accounts.obligation.repay(settle_amount, liquidity_index)?;
+    obligation.repay(settle_amount, liquidity_index)?;
 
     accounts.reserve.last_update.mark_stale();
-    accounts.obligation.last_update.mark_stale();
+    obligation.last_update.mark_stale();
 
     token::transfer(accounts.into_repay_liquidity_context(), repay_amount)?;
 
     Ok(())
-}
-
-// Amount of liquidity that is settled from the obligation and amount of tokens
-// to transfer to the reserve's liquidity wallet from borrower's source wallet.
-fn calculate_repay_amounts(
-    liquidity_amount: u64,
-    borrowed_amount: Decimal,
-) -> Result<(u64, Decimal)> {
-    let settle_amount = Decimal::from(liquidity_amount).min(borrowed_amount);
-    let repay_amount = settle_amount.try_ceil_u64()?;
-
-    Ok((repay_amount, settle_amount))
 }
 
 impl<'info> RepayObligationLiquidity<'info> {

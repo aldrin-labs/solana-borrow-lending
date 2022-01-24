@@ -18,11 +18,7 @@ pub struct RefreshReserve<'info> {
 
 pub fn handle(ctx: Context<RefreshReserve>) -> ProgramResult {
     let accounts = ctx.accounts;
-    msg!(
-        "refresh reserve '{}' at slot {}",
-        accounts.reserve.key(),
-        accounts.clock.slot
-    );
+    msg!("refresh reserve '{}'", accounts.reserve.key(),);
 
     let oracle_price_data = accounts.oracle_price.try_borrow_data()?;
     let oracle_price = pyth::Price::load(&oracle_price_data)?.validate()?;

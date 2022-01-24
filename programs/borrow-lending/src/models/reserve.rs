@@ -68,12 +68,15 @@ pub struct ReserveConfig {
     /// user is subject to liquidation if the value of the assets that they
     /// borrow has increased 90 USD.
     pub liquidation_threshold: PercentageInt,
-    /// Min borrow APY TODO
+    /// Min borrow APY, that is interest rate cannot be less than this.
     pub min_borrow_rate: PercentageInt,
-    /// Optimal (utilization) borrow APY TODO
+    /// Optimal borrow APY is "y graph" value of the borrow model where
+    /// utilization rate equals optimal utilization rate.
     pub optimal_borrow_rate: PercentageInt,
-    /// Max borrow APY TODO
+    /// Max borrow APY, that is interest rate cannot grow over this.
     pub max_borrow_rate: PercentageInt,
+    /// Maximum leverage yield farming position. I.e. 300 means 3x.
+    pub max_leverage: Leverage,
     /// Program owner fees separate from gains due to interest accrual.
     pub fees: ReserveFees,
 }
@@ -109,6 +112,13 @@ pub struct ReserveFees {
     /// 0.01% (1 basis point) = 100_000_000_000_000
     /// 0.00001% (Aave borrow fee) = 100_000_000_000
     pub borrow_fee: SDecimal,
+    /// Similar to borrow fee, but applies to leverage yield farming.
+    ///
+    /// # Important
+    /// The first release of LYF will not contain logic to charge leverage fee
+    /// because of compute unit limit. This value is left in the config for
+    /// future releases.
+    pub leverage_fee: SDecimal,
     /// Fee for flash loan, expressed as a Wad.
     /// 0.3% (Aave flash loan fee) = 3_000_000_000_000_000
     pub flash_loan_fee: SDecimal,
@@ -124,14 +134,21 @@ pub struct ReserveLiquidity {
     pub supply: Pubkey,
     pub fee_receiver: Pubkey,
     pub oracle: Oracle,
+    /// Available amount of liquidity to borrow. This is in the smallest unit
+    /// depending on decimal places of the token. I.e. this would be lamports
+    /// in case of SOL reserve or satoshis in case of BTC reserve.
     pub available_amount: u64,
     /// How much liquidity (with precision on 18 digit) is currently borrowed.
     /// The total liquidity supply is `borrowed_amount` + `available_amount`.
+    /// This is in the smallest unit depending on decimal places of the token.
+    /// I.e. this would be lamports in case of SOL reserve or satoshis in case
+    /// of BTC reserve.
     pub borrowed_amount: SDecimal,
-    /// TODO: explain how this works
+    /// Read the [Compound whitepaper](https://compound.finance/documents/Compound.Whitepaper.pdf) section "3.2.1 Market Dynamics".
     pub cumulative_borrow_rate: SDecimal,
     /// Reserve liquidity market price in universal asset currency
     pub market_price: SDecimal,
+    pub accrued_interest: SDecimal,
 }
 
 impl Default for ReserveLiquidity {
@@ -148,6 +165,7 @@ impl Default for ReserveLiquidity {
             fee_receiver: Pubkey::default(),
             oracle: Oracle::default(),
             market_price: Decimal::zero().into(),
+            accrued_interest: Decimal::zero().into(),
         }
     }
 }
@@ -212,12 +230,25 @@ impl Validate for ReserveConfig {
             );
             return Err(ErrorCode::InvalidConfig.into());
         }
+        let leverage_fee = self.fees.leverage_fee.to_dec();
+        if leverage_fee >= Decimal::one() {
+            msg!(
+                "Borrow fee must be in range [0, {}), got {}",
+                Decimal::one(),
+                leverage_fee
+            );
+            return Err(ErrorCode::InvalidConfig.into());
+        }
         if self.fees.flash_loan_fee.to_dec() >= Decimal::one() {
             msg!("Flash loan fee must be in range [0, {})", Decimal::one());
             return Err(ErrorCode::InvalidConfig.into());
         }
         if *self.fees.host_fee > 100 {
             msg!("Host fee percentage must be in range [0, 100]");
+            return Err(ErrorCode::InvalidConfig.into());
+        }
+        if *self.max_leverage < 100 {
+            msg!("Max leverage for yield farming must be 1x or more, i.e. [100,]");
             return Err(ErrorCode::InvalidConfig.into());
         }
 
@@ -322,13 +353,19 @@ impl Reserve {
         &self,
         borrow_amount: u64,
         max_borrow_value: Decimal,
+        loan_kind: LoanKind,
     ) -> Result<(Decimal, FeesCalculation)> {
         let decimals = 10u64
             .checked_pow(self.liquidity.mint_decimals as u32)
             .ok_or(ErrorCode::MathOverflow)?;
 
-        let fees =
-            self.config.fees.borrow_fees(Decimal::from(borrow_amount))?;
+        let fees = if matches!(loan_kind, LoanKind::Standard) {
+            self.config.fees.borrow_fees(Decimal::from(borrow_amount))?
+        } else {
+            self.config
+                .fees
+                .leverage_fees(Decimal::from(borrow_amount))?
+        };
 
         let borrow_amount =
             Decimal::from(borrow_amount).try_add(fees.borrow_fee.into())?;
@@ -429,6 +466,8 @@ impl ReserveLiquidity {
             .try_add(slot_interest_rate)?
             .try_pow(slots_elapsed)?;
 
+        let borrow_amount_before_interest = self.borrowed_amount.to_dec();
+
         // ref. eq. (5)
         self.borrowed_amount = self
             .borrowed_amount
@@ -436,7 +475,25 @@ impl ReserveLiquidity {
             .try_mul(compounded_interest_rate)?
             .into();
 
-        // TODO: explain
+        self.accrued_interest = self
+            .accrued_interest
+            .to_dec()
+            .try_add(
+                // we don't do negative interest so this is fine
+                self.borrowed_amount
+                    .to_dec()
+                    .try_sub(borrow_amount_before_interest)?,
+            )
+            .unwrap_or_else(|_|
+            // this will never happen, because it'd mean we've
+            // accrued 2^64 USD in interest
+            //
+            // but who can predict inflation, so let's just roll over for the
+            // correctness sake and handle that on backend
+            Decimal::zero())
+            .into();
+
+        // see the field description
         self.cumulative_borrow_rate = self
             .cumulative_borrow_rate
             .to_dec()
@@ -467,6 +524,15 @@ impl ReserveLiquidity {
             .to_dec()
             .try_add(borrow_decimal)?
             .into();
+
+        if self.utilization_rate()? >= consts::MAX_UTILIZATION_RATE.into() {
+            msg!(
+                "Borrowing {} tokens would raise utilization rate over {}%",
+                borrow_decimal,
+                consts::MAX_UTILIZATION_RATE.percent
+            );
+            return Err(ErrorCode::BorrowWouldHitCriticalUtilizationRate.into());
+        }
 
         Ok(())
     }
@@ -560,6 +626,21 @@ impl ReserveFees {
         self.calculate(borrow_amount, self.borrow_fee.into(), host_fee_rate)
     }
 
+    /// Calculate the owner and host fees on leverage borrow
+    fn leverage_fees(
+        &self,
+        _borrow_amount: Decimal,
+    ) -> Result<FeesCalculation> {
+        // let host_fee_rate = Decimal::from_percent(self.host_fee);
+        // self.calculate(borrow_amount, self.leverage_fee.into(),
+        // host_fee_rate) In the first release, we disable fees for
+        // leverage yield farming. https://gitlab.com/crypto_project/clockwork/borrow-lending/-/issues/29
+        Ok(FeesCalculation {
+            host_fee: 0,
+            borrow_fee: 0,
+        })
+    }
+
     fn calculate(
         &self,
         borrow_amount: Decimal,
@@ -626,8 +707,10 @@ mod tests {
               "minBorrowRate": { "percent": 1 },
               "optimalBorrowRate": { "percent": 5 },
               "maxBorrowRate": { "percent": 10 },
+              "maxLeverage": { "percent": 300 },
               "fees": {
                 "borrowFee": { "u192": [10000000000000000, 0, 0] },
+                "leverageFee": { "u192": [10000000000000000, 0, 0] },
                 "flashLoanFee": { "u192": [1000000000000000, 0, 0] },
                 "hostFee": { "percent": 2 }
               }
@@ -674,7 +757,9 @@ mod tests {
                 borrow_fee,
                 host_fee,
             },
-        ) = reserve.borrow_amount_with_fees(10, 1000u64.into()).unwrap();
+        ) = reserve
+            .borrow_amount_with_fees(10, 1000u64.into(), LoanKind::Standard)
+            .unwrap();
         assert_eq!(host_fee, 0);
         assert_eq!(borrow_fee, 7);
         assert_eq!(borrow, Decimal::from(17u64));
@@ -686,12 +771,16 @@ mod tests {
                 borrow_fee,
                 host_fee,
             },
-        ) = reserve.borrow_amount_with_fees(10, 1000u64.into()).unwrap();
+        ) = reserve
+            .borrow_amount_with_fees(10, 1000u64.into(), LoanKind::Standard)
+            .unwrap();
         assert_eq!(host_fee, 2);
         assert_eq!(borrow_fee, 7);
         assert_eq!(borrow, Decimal::from(17u64));
 
-        assert!(reserve.borrow_amount_with_fees(10, 100u64.into()).is_err());
+        assert!(reserve
+            .borrow_amount_with_fees(10, 100u64.into(), LoanKind::Standard)
+            .is_err());
     }
 
     #[test]
@@ -815,24 +904,24 @@ mod tests {
 
         let mut conf = valid_conf();
         conf.fees.borrow_fee = Decimal::one()
-            .try_add(Decimal::from_percent(50))
+            .try_add(Decimal::from_percent(50u64))
             .unwrap()
             .into();
         assert!(conf.validate().is_err());
         conf.fees.borrow_fee = Decimal::one()
-            .try_sub(Decimal::from_percent(50))
+            .try_sub(Decimal::from_percent(50u64))
             .unwrap()
             .into();
         assert!(conf.validate().is_ok());
 
         let mut conf = valid_conf();
         conf.fees.flash_loan_fee = Decimal::one()
-            .try_add(Decimal::from_percent(50))
+            .try_add(Decimal::from_percent(50u64))
             .unwrap()
             .into();
         assert!(conf.validate().is_err());
         conf.fees.flash_loan_fee = Decimal::one()
-            .try_sub(Decimal::from_percent(50))
+            .try_sub(Decimal::from_percent(50u64))
             .unwrap()
             .into();
         assert!(conf.validate().is_ok());
@@ -841,7 +930,7 @@ mod tests {
     #[test]
     fn borrow_fee_calculation_min_host() {
         let fees = ReserveFees {
-            borrow_fee: Decimal::from_percent(1).into(),
+            borrow_fee: Decimal::from_percent(1u64).into(),
             host_fee: 20.into(),
             ..Default::default()
         };
@@ -864,7 +953,7 @@ mod tests {
     #[test]
     fn test_borrow_fee_calculation_min_no_host() {
         let fees = ReserveFees {
-            borrow_fee: Decimal::from_percent(1).into(),
+            borrow_fee: Decimal::from_percent(1u64).into(),
             ..Default::default()
         };
 
@@ -891,7 +980,7 @@ mod tests {
     #[test]
     fn test_borrow_fee_calculation_host() {
         let fees = ReserveFees {
-            borrow_fee: Decimal::from_percent(1).into(),
+            borrow_fee: Decimal::from_percent(1u64).into(),
             host_fee: 20.into(),
             ..Default::default()
         };
@@ -908,7 +997,7 @@ mod tests {
     #[test]
     fn test_borrow_fee_calculation_no_host() {
         let fees = ReserveFees {
-            borrow_fee: Decimal::from_percent(1).into(),
+            borrow_fee: Decimal::from_percent(1u64).into(),
             ..Default::default()
         };
 
@@ -925,6 +1014,7 @@ mod tests {
         ReserveConfig {
             loan_to_value_ratio: 20.into(),
             liquidation_threshold: 50.into(),
+            max_leverage: 100.into(),
             ..Default::default()
         }
     }
@@ -1180,6 +1270,7 @@ mod tests {
             let fees = ReserveFees {
                 borrow_fee: Decimal::from_scaled_val(borrow_fee.into()).into(),
                 flash_loan_fee: Default::default(),
+                leverage_fee: Default::default(),
                 host_fee: host_fee.into(),
             };
             let FeesCalculation {

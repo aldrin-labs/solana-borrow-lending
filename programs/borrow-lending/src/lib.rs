@@ -1,3 +1,10 @@
+// We use zero copy for obligation. Zero copy uses
+// [repr(packed)](https://doc.rust-lang.org/nomicon/other-reprs.html). In future
+// releases, taking a reference to a field which is packed will not compile.
+// We will need to, eventually, copy out fields we want to use, or create
+// pointers [manually](https://github.com/rust-lang/rust/issues/82523).
+#![allow(unaligned_references, safe_packed_borrows)]
+
 #[cfg(test)]
 #[macro_use]
 extern crate memoffset;
@@ -14,6 +21,7 @@ pub mod prelude;
 use endpoints::*;
 use prelude::*;
 
+// TODO: pull this from ENV
 declare_id!("7vRDzPZK2toUCkGUgtb1uPZLXvtj8YvXUKUBRh8Ufr5y");
 
 #[program]
@@ -23,8 +31,27 @@ pub mod borrow_lending {
     pub fn init_lending_market(
         ctx: Context<InitLendingMarket>,
         currency: UniversalAssetCurrency,
+        compound_fee: PercentageInt,
+        min_collateral_uac_value_for_leverage: SDecimal,
     ) -> ProgramResult {
-        endpoints::init_lending_market::handle(ctx, currency)
+        endpoints::init_lending_market::handle(
+            ctx,
+            currency,
+            compound_fee,
+            min_collateral_uac_value_for_leverage,
+        )
+    }
+
+    pub fn update_lending_market(
+        ctx: Context<UpdateLendingMarket>,
+        compound_fee: PercentageInt,
+        min_collateral_uac_value_for_leverage: SDecimal,
+    ) -> ProgramResult {
+        endpoints::update_lending_market::handle(
+            ctx,
+            compound_fee,
+            min_collateral_uac_value_for_leverage,
+        )
     }
 
     pub fn set_lending_market_owner(
@@ -45,6 +72,13 @@ pub mod borrow_lending {
             liquidity_amount,
             config,
         )
+    }
+
+    pub fn update_reserve_config(
+        ctx: Context<UpdateReserveConfig>,
+        config: InputReserveConfig,
+    ) -> ProgramResult {
+        endpoints::update_reserve_config::handle(ctx, config)
     }
 
     pub fn refresh_reserve(ctx: Context<RefreshReserve>) -> ProgramResult {
@@ -128,8 +162,13 @@ pub mod borrow_lending {
     pub fn repay_obligation_liquidity(
         ctx: Context<RepayObligationLiquidity>,
         liquidity_amount: u64,
+        loan_kind: LoanKind,
     ) -> ProgramResult {
-        endpoints::repay_obligation_liquidity::handle(ctx, liquidity_amount)
+        endpoints::repay_obligation_liquidity::handle(
+            ctx,
+            liquidity_amount,
+            loan_kind,
+        )
     }
 
     /// Any user can repay part of loan of a specific reserve for advantageous
@@ -138,11 +177,13 @@ pub mod borrow_lending {
         ctx: Context<LiquidateObligation>,
         lending_market_bump_seed: u8,
         liquidity_amount: u64,
+        loan_kind: LoanKind,
     ) -> ProgramResult {
         endpoints::liquidate_obligation::handle(
             ctx,
             lending_market_bump_seed,
             liquidity_amount,
+            loan_kind,
         )
     }
 
@@ -167,5 +208,67 @@ pub mod borrow_lending {
     /// Used by the market owner to conditionally turn off/on flash loans.
     pub fn toggle_flash_loans(ctx: Context<ToggleFlashLoans>) -> ProgramResult {
         endpoints::toggle_flash_loans::handle(ctx)
+    }
+
+    /// Communicates with Aldrin's AMM contract to start leverage yield farming.
+    ///
+    /// We stake `stake_lp_amount` of LP tokens in a farming ticket.
+    ///
+    /// We borrow `liquidity_amount` from the reserve's supply, and the
+    /// liquidity amount can be higher than collateralized max borrow
+    /// value by the leverage factor.
+    ///
+    /// Optionally, we swap `swap_amount` of the liquidity token (mint of
+    /// `reserve.liquidity.mint`) and provided slippage `min_swap_return`
+    /// dictates how many tokens at least to expect for the `swap_amount` in
+    /// the other constituent token mint.
+    ///
+    /// Whether the base or quote token mint is the borrowed liquidity token
+    /// is given by which one matches the above mentioned
+    /// `reserve.liquidity.mint`.
+    pub fn open_leveraged_position_on_aldrin(
+        ctx: Context<OpenLeveragedPositionOnAldrin>,
+        lending_market_bump_seed: u8,
+        market_obligation_bump_seed: u8,
+        stake_lp_amount: u64,
+        liquidity_amount: u64,
+        swap_amount: u64,
+        min_swap_return: u64,
+        leverage: Leverage,
+    ) -> ProgramResult {
+        endpoints::leverage_farming::aldrin::open::handle(
+            ctx,
+            lending_market_bump_seed,
+            market_obligation_bump_seed,
+            stake_lp_amount,
+            liquidity_amount,
+            swap_amount,
+            min_swap_return,
+            leverage,
+        )
+    }
+
+    pub fn close_leveraged_position_on_aldrin(
+        ctx: Context<CloseLeveragedPositionOnAldrin>,
+        market_obligation_bump_seed: u8,
+        leverage: Leverage,
+    ) -> ProgramResult {
+        endpoints::leverage_farming::aldrin::close::handle(
+            ctx,
+            market_obligation_bump_seed,
+            leverage,
+        )
+    }
+
+    pub fn compound_leveraged_position_on_aldrin(
+        ctx: Context<CompoundLeveragedPositionOnAldrin>,
+        stake_lp_amount: u64,
+        seeds: Vec<Vec<u8>>,
+    ) -> ProgramResult {
+        endpoints::leverage_farming::aldrin::compound::handle(
+            ctx,
+            stake_lp_amount,
+            seeds,
+        )
     }
 }

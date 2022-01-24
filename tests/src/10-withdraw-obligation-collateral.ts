@@ -128,14 +128,15 @@ export function test(
         shmemProgramId
       );
       const differentObligation = await differentMarket.addObligation();
+      differentObligation.reservesToRefresh.add(reserve);
 
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
         differentObligation.withdraw(reserve, destinationCollateralWallet, 10)
-      ).to.be.rejected;
+      ).to.be.rejectedWith(/seeds constraint was violated/);
 
-      expect(stdCapture.restore()).to.contain("LendingMarketMismatch");
+      stdCapture.restore();
     });
 
     it("fails if source collateral wallet doesn't match reserve's config", async () => {

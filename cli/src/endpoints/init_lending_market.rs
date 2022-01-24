@@ -27,8 +27,10 @@
 use crate::prelude::*;
 use borrow_lending::accounts::InitLendingMarket as Accounts;
 use borrow_lending::instruction::InitLendingMarket as Instruction;
-use borrow_lending::models::LendingMarket;
-use borrow_lending::models::UniversalAssetCurrency;
+use borrow_lending::{
+    math::{Decimal, PercentageInt},
+    models::{LendingMarket, UniversalAssetCurrency},
+};
 use std::mem;
 
 pub fn app() -> App<'static> {
@@ -50,6 +52,21 @@ pub fn app() -> App<'static> {
                     "path to a keypair with pubkey of the newly \
                     initialized market",
                 )
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("bot")
+                .long("bot")
+                .about(
+                    "pubkey of account which is signer of operations delegated
+                    to Aldrin bot, such as compounding",
+                )
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("compound-fee")
+                .long("compound-fee")
+                .about("how many percents of rewards we take on compounding")
                 .takes_value(true),
         )
         .arg(
@@ -77,6 +94,15 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
     let market = load_keypair(
         matches.value_of("keypair"),
         "Path to keypair for market account must be provided with --keypair",
+    );
+
+    let bot =
+        load_pubkey(matches.value_of("bot"), "Provide bot's pubkey with --bot");
+
+    let (_, compound_fee) = load_value(
+        matches.value_of("compount-fee"),
+        || panic!("Compound fee percentage must be provided"),
+        |fee| u8::from_str(fee).expect("compound fee must be a byte"),
     );
 
     let currency = if matches.is_present("usd") {
@@ -107,12 +133,14 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         - balance:  {} lamports
         - currency: {:?}
         - owner:    '{}'
+        - bot:      '{}'
         \n",
         market.pubkey(),
         market_account_size,
         with_balance,
         currency,
-        owner.pubkey()
+        owner.pubkey(),
+        bot
     );
 
     let mut transaction = program
@@ -128,8 +156,17 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         .accounts(Accounts {
             owner: owner.pubkey(),
             lending_market: market.pubkey(),
+            compound_bot: bot,
         })
-        .args(Instruction { currency });
+        .args(Instruction {
+            currency,
+            compound_fee: PercentageInt {
+                percent: compound_fee,
+            },
+            // $10 can be hard coded, extremely unlikely need for configuration
+            // via CLI
+            min_collateral_uac_value_for_leverage: Decimal::from(10u64).into(),
+        });
 
     // the payer signature is added by the framework, so in order not to
     // duplicate it we conditional sign owner if it's not defaulted to payer

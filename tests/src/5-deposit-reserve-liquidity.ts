@@ -74,7 +74,7 @@ export function test(
         reserve.deposit(50, {
           tokenProgram: Keypair.generate().publicKey,
         })
-      ).to.be.rejectedWith(/Program ID was not as expected/);
+      ).to.be.rejected;
 
       stdCapture.restore();
     });

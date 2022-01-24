@@ -21,8 +21,6 @@ pub struct RedeemReserveCollateral<'info> {
     /// funder plus accrued interest. The interest they receive is given by the
     /// exchange rate between the collateral token and liquidity token. See
     /// eq. (2).
-    ///
-    /// TBD: Should the funder be the accounts authority?
     #[account(
         mut,
         constraint = destination_liquidity_wallet.mint == reserve.liquidity.mint

@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, Default)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default)]
 pub struct LastUpdate {
     pub slot: u64,
     pub stale: bool,

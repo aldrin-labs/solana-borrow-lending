@@ -73,6 +73,13 @@ impl SDecimal {
     pub fn to_dec(self) -> Decimal {
         self.into()
     }
+
+    #[cfg(test)]
+    pub fn fill(with: u64) -> Self {
+        Self {
+            u192: [with, with, with],
+        }
+    }
 }
 
 #[cfg(test)]

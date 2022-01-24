@@ -6,6 +6,7 @@ use anchor_client::{Client, Cluster};
 use dotenv::dotenv;
 use endpoints::*;
 use prelude::*;
+use std::rc::Rc;
 
 fn main() {
     dotenv().ok();
@@ -45,7 +46,7 @@ fn main() {
     let payer = payer(app.value_of("payer"));
     let client = Client::new_with_options(
         cluster(app.value_of("cluster")),
-        Keypair::from_bytes(&payer.to_bytes()).unwrap(),
+        Rc::new(Keypair::from_bytes(&payer.to_bytes()).unwrap()),
         CommitmentConfig::finalized(),
     );
 

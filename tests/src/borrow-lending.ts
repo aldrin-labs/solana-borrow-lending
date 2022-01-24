@@ -4,11 +4,18 @@ import chai from "chai";
 chai.use(chaiAsPromised);
 
 import { readFile } from "fs/promises";
-import { Keypair, BPF_LOADER_PROGRAM_ID, BpfLoader } from "@solana/web3.js";
+import { writeFileSync } from "fs";
+import {
+  Keypair,
+  BPF_LOADER_PROGRAM_ID,
+  BpfLoader,
+  PublicKey,
+} from "@solana/web3.js";
 import * as anchor from "@project-serum/anchor";
-import { Program } from "@project-serum/anchor";
+import { Program, Provider } from "@project-serum/anchor";
 import { BorrowLending } from "../../target/types/borrow_lending";
-import { SHMEM_SO_BIN_PATH } from "./consts";
+import { AMM_TARGET_SO_BIN_PATH, SHMEM_SO_BIN_PATH } from "./consts";
+import ammIdl from "../../bin/amm/idl/mm_farming_pool_product_only.json";
 
 import { test as testInitLendingMarket } from "./1-init-lending-market";
 import { test as testSetLendingMarketOwner } from "./2-set-lending-market-owner";
@@ -24,20 +31,38 @@ import { test as testBorrowObligationLiquidity } from "./11-borrow-obligation-li
 import { test as testRepayObligationLiquidity } from "./12-repay-obligation-liquidity";
 import { test as testLiquidateObligation } from "./13-liquidate-obligation";
 import { test as testFlashLoan } from "./14-flash-loan";
+import { test as testLeveragedPositionOnAldrin } from "./15-leveraged-position-on-aldrin";
 
 describe("borrow-lending", () => {
-  const provider = anchor.Provider.local();
+  const ammKeypair = Keypair.generate();
+  writeFileSync(
+    "target/idl/mm_farming_pool_product_only.json",
+    JSON.stringify({
+      ...ammIdl,
+      ...{
+        metadata: {
+          address: ammKeypair.publicKey.toBase58(),
+        },
+      },
+    })
+  );
+
+  const provider = Provider.local();
   anchor.setProvider(provider);
 
-  const program = anchor.workspace.BorrowLending as Program<BorrowLending>;
+  const blp = anchor.workspace.BorrowLending as Program<BorrowLending>;
+  // TODO: no types yet, old anchor version
+  const amm = anchor.workspace.MmFarmingPoolProductOnly as Program<any>;
 
-  const shmemProgram = Keypair.generate();
+  const shmemKeypair = Keypair.generate();
   const payer = Keypair.generate();
+  const ammPoolAuthority = Keypair.generate();
 
   console.table({
-    programId: program.programId.toString(),
-    payer: payer.publicKey.toString(),
-    shmem: shmemProgram.publicKey.toString(),
+    blp: blp.programId.toBase58(),
+    amm: amm.programId.toBase58(),
+    payer: payer.publicKey.toBase58(),
+    shmem: shmemKeypair.publicKey.toBase58(),
   });
 
   before("airdrop SOL", async () => {
@@ -56,28 +81,78 @@ describe("borrow-lending", () => {
   });
 
   before("deploy shmem", async () => {
-    const programBin = await readFile(SHMEM_SO_BIN_PATH);
-    BpfLoader.load(
+    await BpfLoader.load(
       provider.connection,
       payer,
-      shmemProgram,
-      programBin,
+      shmemKeypair,
+      await readFile(SHMEM_SO_BIN_PATH),
       BPF_LOADER_PROGRAM_ID
     );
   });
 
-  testInitLendingMarket(program);
-  testSetLendingMarketOwner(program);
-  testInitReserve(program, payer, shmemProgram.publicKey);
-  testRefreshReserve(program, payer, shmemProgram.publicKey);
-  testDepositReserveLiquidity(program, payer, shmemProgram.publicKey);
-  testRedeemReserveCollateral(program, payer, shmemProgram.publicKey);
-  testInitObligation(program, payer, shmemProgram.publicKey);
-  testRefreshObligation(program, payer, shmemProgram.publicKey);
-  testDepositObligationCollateral(program, payer, shmemProgram.publicKey);
-  testWithdrawObligationCollateral(program, payer, shmemProgram.publicKey);
-  testBorrowObligationLiquidity(program, payer, shmemProgram.publicKey);
-  testRepayObligationLiquidity(program, payer, shmemProgram.publicKey);
-  testLiquidateObligation(program, payer, shmemProgram.publicKey);
-  testFlashLoan(program, payer, shmemProgram.publicKey);
+  before("deploy amm", async () => {
+    // Taking a farming snapshot cannot be ran out of the box, because AMM
+    // has hardcoded authority pubkey for taking snapshots and we don't have
+    // the privkey to sign the transactions.
+    //
+    // A duck tape solution is to search for the pubkey in the ammv2 binary and
+    // replace the bytes with a custom pubkey to which we do have privkey
+    const bin = await readFile(AMM_TARGET_SO_BIN_PATH);
+    const ORIGINAL_POOL_AUTHORITY = new PublicKey(
+      "BqSGA2WdiQXA2cC1EdGDnVD615A4nYEAq49K3fz2hNBo"
+    ).toBuffer();
+    while (true) {
+      const poolAuthIndex = bin.indexOf(ORIGINAL_POOL_AUTHORITY);
+      if (poolAuthIndex !== -1) {
+        bin.set(ammPoolAuthority.publicKey.toBytes(), poolAuthIndex);
+      } else {
+        break;
+      }
+    }
+
+    // sometimes the upload fails due to a timeout
+    const uploadRetries = 3;
+    for (let i = 0; i < uploadRetries; i++) {
+      try {
+        await BpfLoader.load(
+          provider.connection,
+          payer,
+          ammKeypair,
+          bin,
+          BPF_LOADER_PROGRAM_ID
+        );
+
+        break;
+      } catch (error) {
+        if (i === uploadRetries - 1) {
+          console.log("Cannot upload amm program:", error);
+        } else {
+          console.log("Amm upload failed, retrying...");
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      }
+    }
+  });
+
+  testInitLendingMarket(blp);
+  testSetLendingMarketOwner(blp);
+  testInitReserve(blp, payer, shmemKeypair.publicKey);
+  testRefreshReserve(blp, payer, shmemKeypair.publicKey);
+  testDepositReserveLiquidity(blp, payer, shmemKeypair.publicKey);
+  testRedeemReserveCollateral(blp, payer, shmemKeypair.publicKey);
+  testInitObligation(blp, payer, shmemKeypair.publicKey);
+  testRefreshObligation(blp, payer, shmemKeypair.publicKey);
+  testDepositObligationCollateral(blp, payer, shmemKeypair.publicKey);
+  testWithdrawObligationCollateral(blp, payer, shmemKeypair.publicKey);
+  testBorrowObligationLiquidity(blp, payer, shmemKeypair.publicKey);
+  testRepayObligationLiquidity(blp, payer, shmemKeypair.publicKey);
+  testLiquidateObligation(blp, payer, shmemKeypair.publicKey);
+  testFlashLoan(blp, payer, shmemKeypair.publicKey);
+  testLeveragedPositionOnAldrin(
+    blp,
+    amm,
+    payer,
+    ammPoolAuthority,
+    shmemKeypair.publicKey
+  );
 });

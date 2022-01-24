@@ -16,21 +16,10 @@ pub struct BorrowObligationLiquidity<'info> {
     #[account(signer)]
     pub borrower: AccountInfo<'info>,
     /// Must be refreshed and deposited with some collateral.
+    #[account(mut)]
+    pub obligation: AccountLoader<'info, Obligation>,
     #[account(
         mut,
-        constraint = borrower.key() == obligation.owner
-            @ ProgramError::IllegalOwner,
-        constraint = !obligation.is_stale(&clock) @ err::obligation_stale(),
-        constraint = obligation.has_deposits()
-            @ err::empty_collateral("No collateral deposited"),
-        constraint = !obligation.is_deposited_value_zero()
-            @ err::empty_collateral("Collateral deposited value is zero"),
-    )]
-    pub obligation: Box<Account<'info, Obligation>>,
-    #[account(
-        mut,
-        constraint = reserve.lending_market == obligation.lending_market
-            @ err::market_mismatch(),
         constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
     pub reserve: Box<Account<'info, Reserve>>,
@@ -84,7 +73,28 @@ pub fn handle<'info>(
         return Err(ErrorCode::InvalidAmount.into());
     }
 
-    let remaining_borrow_value = accounts.obligation.remaining_borrow_value();
+    let mut obligation = accounts.obligation.load_mut()?;
+
+    if accounts.borrower.key() != obligation.owner {
+        return Err(ProgramError::IllegalOwner);
+    }
+    if obligation.is_stale(&accounts.clock) {
+        return Err(err::obligation_stale());
+    }
+    if !obligation.has_deposits() {
+        return Err(err::empty_collateral("No collateral deposited"));
+    }
+    if obligation.is_deposited_value_zero() {
+        return Err(err::empty_collateral(
+            "Collateral deposited value is zero",
+        ));
+    }
+    if accounts.reserve.lending_market != obligation.lending_market {
+        return Err(err::market_mismatch());
+    }
+
+    let remaining_borrow_value =
+        obligation.remaining_collateralized_borrow_value();
     if remaining_borrow_value == Decimal::zero() {
         msg!("Remaining borrow value is zero");
         return Err(ErrorCode::BorrowTooLarge.into());
@@ -97,20 +107,24 @@ pub fn handle<'info>(
             borrow_fee,
             host_fee,
         },
-    ) = accounts
-        .reserve
-        .borrow_amount_with_fees(liquidity_amount, remaining_borrow_value)?;
+    ) = accounts.reserve.borrow_amount_with_fees(
+        liquidity_amount,
+        remaining_borrow_value,
+        LoanKind::Standard,
+    )?;
 
     // marks the funds including fees as borrowed
     accounts.reserve.liquidity.borrow(borrow_amount)?;
 
     // and takes note of that in the obligation
-    accounts
-        .obligation
-        .borrow(accounts.reserve.key(), borrow_amount)?;
+    obligation.borrow(
+        accounts.reserve.key(),
+        borrow_amount,
+        LoanKind::Standard,
+    )?;
 
     accounts.reserve.last_update.mark_stale();
-    accounts.obligation.last_update.mark_stale();
+    obligation.last_update.mark_stale();
 
     let pda_seeds = &[
         &accounts.reserve.lending_market.to_bytes()[..],

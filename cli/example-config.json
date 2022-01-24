@@ -6,8 +6,10 @@
   "minBorrowRate": { "percent": 1 },
   "optimalBorrowRate": { "percent": 5 },
   "maxBorrowRate": { "percent": 10 },
+  "maxLeverage": { "percent": 300 },
   "fees": {
     "borrowFee": { "u192": [10000000000000000, 0, 0] },
+    "leverageFee": { "u192": [0, 0, 0] },
     "flashLoanFee": { "u192": [1000000000000000, 0, 0] },
     "hostFee": { "percent": 2 }
   }

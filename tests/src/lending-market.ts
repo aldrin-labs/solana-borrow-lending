@@ -4,6 +4,7 @@ import { PublicKey, Keypair, Connection } from "@solana/web3.js";
 import { Reserve, ReserveBuilder, ReserveConfig } from "./reserve";
 import { Obligation } from "./obligation";
 import { OracleMarket } from "./pyth";
+import { numberToU192 } from "./helpers";
 
 export class LendingMarket {
   public get id(): PublicKey {
@@ -36,11 +37,13 @@ export class LendingMarket {
 
     await program.rpc.initLendingMarket(
       currency === "usd" ? { usd: {} } : { pubkey: { address: currency } },
+      { percent: 10 }, // 10% borrow fee
+      numberToU192(10), // $10 min collateral for borrowing
       {
         accounts: {
           owner: owner.publicKey,
           lendingMarket: marketAccount.publicKey,
-          oracleProgram: oracle,
+          compoundBot: owner.publicKey,
         },
         instructions: [
           await program.account.lendingMarket.createInstruction(marketAccount),
