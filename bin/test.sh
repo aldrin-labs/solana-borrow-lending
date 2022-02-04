@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# install solana 1.7.17, anchor ^0.20
+solana --version 2>&1 1>/dev/null || sh -c "$(curl -sSfL https://release.solana.com/v1.7.17/install)"
+solana --version |grep 1.7.17 || solana-install init 1.7.17
+anchor --version 2>&1 1>/dev/null || cargo install anchor-cli --git https://github.com/project-serum/anchor --vers ^0.20 --locked
+
 if [ -f .env ]
 then
     export $(cat .env | sed 's/#.*//g' | xargs)
