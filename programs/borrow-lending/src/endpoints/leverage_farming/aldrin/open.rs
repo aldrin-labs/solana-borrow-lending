@@ -217,6 +217,7 @@ pub fn handle(
         accounts.reserve.key(),
         borrow_amount,
         LoanKind::YieldFarming { leverage },
+        accounts.clock.slot,
     )?;
 
     accounts.reserve.last_update.mark_stale();

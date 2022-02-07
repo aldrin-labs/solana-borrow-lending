@@ -80,12 +80,12 @@ export function test(
     });
 
     it("fails if oracle product's price doesn't match price account", async () => {
-      const stdCapture = new CaptureStdoutAndStderr();
-
       const someReserve = await market.addReserve(10);
 
       const builder = await ReserveBuilder.new(market, shmemProgramId, owner);
       builder.accounts.oraclePrice = someReserve.accounts.oraclePrice;
+
+      const stdCapture = new CaptureStdoutAndStderr();
       await expect(builder.build(10)).to.be.rejected;
 
       expect(stdCapture.restore()).to.contain(

@@ -130,7 +130,11 @@ pub fn handle(
         withdraw_amount
     };
 
-    obligation.withdraw(withdraw_amount, collateral_index)?;
+    obligation.withdraw(
+        withdraw_amount,
+        collateral_index,
+        accounts.clock.slot,
+    )?;
     obligation.last_update.mark_stale();
 
     let pda_seeds = &[

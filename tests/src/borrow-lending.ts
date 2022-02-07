@@ -32,8 +32,10 @@ import { test as testRepayObligationLiquidity } from "./12-repay-obligation-liqu
 import { test as testLiquidateObligation } from "./13-liquidate-obligation";
 import { test as testFlashLoan } from "./14-flash-loan";
 import { test as testLeveragedPositionOnAldrin } from "./15-leveraged-position-on-aldrin";
+import { test as testTakeReserveCapSnapshot } from "./16-take-reserve-cap-snapshot";
+import { test as testEmissionStrategy } from "./17-emission";
 
-describe("borrow-lending", () => {
+describe("borrow-lending", function () {
   const ammKeypair = Keypair.generate();
   writeFileSync(
     "target/idl/mm_farming_pool_product_only.json",
@@ -90,7 +92,51 @@ describe("borrow-lending", () => {
     );
   });
 
+  testInitLendingMarket(blp);
+  testSetLendingMarketOwner(blp);
+  testInitReserve(blp, payer, shmemKeypair.publicKey);
+  testRefreshReserve(blp, payer, shmemKeypair.publicKey);
+  testDepositReserveLiquidity(blp, payer, shmemKeypair.publicKey);
+  testRedeemReserveCollateral(blp, payer, shmemKeypair.publicKey);
+  testInitObligation(blp, payer, shmemKeypair.publicKey);
+  testRefreshObligation(blp, payer, shmemKeypair.publicKey);
+  testDepositObligationCollateral(blp, payer, shmemKeypair.publicKey);
+  testWithdrawObligationCollateral(blp, payer, shmemKeypair.publicKey);
+  testBorrowObligationLiquidity(blp, payer, shmemKeypair.publicKey);
+  testRepayObligationLiquidity(blp, payer, shmemKeypair.publicKey);
+  testLiquidateObligation(blp, payer, shmemKeypair.publicKey);
+  testFlashLoan(blp, payer, shmemKeypair.publicKey);
+  testLeveragedPositionOnAldrin(
+    blp,
+    amm,
+    payer,
+    ammPoolAuthority,
+    shmemKeypair.publicKey
+  );
+  testTakeReserveCapSnapshot(blp, payer, shmemKeypair.publicKey);
+  testEmissionStrategy(blp, payer, shmemKeypair.publicKey);
+
+  // get a list of top level suites which will run
+  const onlySuites: string[] = this.suites
+    .filter((suite) => {
+      const hasOnlyTests = (suite as any)._onlyTests.length > 0;
+      const hasOnlySuites = (suite as any)._onlySuites.length > 0;
+      const isOnlySuite = (this as any)._onlySuites.includes(suite);
+      return hasOnlyTests || hasOnlySuites || isOnlySuite;
+    })
+    .map((suite) => suite.title);
+
   before("deploy amm", async () => {
+    if (
+      onlySuites.length > 0 &&
+      !onlySuites.includes("leveraged position on Aldrin")
+    ) {
+      // AMM is not necessary for all tests, but it takes long time to upload.
+      // To speed up iteration, upload it only when necessary.
+      console.log("Skipping AMM deploy");
+      return;
+    }
+
     // Taking a farming snapshot cannot be ran out of the box, because AMM
     // has hardcoded authority pubkey for taking snapshots and we don't have
     // the privkey to sign the transactions.
@@ -133,26 +179,4 @@ describe("borrow-lending", () => {
       }
     }
   });
-
-  testInitLendingMarket(blp);
-  testSetLendingMarketOwner(blp);
-  testInitReserve(blp, payer, shmemKeypair.publicKey);
-  testRefreshReserve(blp, payer, shmemKeypair.publicKey);
-  testDepositReserveLiquidity(blp, payer, shmemKeypair.publicKey);
-  testRedeemReserveCollateral(blp, payer, shmemKeypair.publicKey);
-  testInitObligation(blp, payer, shmemKeypair.publicKey);
-  testRefreshObligation(blp, payer, shmemKeypair.publicKey);
-  testDepositObligationCollateral(blp, payer, shmemKeypair.publicKey);
-  testWithdrawObligationCollateral(blp, payer, shmemKeypair.publicKey);
-  testBorrowObligationLiquidity(blp, payer, shmemKeypair.publicKey);
-  testRepayObligationLiquidity(blp, payer, shmemKeypair.publicKey);
-  testLiquidateObligation(blp, payer, shmemKeypair.publicKey);
-  testFlashLoan(blp, payer, shmemKeypair.publicKey);
-  testLeveragedPositionOnAldrin(
-    blp,
-    amm,
-    payer,
-    ammPoolAuthority,
-    shmemKeypair.publicKey
-  );
 });

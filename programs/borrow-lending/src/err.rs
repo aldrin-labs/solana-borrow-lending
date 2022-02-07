@@ -86,6 +86,18 @@ pub enum ErrorCode {
     CompoundingLpPriceMustNotBeLessThanFarmPrice,
     #[msg("Utilization rate cannot go over a threshold value")]
     BorrowWouldHitCriticalUtilizationRate,
+    #[msg("You must wait some minimum period before taking this action")]
+    MinDelayPeriodNotPassed,
+    #[msg("Invalid account combination provided")]
+    InvalidAccountInput,
+    #[msg("Either the position doesn't exist, or it's not available for claiming yet")]
+    CannotClaimEmissionFromReserveIndex,
+    #[msg("Minimum waiting time to claim emissions didn't pass")]
+    MustWaitBeforeEmissionBecomeClaimable,
+    #[msg("All emission already claimed")]
+    EmissionEnded,
+    #[msg("More snapshots have to be taken for the reserve before emissions can work")]
+    NotEnoughSnapshots,
 }
 
 impl PartialEq for Error {
@@ -103,7 +115,7 @@ pub fn illegal_owner(msg: impl AsRef<str>) -> ProgramError {
 pub fn acc(msg: impl AsRef<str>) -> ProgramError {
     msg!("[InvalidAccountInput] {}", msg.as_ref());
 
-    ProgramError::InvalidAccountData
+    ErrorCode::InvalidAccountInput.into()
 }
 
 pub fn reserve_stale() -> ProgramError {

@@ -243,9 +243,9 @@ impl Side {
         } else {
             msg!(
                 "The reserve's liquidity mint must match either \
-            the base token vault mint or quote token vault mint"
+                the base token vault mint or quote token vault mint"
             );
-            Err(ProgramError::InvalidAccountData)
+            Err(ProgramError::from(ErrorCode::InvalidAccountInput))
         };
 
         Ok(side?)

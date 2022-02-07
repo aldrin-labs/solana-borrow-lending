@@ -3,6 +3,7 @@
 .anchor
 .env
 .mainnet/
+.mainnet-2/
 .tmp/
 bin/*.so
 bin/amm

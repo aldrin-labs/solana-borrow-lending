@@ -4,7 +4,7 @@
 //!
 //! Both [`LoanKind::Standard`] and [`LoanKind::YieldFarming`] can be repaid
 //! this way. However, for leveraged position you should also call
-//! [`crate::endpoints::leveraged_farming::aldrin::close`], because the borrower
+//! [`crate::endpoints::leverage_farming::aldrin::close`], because the borrower
 //! might have liquidity staked. See [`crate::endpoints::leverage_farming`] for
 //! more information on how to repay a leveraged loan.
 
@@ -91,7 +91,7 @@ pub fn handle(
         .repay(repay_amount, settle_amount)?;
 
     // and removes the owed amount from the obligation
-    obligation.repay(settle_amount, liquidity_index)?;
+    obligation.repay(settle_amount, liquidity_index, accounts.clock.slot)?;
 
     accounts.reserve.last_update.mark_stale();
     obligation.last_update.mark_stale();

@@ -3,7 +3,7 @@
 // releases, taking a reference to a field which is packed will not compile.
 // We will need to, eventually, copy out fields we want to use, or create
 // pointers [manually](https://github.com/rust-lang/rust/issues/82523).
-#![allow(unaligned_references, safe_packed_borrows)]
+#![allow(unaligned_references, renamed_and_removed_lints, safe_packed_borrows)]
 
 #[cfg(test)]
 #[macro_use]
@@ -22,7 +22,7 @@ use endpoints::*;
 use prelude::*;
 
 // TODO: pull this from ENV
-declare_id!("7vRDzPZK2toUCkGUgtb1uPZLXvtj8YvXUKUBRh8Ufr5y");
+declare_id!("HH6BiQtvsL6mh7En2knBeTDqmGjYCJFiXiqixrG8nndB");
 
 #[program]
 pub mod borrow_lending {
@@ -112,8 +112,6 @@ pub mod borrow_lending {
     /// Creates a new obligation with up to 10 possible different reserves from
     /// which to borrow or to which to deposit.
     pub fn init_obligation_r10(ctx: Context<InitObligation>) -> ProgramResult {
-        assert_eq!(10, consts::MAX_OBLIGATION_RESERVES);
-
         endpoints::init_obligation::handle(ctx)
     }
 
@@ -269,6 +267,59 @@ pub mod borrow_lending {
             ctx,
             stake_lp_amount,
             seeds,
+        )
+    }
+
+    /// Admin bot only endpoint which records the borrowed and available funds
+    /// at present time for a reserve.
+    pub fn take_reserve_cap_snapshot(
+        ctx: Context<TakeReserveCapSnapshot>,
+    ) -> ProgramResult {
+        endpoints::emit::take_reserve_cap_snapshot::handle(ctx)
+    }
+
+    /// Closes emission account and transfers wallets with emitted tokens which
+    /// were not collected back to the market owner.
+    pub fn close_emission<'info>(
+        ctx: Context<'_, '_, '_, 'info, CloseEmission<'info>>,
+        lending_market_bump_seed: u8,
+    ) -> ProgramResult {
+        endpoints::emit::close_emission::handle(ctx, lending_market_bump_seed)
+    }
+
+    /// Creates new account with up to [`consts::EMISSION_TOKENS_COUNT`]
+    /// different emission tokens. The wallet for each token must be
+    /// provided in as remaining account in the same order as given in the input
+    /// vector.
+    pub fn create_emission<'info>(
+        ctx: Context<'_, '_, '_, 'info, CreateEmission<'info>>,
+        lending_market_bump_seed: u8,
+        starts_at_slot: u64,
+        ends_at_slot: u64,
+        min_slots_elapsed_before_claim: u64,
+        tokens: Vec<EmittedToken>,
+    ) -> ProgramResult {
+        endpoints::emit::create_emission::handle(
+            ctx,
+            lending_market_bump_seed,
+            starts_at_slot,
+            ends_at_slot,
+            min_slots_elapsed_before_claim,
+            tokens,
+        )
+    }
+
+    /// Intended for users to claim emissions from their open positions, be it
+    /// borrows or deposits.
+    pub fn claim_emission<'info>(
+        ctx: Context<'_, '_, '_, 'info, ClaimEmission<'info>>,
+        lending_market_bump_seed: u8,
+        reserve_index: u8,
+    ) -> ProgramResult {
+        endpoints::emit::claim_emission::handle(
+            ctx,
+            lending_market_bump_seed,
+            reserve_index,
         )
     }
 }

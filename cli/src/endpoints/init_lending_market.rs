@@ -15,7 +15,7 @@
 //! ./target/release/cli \
 //!   --cluster localnet \
 //!   --payer payer-keypair.json \
-//!   --blp 7vRDzPZK2toUCkGUgtb1uPZLXvtj8YvXUKUBRh8Ufr5y \
+//!   --blp HH6BiQtvsL6mh7En2knBeTDqmGjYCJFiXiqixrG8nndB \
 //!   init-market \
 //!   --keypair market-keypair.json \
 //!   --oracle gSbePebfvPy7tRqimPoVecS2UsBvYv46ynrzWocc92s \
@@ -31,7 +31,6 @@ use borrow_lending::{
     math::{Decimal, PercentageInt},
     models::{LendingMarket, UniversalAssetCurrency},
 };
-use std::mem;
 
 pub fn app() -> App<'static> {
     App::new("init-market")
@@ -59,14 +58,18 @@ pub fn app() -> App<'static> {
                 .long("bot")
                 .about(
                     "pubkey of account which is signer of operations delegated
-                    to Aldrin bot, such as compounding",
+                    to Aldrin bot, such as compounding \
+                    (defaults to owner)",
                 )
                 .takes_value(true),
         )
         .arg(
             Arg::new("compound-fee")
                 .long("compound-fee")
-                .about("how many percents of rewards we take on compounding")
+                .about(
+                    "how many percents of rewards we take on compounding, \
+                    (defaults to 10%)",
+                )
                 .takes_value(true),
         )
         .arg(
@@ -96,11 +99,17 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         "Path to keypair for market account must be provided with --keypair",
     );
 
-    let bot =
-        load_pubkey(matches.value_of("bot"), "Provide bot's pubkey with --bot");
+    let bot_pubkey = matches
+        .value_of("bot")
+        .map(ToString::to_string)
+        .or_else(|| Some(owner.pubkey().to_string()));
+    let bot = load_pubkey(
+        bot_pubkey.as_ref().map(|s| s.as_str()),
+        "Provide bot's pubkey with --bot",
+    );
 
     let (_, compound_fee) = load_value(
-        matches.value_of("compount-fee"),
+        matches.value_of("compound-fee").or(Some("10")),
         || panic!("Compound fee percentage must be provided"),
         |fee| u8::from_str(fee).expect("compound fee must be a byte"),
     );
@@ -121,26 +130,27 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         }
     };
 
-    let market_account_size = 8 + mem::size_of::<LendingMarket>();
     let with_balance = program
         .rpc()
-        .get_minimum_balance_for_rent_exemption(market_account_size)
+        .get_minimum_balance_for_rent_exemption(LendingMarket::space())
         .expect("Cannot calculate minimum rent exemption balance");
 
     println!(
         "\nInitializing market account '{}':
-        - size:     {} bytes
-        - balance:  {} lamports
-        - currency: {:?}
-        - owner:    '{}'
-        - bot:      '{}'
+        - size:        {} bytes
+        - balance:     {} lamports
+        - currency:    {:?}
+        - owner:       '{}'
+        - bot:         '{}'
+        - compound-fee {}%
         \n",
         market.pubkey(),
-        market_account_size,
+        LendingMarket::space(),
         with_balance,
         currency,
         owner.pubkey(),
-        bot
+        bot,
+        compound_fee
     );
 
     let mut transaction = program
@@ -149,14 +159,14 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
             &program.payer(),
             &market.pubkey(),
             with_balance,
-            market_account_size as u64,
+            LendingMarket::space() as u64,
             &program.id(),
         ))
         .signer(&market)
         .accounts(Accounts {
             owner: owner.pubkey(),
             lending_market: market.pubkey(),
-            compound_bot: bot,
+            admin_bot: bot,
         })
         .args(Instruction {
             currency,

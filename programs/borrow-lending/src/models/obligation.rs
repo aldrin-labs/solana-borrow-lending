@@ -52,6 +52,9 @@ pub struct ObligationCollateral {
     pub deposit_reserve: Pubkey,
     pub deposited_amount: u64,
     pub market_value: SDecimal,
+    /// Keeps track of last deposit, to enable claiming emissions (liquidity
+    /// mining).
+    pub emissions_claimable_from_slot: u64,
 }
 
 #[derive(
@@ -88,6 +91,9 @@ pub struct ObligationLiquidity {
     /// collateralized fraction.
     pub borrowed_amount: SDecimal,
     pub market_value: SDecimal,
+    /// Keeps track of last borrow, to enable claiming emissions (liquidity
+    /// mining).
+    pub emissions_claimable_from_slot: u64,
 }
 
 impl Default for ObligationReserve {
@@ -123,7 +129,7 @@ impl Obligation {
     pub fn is_stale_for_leverage(&self, clock: &Clock) -> bool {
         // see the const docs
         let max_slots_elapsed =
-        consts::MAX_OBLIGATION_REFRESH_BLOCKS_ELAPSED_FOR_LEVERAGED_POSITION;
+            consts::MAX_OBLIGATION_REFRESH_SLOTS_ELAPSED_FOR_LEVERAGED_POSITION;
         self.last_update.stale
             || self.last_update.slots_elapsed(clock.slot).unwrap_or(0)
                 > max_slots_elapsed
@@ -134,6 +140,7 @@ impl Obligation {
         &mut self,
         withdraw_amount: u64,
         collateral_index: usize,
+        slot: u64,
     ) -> Result<()> {
         match &mut self.reserves[collateral_index] {
             ObligationReserve::Collateral { inner: collateral }
@@ -145,7 +152,7 @@ impl Obligation {
             ObligationReserve::Collateral {
                 inner: ref mut collateral,
             } => {
-                collateral.withdraw(withdraw_amount)?;
+                collateral.withdraw(withdraw_amount, slot)?;
                 Ok(())
             }
             _ => {
@@ -252,6 +259,7 @@ impl Obligation {
         &mut self,
         reserve_key: Pubkey,
         collateral_amount: u64,
+        slot: u64,
     ) -> Result<()> {
         let mut first_empty = None;
         for (i, reserve) in self.reserves.iter_mut().enumerate() {
@@ -262,7 +270,7 @@ impl Obligation {
                 ObligationReserve::Collateral { ref mut inner }
                     if inner.deposit_reserve == reserve_key =>
                 {
-                    inner.deposit(collateral_amount)?;
+                    inner.deposit(collateral_amount, slot)?;
                     return Ok(());
                 }
                 _ => (),
@@ -271,7 +279,7 @@ impl Obligation {
 
         if let Some(i) = first_empty {
             let mut collateral = ObligationCollateral::new(reserve_key);
-            collateral.deposit(collateral_amount)?;
+            collateral.deposit(collateral_amount, slot)?;
             self.reserves[i] =
                 ObligationReserve::Collateral { inner: collateral };
 
@@ -291,6 +299,7 @@ impl Obligation {
         reserve_key: Pubkey,
         liquidity_amount: Decimal,
         loan_kind: LoanKind,
+        slot: u64,
     ) -> Result<()> {
         let mut first_empty = None;
         for (i, reserve) in self.reserves.iter_mut().enumerate() {
@@ -303,7 +312,7 @@ impl Obligation {
                     if inner.borrow_reserve == reserve_key
                         && inner.loan_kind == loan_kind =>
                 {
-                    inner.borrow(liquidity_amount)?;
+                    inner.borrow(liquidity_amount, slot)?;
                     return Ok(());
                 }
                 _ => (),
@@ -313,7 +322,7 @@ impl Obligation {
         if let Some(i) = first_empty {
             let mut liquidity =
                 ObligationLiquidity::new(reserve_key, loan_kind);
-            liquidity.borrow(liquidity_amount)?;
+            liquidity.borrow(liquidity_amount, slot)?;
             self.reserves[i] =
                 ObligationReserve::Liquidity { inner: liquidity };
 
@@ -333,6 +342,7 @@ impl Obligation {
         &mut self,
         settle_amount: Decimal,
         liquidity_index: usize,
+        slot: u64,
     ) -> ProgramResult {
         match &mut self.reserves[liquidity_index] {
             ObligationReserve::Liquidity { inner: liquidity }
@@ -344,7 +354,7 @@ impl Obligation {
             ObligationReserve::Liquidity {
                 inner: ref mut liquidity,
             } => {
-                liquidity.repay(settle_amount)?;
+                liquidity.repay(settle_amount, slot)?;
                 Ok(())
             }
             _ => {
@@ -382,6 +392,9 @@ impl ObligationLiquidity {
             market_value: Decimal::zero().into(),
             borrowed_amount: Decimal::zero().into(),
             cumulative_borrow_rate: Decimal::one().into(),
+            // this can be defaulted to 0, because the emissions logic work
+            // with start time, plus this gets updated on borrow or repay
+            emissions_claimable_from_slot: 0,
         }
     }
 
@@ -429,16 +442,18 @@ impl ObligationLiquidity {
         self.borrowed_amount.to_dec().try_mul(max_liquidation_pct)
     }
 
-    fn repay(&mut self, settle_amount: Decimal) -> Result<()> {
+    fn repay(&mut self, settle_amount: Decimal, slot: u64) -> Result<()> {
         self.borrowed_amount =
             self.borrowed_amount.to_dec().try_sub(settle_amount)?.into();
+        self.emissions_claimable_from_slot = slot;
 
         Ok(())
     }
 
-    fn borrow(&mut self, borrow_amount: Decimal) -> Result<()> {
+    fn borrow(&mut self, borrow_amount: Decimal, slot: u64) -> Result<()> {
         self.borrowed_amount =
             self.borrowed_amount.to_dec().try_add(borrow_amount)?.into();
+        self.emissions_claimable_from_slot = slot;
 
         Ok(())
     }
@@ -450,23 +465,30 @@ impl ObligationCollateral {
             deposit_reserve,
             market_value: Decimal::zero().into(),
             deposited_amount: 0,
+            /// This can be 0 because each emission has its start date defined,
+            /// and on top of that when we deposit or withdraw, this gets
+            /// updated.
+            emissions_claimable_from_slot: 0,
         }
     }
 
-    fn deposit(&mut self, collateral_amount: u64) -> Result<()> {
+    fn deposit(&mut self, collateral_amount: u64, slot: u64) -> Result<()> {
         self.deposited_amount = self
             .deposited_amount
             .checked_add(collateral_amount)
             .ok_or(ErrorCode::MathOverflow)?;
+        self.emissions_claimable_from_slot = slot;
 
         Ok(())
     }
 
-    fn withdraw(&mut self, collateral_amount: u64) -> Result<()> {
+    fn withdraw(&mut self, collateral_amount: u64, slot: u64) -> Result<()> {
         self.deposited_amount = self
             .deposited_amount
             .checked_sub(collateral_amount)
             .ok_or(ErrorCode::MathOverflow)?;
+        self.emissions_claimable_from_slot = slot;
+
         Ok(())
     }
 }
@@ -502,10 +524,12 @@ mod tests {
 
     #[test]
     fn it_has_stable_size() {
-        assert_eq!(mem::size_of::<Obligation>(), 1480);
-        assert_eq!(mem::size_of::<ObligationCollateral>(), 64);
-        assert_eq!(mem::size_of::<ObligationLiquidity>(), 120);
-        assert_eq!(mem::size_of::<ObligationReserve>(), 128);
+        assert_eq!(mem::size_of::<Obligation>(), 1560);
+        assert_eq!(mem::size_of::<ObligationCollateral>(), 72);
+        assert_eq!(mem::size_of::<ObligationLiquidity>(), 128);
+        // if changed, must be also changed `OBLIGATION_RESERVE_SIZE` in
+        // `fromBytesSkipDiscriminatorCheck` typescript function
+        assert_eq!(mem::size_of::<ObligationReserve>(), 136);
         assert_eq!(mem::size_of::<LoanKind>(), 16);
         assert_eq!(mem::size_of::<LastUpdate>(), 16);
     }
@@ -562,7 +586,7 @@ mod tests {
         let reserve2 = Pubkey::new_unique();
         let mut obligation = Obligation::default();
 
-        obligation.deposit(reserve1, 50).unwrap();
+        obligation.deposit(reserve1, 50, 0).unwrap();
         assert_eq!(
             obligation.reserves[0],
             ObligationReserve::Collateral {
@@ -574,7 +598,7 @@ mod tests {
             }
         );
 
-        obligation.deposit(reserve2, 30).unwrap();
+        obligation.deposit(reserve2, 30, 0).unwrap();
         assert_eq!(
             obligation.reserves[1],
             ObligationReserve::Collateral {
@@ -586,7 +610,7 @@ mod tests {
             }
         );
 
-        obligation.deposit(reserve1, 50).unwrap();
+        obligation.deposit(reserve1, 50, 0).unwrap();
         assert_eq!(
             obligation.reserves[0],
             ObligationReserve::Collateral {
@@ -634,10 +658,10 @@ mod tests {
         let reserve2 = Pubkey::new_unique();
         let mut obligation = Obligation::default();
 
-        obligation.deposit(reserve1, 10).unwrap();
-        obligation.deposit(reserve2, 10).unwrap();
+        obligation.deposit(reserve1, 10, 0).unwrap();
+        obligation.deposit(reserve2, 10, 0).unwrap();
 
-        obligation.withdraw(5, 0).unwrap();
+        obligation.withdraw(5, 0, 0).unwrap();
         assert_eq!(
             obligation.reserves[0],
             ObligationReserve::Collateral {
@@ -659,8 +683,8 @@ mod tests {
             }
         );
 
-        assert!(obligation.withdraw(6, 0).is_err());
-        obligation.withdraw(5, 0).unwrap();
+        assert!(obligation.withdraw(6, 0, 0).is_err());
+        obligation.withdraw(5, 0, 0).unwrap();
         assert_eq!(obligation.reserves[0], ObligationReserve::Empty);
         assert_eq!(
             obligation.reserves[1],
@@ -673,7 +697,7 @@ mod tests {
             }
         );
 
-        obligation.withdraw(10, 1).unwrap();
+        obligation.withdraw(10, 1, 0).unwrap();
         obligation
             .reserves
             .iter()
@@ -687,7 +711,7 @@ mod tests {
         let mut obligation = Obligation::default();
 
         obligation
-            .borrow(reserve1, 50u64.into(), LoanKind::Standard)
+            .borrow(reserve1, 50u64.into(), LoanKind::Standard, 0)
             .unwrap();
         assert_eq!(
             obligation.reserves[0],
@@ -704,7 +728,7 @@ mod tests {
             leverage: Leverage::new(u64::MAX),
         };
         obligation
-            .borrow(reserve2, 30u64.into(), yield_farm)
+            .borrow(reserve2, 30u64.into(), yield_farm, 0)
             .unwrap();
         assert_eq!(
             obligation.reserves[1],
@@ -719,7 +743,7 @@ mod tests {
         );
 
         obligation
-            .borrow(reserve1, 50u64.into(), LoanKind::Standard)
+            .borrow(reserve1, 50u64.into(), LoanKind::Standard, 0)
             .unwrap();
         assert_eq!(
             obligation.reserves[0],
@@ -781,16 +805,16 @@ mod tests {
     #[test]
     fn it_fails_to_withdraw_liquidity_or_repay_collateral() {
         let mut obligation = Obligation::default();
-        obligation.deposit(Pubkey::new_unique(), 10).unwrap();
+        obligation.deposit(Pubkey::new_unique(), 10, 0).unwrap();
         obligation
-            .borrow(Pubkey::new_unique(), 10u64.into(), LoanKind::Standard)
+            .borrow(Pubkey::new_unique(), 10u64.into(), LoanKind::Standard, 0)
             .unwrap();
 
-        assert!(obligation.withdraw(10, 1).is_err());
-        assert!(obligation.withdraw(10, 0).is_ok());
+        assert!(obligation.withdraw(10, 1, 0).is_err());
+        assert!(obligation.withdraw(10, 0, 0).is_ok());
 
-        assert!(obligation.repay(10u64.into(), 0).is_err());
-        assert!(obligation.repay(10u64.into(), 1).is_ok());
+        assert!(obligation.repay(10u64.into(), 0, 0).is_err());
+        assert!(obligation.repay(10u64.into(), 1, 0).is_ok());
     }
 
     #[test]
@@ -813,9 +837,9 @@ mod tests {
             inner: ObligationCollateral::default(),
         }; consts::MAX_OBLIGATION_RESERVES];
 
-        assert!(obligation.deposit(Pubkey::new_unique(), 10).is_err());
+        assert!(obligation.deposit(Pubkey::new_unique(), 10, 0).is_err());
         assert!(obligation
-            .borrow(Pubkey::new_unique(), 10u64.into(), LoanKind::Standard)
+            .borrow(Pubkey::new_unique(), 10u64.into(), LoanKind::Standard, 0)
             .is_err());
     }
 
@@ -887,7 +911,7 @@ mod tests {
                 }
             };
 
-            obligation.repay(repay_amount_wads, 0)?;
+            obligation.repay(repay_amount_wads, 0, 0)?;
             assert!(
                 matches!(
                     obligation.reserves[0],
@@ -917,7 +941,7 @@ mod tests {
                 }
             };
 
-            obligation.repay(repay_amount, 0)?;
+            obligation.repay(repay_amount, 0, 0)?;
             assert_eq!(obligation.reserves[0], ObligationReserve::Empty);
         }
 

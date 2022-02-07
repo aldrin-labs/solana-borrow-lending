@@ -76,7 +76,10 @@ pub fn load_pubkey(
     let (_, pubkey) = load_value(
         matches,
         || panic!("{}", error_message),
-        |pubkey| Pubkey::from_str(pubkey).expect("Invalidpubkey"),
+        |pubkey| {
+            Pubkey::from_str(pubkey)
+                .unwrap_or_else(|e| panic!("Invalid pubkey {}: {}", pubkey, e))
+        },
     );
 
     pubkey

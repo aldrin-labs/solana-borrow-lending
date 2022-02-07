@@ -1,6 +1,7 @@
 pub mod borrow_obligation_liquidity;
 pub mod deposit_obligation_collateral;
 pub mod deposit_reserve_liquidity;
+pub mod emit;
 pub mod flash_loan;
 pub mod init_lending_market;
 pub mod init_obligation;
@@ -20,6 +21,7 @@ pub mod withdraw_obligation_collateral;
 pub use borrow_obligation_liquidity::*;
 pub use deposit_obligation_collateral::*;
 pub use deposit_reserve_liquidity::*;
+pub use emit::*;
 pub use flash_loan::*;
 pub use init_lending_market::*;
 pub use init_obligation::*;

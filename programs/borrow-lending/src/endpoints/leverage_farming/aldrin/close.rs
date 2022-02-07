@@ -382,7 +382,11 @@ impl<'info> CloseLeveragedPositionOnAldrin<'info> {
             self.reserve.liquidity.repay(repay_amount, settle_amount)?;
 
             // and removes the owed amount from the obligation
-            obligation.repay(settle_amount, liquidity_index)?;
+            obligation.repay(
+                settle_amount,
+                liquidity_index,
+                self.clock.slot,
+            )?;
 
             self.reserve.last_update.mark_stale();
             obligation.last_update.mark_stale();

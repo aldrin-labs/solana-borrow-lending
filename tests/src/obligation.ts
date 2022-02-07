@@ -43,6 +43,7 @@ export interface ObligationLiquidityData {
   marketValue: { u192: U192 };
   borrowedAmount: { u192: U192 };
   cumulativeBorrowRate: { u192: U192 };
+  emissionsClaimableFromSlot: BN;
   loanKind: {
     standard?: {};
     yieldFarming?: { leverage: BN };
@@ -53,6 +54,7 @@ export interface ObligationCollateralData {
   depositReserve: PublicKey;
   depositedAmount: BN;
   marketValue: { u192: U192 };
+  emissionsClaimableFromSlot: BN;
 }
 
 export class Obligation {
@@ -75,7 +77,7 @@ export class Obligation {
     borrower = Keypair.generate(),
     account = Keypair.generate()
   ): Promise<Obligation> {
-    const obligationSize = 1488;
+    const obligationSize = 1568;
     await market.program.rpc.initObligationR10({
       accounts: {
         owner: borrower.publicKey,
@@ -121,94 +123,217 @@ export class Obligation {
    * @param buf Obligation account data from blockchain _with_ discriminator
    * @returns Parsed obligation account
    */
-  public static fromBytesSkipDiscriminatorCheck(buf: Buffer): ObligationData {
-    let o = 8; // skip discriminator
+  public static fromBytesSkipDiscriminatorCheck(
+    obligationData: Buffer
+  ): ObligationData {
+    // allowed data types on an obligation object
+    type LayoutTypes =
+      | PublicKey
+      | BN
+      | boolean
+      | { u192: U192 }
+      | { [key: string]: LayoutTypes }
+      | LayoutTypes[];
 
-    const owner = new PublicKey(buf.slice(o, o + 32));
-    o += 32;
-    const lendingMarket = new PublicKey(buf.slice(o, o + 32));
-    o += 32;
-    const lastUpdate = buf.slice(o, o + 16);
-    o += 16;
-    const lastUpdateSlot = new BN(lastUpdate.slice(0, 8), undefined, "le");
-    const lastUpdateStale = lastUpdate[8] === 1;
-
-    const reserves = [];
-    for (let i = 0; i < 10; i++) {
-      const reserve = buf.slice(o, o + 128);
-      o += 128;
-      switch (reserve[0]) {
-        case 0:
-          reserves.push({ empty: {} });
-          break;
-        case 1:
-          const isYieldFarmingLoan = reserve[8] === 1;
-          const loanKind = isYieldFarmingLoan
-            ? {
-                yieldFarming: {
-                  leverage: new BN(reserve.slice(16, 24), undefined, "le"),
-                },
-              }
-            : { standard: {} };
-          const cumulativeBorrowRate = u192FromBytes(reserve, 24);
-          const borrowedAmount = u192FromBytes(reserve, 48);
-          const loanMarketValue = u192FromBytes(reserve, 72);
-          const borrowReserve = new PublicKey(reserve.slice(96, 128));
-          reserves.push({
-            liquidity: {
-              inner: {
-                borrowReserve,
-                loanKind,
-                cumulativeBorrowRate,
-                borrowedAmount,
-                marketValue: loanMarketValue,
-              },
-            },
-          });
-          break;
-        case 2:
-          const depositedAmount = new BN(reserve.slice(8, 16), undefined, "le");
-          const depositReserve = new PublicKey(reserve.slice(40, 72));
-          const depositMarketValue = u192FromBytes(reserve, 16);
-          reserves.push({
-            collateral: {
-              inner: {
-                marketValue: depositMarketValue,
-                depositReserve,
-                depositedAmount,
-              },
-            },
-          });
-          break;
-        default:
-          throw new Error(`Unknown reserve variant '${reserve[0]}'`);
-      }
+    interface LayoutField {
+      // how many bytes does this field take
+      len: number;
+      // the result is an object with this name as a key
+      name: string;
+      // and the output of this function as a value
+      from: (bytes: Buffer) => LayoutTypes;
     }
 
-    const depositedValue = u192FromBytes(buf, o);
-    o += 24;
-    const collateralizedBorrowedValue = u192FromBytes(buf, o);
-    o += 24;
-    const totalBorrowedValue = u192FromBytes(buf, o);
-    o += 24;
-    const allowedBorrowValue = u192FromBytes(buf, o);
-    o += 24;
-    const unhealthyBorrowValue = u192FromBytes(buf, o);
+    function layoutFromBytes(
+      layout: LayoutField[],
+      bytes: Buffer
+    ): { [key: string]: LayoutTypes } {
+      const collector = {};
 
-    return {
-      owner,
-      lendingMarket,
-      lastUpdate: {
-        slot: lastUpdateSlot,
-        stale: lastUpdateStale,
+      let nextFieldOffset = 0;
+      for (const { from, len, name } of layout) {
+        if (bytes.length < nextFieldOffset + len) {
+          throw new Error(`Buffer len ${bytes.length} cannot fit '${name}'`);
+        }
+
+        collector[name] = from(
+          bytes.slice(nextFieldOffset, nextFieldOffset + len)
+        );
+        nextFieldOffset += len;
+      }
+
+      return collector;
+    }
+
+    const OBLIGATION_RESERVE_SIZE = 136;
+
+    const layout: LayoutField[] = [
+      {
+        len: 32,
+        name: "owner",
+        from: (bytes) => new PublicKey(bytes),
       },
-      reserves,
-      depositedValue,
-      collateralizedBorrowedValue,
-      totalBorrowedValue,
-      allowedBorrowValue,
-      unhealthyBorrowValue,
-    };
+      {
+        len: 32,
+        name: "lendingMarket",
+        from: (bytes) => new PublicKey(bytes),
+      },
+      {
+        len: 16,
+        name: "lastUpdate",
+        from: (bytes) => {
+          const layout = [
+            {
+              len: 8,
+              name: "slot",
+              from: (bytes) => new BN(bytes, undefined, "le"),
+            },
+            {
+              len: 8,
+              name: "stale",
+              from: (bytes) => bytes[0] === 1,
+            },
+          ];
+
+          return layoutFromBytes(layout, bytes);
+        },
+      },
+      {
+        len: OBLIGATION_RESERVE_SIZE * 10,
+        name: "reserves",
+        from: (bytes) => {
+          const reserves: LayoutTypes[] = [];
+
+          for (let i = 0; i < 10; i++) {
+            // first 8 bytes for `ObligationReserve` enum discriminator
+            const reserve = bytes.slice(
+              i * OBLIGATION_RESERVE_SIZE,
+              i * OBLIGATION_RESERVE_SIZE + OBLIGATION_RESERVE_SIZE
+            );
+            switch (reserve[0]) {
+              case 0:
+                reserves.push({ empty: {} });
+                break;
+              case 1:
+                // next 8 bytes for `LoanKind` enum discriminator
+                const isYieldFarmingLoan = reserve[8] === 1;
+                const liquidityLayout = [
+                  {
+                    len: 8,
+                    name: "loanKind",
+                    from: (bytes) => {
+                      return isYieldFarmingLoan
+                        ? {
+                            yieldFarming: {
+                              leverage: new BN(bytes, undefined, "le"),
+                            },
+                          }
+                        : { standard: {} };
+                    },
+                  },
+                  {
+                    len: 24,
+                    name: "cumulativeBorrowRate",
+                    from: u192FromBytes,
+                  },
+                  {
+                    len: 24,
+                    name: "borrowedAmount",
+                    from: u192FromBytes,
+                  },
+                  {
+                    len: 24,
+                    name: "marketValue",
+                    from: u192FromBytes,
+                  },
+                  {
+                    len: 8,
+                    name: "emissionsClaimableFromSlot",
+                    from: (bytes) => new BN(bytes, undefined, "le"),
+                  },
+                  {
+                    len: 32,
+                    name: "borrowReserve",
+                    from: (bytes) => new PublicKey(bytes),
+                  },
+                ];
+
+                reserves.push({
+                  liquidity: {
+                    inner: layoutFromBytes(liquidityLayout, reserve.slice(16)),
+                  },
+                });
+                break;
+              case 2:
+                const collateralLayout = [
+                  {
+                    len: 8,
+                    name: "depositedAmount",
+                    from: (bytes) => new BN(bytes, undefined, "le"),
+                  },
+                  {
+                    len: 24,
+                    name: "marketValue",
+                    from: u192FromBytes,
+                  },
+                  {
+                    len: 8,
+                    name: "emissionsClaimableFromSlot",
+                    from: (bytes) => new BN(bytes, undefined, "le"),
+                  },
+                  {
+                    len: 32,
+                    name: "depositReserve",
+                    from: (bytes) => new PublicKey(bytes),
+                  },
+                ];
+
+                reserves.push({
+                  collateral: {
+                    inner: layoutFromBytes(collateralLayout, reserve.slice(8)),
+                  },
+                });
+                break;
+              default:
+                throw new Error(`Unknown reserve variant '${reserve[0]}'`);
+            }
+          }
+
+          return reserves;
+        },
+      },
+      {
+        len: 24,
+        name: "depositedValue",
+        from: u192FromBytes,
+      },
+      {
+        len: 24,
+        name: "collateralizedBorrowedValue",
+        from: u192FromBytes,
+      },
+      {
+        len: 24,
+        name: "totalBorrowedValue",
+        from: u192FromBytes,
+      },
+      {
+        len: 24,
+        name: "allowedBorrowValue",
+        from: u192FromBytes,
+      },
+      {
+        len: 24,
+        name: "unhealthyBorrowValue",
+        from: u192FromBytes,
+      },
+    ];
+
+    const DISCRIMINATOR_SIZE = 8;
+    return layoutFromBytes(
+      layout,
+      obligationData.slice(DISCRIMINATOR_SIZE)
+    ) as any;
   }
 
   public async refresh(

@@ -7,6 +7,9 @@ use crate::prelude::*;
 #[derive(Debug, Default)]
 pub struct Reserve {
     pub lending_market: Pubkey,
+    /// Account which holds recent history of deposited + borrowed funds of the
+    /// reserve.
+    pub snapshots: Pubkey,
     /// Last slot when rates were updated. Helps us ensure that we're working
     /// with fresh prices.
     pub last_update: LastUpdate,
@@ -257,6 +260,10 @@ impl Validate for ReserveConfig {
 }
 
 impl Reserve {
+    pub fn space() -> usize {
+        571
+    }
+
     pub fn is_stale(&self, clock: &Clock) -> bool {
         self.last_update.is_stale(clock.slot).unwrap_or(true)
     }
@@ -717,6 +724,16 @@ mod tests {
             }"#
         )
         .is_ok());
+    }
+
+    #[test]
+    fn it_calculates_space() {
+        let mut reserve = Reserve::default();
+        reserve.liquidity.oracle = Oracle::Never { padding: [0; 128] };
+        let mut serialized_data = Vec::new();
+        reserve.try_serialize(&mut serialized_data).unwrap();
+        let expected_size = serialized_data.len();
+        assert_eq!(expected_size, Reserve::space());
     }
 
     #[test]

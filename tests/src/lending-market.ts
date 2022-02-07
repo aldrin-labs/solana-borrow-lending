@@ -43,7 +43,7 @@ export class LendingMarket {
         accounts: {
           owner: owner.publicKey,
           lendingMarket: marketAccount.publicKey,
-          compoundBot: owner.publicKey,
+          adminBot: owner.publicKey,
         },
         instructions: [
           await program.account.lendingMarket.createInstruction(marketAccount),

@@ -1,5 +1,5 @@
 [programs.localnet]
-borrow_lending = "7vRDzPZK2toUCkGUgtb1uPZLXvtj8YvXUKUBRh8Ufr5y"
+borrow_lending = "HH6BiQtvsL6mh7En2knBeTDqmGjYCJFiXiqixrG8nndB"
 
 [registry]
 url = "https://anchor.projectserum.com"

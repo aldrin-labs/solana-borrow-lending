@@ -1,4 +1,5 @@
 pub mod amm;
+mod emissions;
 mod farming_receipt;
 mod last_update;
 mod lending_market;
@@ -8,6 +9,7 @@ pub mod pyth;
 mod reserve;
 
 use crate::prelude::*;
+pub use emissions::*;
 pub use farming_receipt::*;
 pub use last_update::*;
 pub use lending_market::*;

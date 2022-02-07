@@ -168,10 +168,14 @@ pub fn handle(
         .repay_reserve
         .liquidity
         .repay(repay_amount, settle_amount)?;
-    obligation.repay(settle_amount, liquidity_index)?;
+    obligation.repay(settle_amount, liquidity_index, accounts.clock.slot)?;
 
     // and gets collateral in exchange
-    obligation.withdraw(withdraw_amount, collateral_index)?;
+    obligation.withdraw(
+        withdraw_amount,
+        collateral_index,
+        accounts.clock.slot,
+    )?;
 
     obligation.last_update.mark_stale();
     accounts.repay_reserve.last_update.mark_stale();
@@ -246,7 +250,7 @@ fn get_concerned_reserves(
 ///
 /// If the borrowed liquidity is less than [`consts::LIQUIDATION_CLOSE_AMOUNT`]
 /// then it gets liquidated whole. Otherwise eq. (8) tells us that at most
-/// [`const:LIQUIDATION_CLOSE_FACTOR`] (e.g. 50%) can be liquidated at once.
+/// [`consts:LIQUIDATION_CLOSE_FACTOR`] (e.g. 50%) can be liquidated at once.
 fn calculate_liquidation_amounts(
     liquidity: &ObligationLiquidity,
     collateral: &ObligationCollateral,

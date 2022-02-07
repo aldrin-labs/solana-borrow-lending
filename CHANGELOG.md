@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2022-02-04
+### Added
+- Account types for liquidity mining: `EmissionStrategy` and
+  `ReserveCapSnapshots`.
+- Endpoints for liquidity mining: admin endpoints `create_emission`,
+  `close_emission`, user endpoint `claim_emission` and admin bot endpoint
+  `take_reserve_cap_snapshot`.
+- `ObligationCollateral` and `ObligationLiquidity` have a new field to track
+  when have they been last updated or claimed. This allows us to calculate how
+  many emission tokens is a user eligible for.
+- `Reserve` has a new field with a pubkey of the snapshotting account associated
+  with it.
+
+### Changed
+- When borrowing or repaying, the relevant methods now accept slot as additional
+  argument so that their can update `emissions_claimable_from_slot` field.
+- The field `compound_bot` on `LendingMarket` was renamed to `admin_bot`.
+- Calculation of `SLOTS_PER_YEAR` was changed to be similar to Solend.
+  See the discussion at https://github.com/solana-labs/solana-program-library/issues/2825
+  for more information.
+- `MAX_OBLIGATION_REFRESH_BLOCKS_ELAPSED_FOR_LEVERAGED_POSITION`
+  was renamed to `MAX_OBLIGATION_REFRESH_SLOTS_ELAPSED_FOR_LEVERAGED_POSITION`
+  because it did in fact represent slots, not blocks. The value was doubled
+  with accordance of block being ~2x longer than slots in terms of millis.
+- Function for parsing obligation data from TS now includes the newly added
+  fields.
+
 ## [1.0.0] - 2022-01-24
 ### Added
 - Leverage yield farming endpoints (see README for docs) which `open`, `close`

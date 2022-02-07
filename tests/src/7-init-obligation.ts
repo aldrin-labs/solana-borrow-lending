@@ -62,6 +62,7 @@ export function test(
       expect(u192ToBN(loan1.borrowedAmount).toString("hex")).to.eq(
         "a11111111111111aa11111111111111aa11111111111111a"
       );
+      expect(loan1.emissionsClaimableFromSlot.toNumber()).to.eq(420);
 
       const loan2 = reserves[1].liquidity.inner;
       expect(loan2.loanKind.yieldFarming.leverage.toString("hex")).to.eq(
@@ -74,6 +75,7 @@ export function test(
       expect(u192ToBN(loan2.borrowedAmount).toString("hex")).to.eq(
         "1a055690d9db80000"
       );
+      expect(loan2.emissionsClaimableFromSlot.toNumber()).to.eq(999);
     });
 
     it("loads obligation from sample bin", async () => {
@@ -123,6 +125,7 @@ export function test(
       expect(u192ToBN(loan.cumulativeBorrowRate).toString("hex")).to.eq(
         "de0b6b3edb35521"
       );
+      expect(loan.emissionsClaimableFromSlot.toNumber()).to.eq(999);
 
       expect(reserves[0])
         .to.have.property("collateral")
@@ -135,6 +138,7 @@ export function test(
       expect(u192ToBN(deposit.marketValue).toString("hex")).to.eq(
         "280546df9578210000"
       );
+      expect(deposit.emissionsClaimableFromSlot.toNumber()).to.eq(420);
     });
 
     it("fails if lending market doesn't exist", async () => {
