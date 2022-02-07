@@ -7,12 +7,14 @@
 use crate::prelude::*;
 use borrow_lending::accounts::InitReserve as InitReserveAccounts;
 use borrow_lending::instruction::InitReserve as InitReserveInstruction;
-use borrow_lending::models::{InputReserveConfig, Reserve, ReserveConfig};
+use borrow_lending::models::{
+    InputReserveConfig, Reserve, ReserveCapSnapshots, ReserveConfig,
+};
 use solana_sdk::{
     instruction::Instruction,
     sysvar::{clock, rent},
 };
-use std::{borrow::Cow, fs, mem, path::PathBuf};
+use std::{borrow::Cow, fs, path::PathBuf};
 
 pub fn app() -> App<'static> {
     App::new("init-reserve")
@@ -90,6 +92,12 @@ pub fn app() -> App<'static> {
                 .about(
                     "path to a keypair used to initialize new collateral mint",
                 )
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("snapshots")
+                .long("snapshots")
+                .about("path to a keypair used to initialize snapshots account")
                 .takes_value(true),
         )
         .arg(
@@ -232,6 +240,12 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         provided with --dest-wallet",
     );
 
+    let snapshots = load_keypair(
+        matches.value_of("snapshots"),
+        "Path to keypair for snapshots account must be \
+        provided with --snapshots",
+    );
+
     let (_, token_program_id) = load_value_or_env(
         matches.value_of("token-program"),
         "TOKEN_PROGRAM_ID",
@@ -267,10 +281,14 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
 
     let skip_accounts_creation = matches.is_present("skip-accounts-creation");
 
-    let reserve_account_size = 8 + mem::size_of::<Reserve>();
-    let with_balance = program
+    let reserve_with_balance = program
         .rpc()
-        .get_minimum_balance_for_rent_exemption(reserve_account_size)
+        .get_minimum_balance_for_rent_exemption(Reserve::space())
+        .expect("Cannot calculate minimum rent exemption balance");
+
+    let snapshots_with_balance = program
+        .rpc()
+        .get_minimum_balance_for_rent_exemption(ReserveCapSnapshots::space())
         .expect("Cannot calculate minimum rent exemption balance");
 
     let (lending_market_pda, lending_market_bump_seed) =
@@ -292,6 +310,7 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         - fee recv: '{}'
         - col. mint: '{}'
         - liq. mint: '{}'
+        - snapshots: '{}'
         oracle
         - product: '{}'
         - price: '{}'
@@ -301,8 +320,8 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         reserve.pubkey(),
         owner.pubkey(),
         funder.pubkey(),
-        reserve_account_size,
-        with_balance,
+        Reserve::space(),
+        reserve_with_balance,
         market,
         liquidity_amount,
         token_program_id,
@@ -313,6 +332,7 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         fee_receiver.pubkey(),
         collateral_mint.pubkey(),
         liquidity_mint,
+        snapshots.pubkey(),
         oracle_product,
         oracle_price,
         config
@@ -355,17 +375,26 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         .instruction(system_instruction::create_account(
             &program.payer(),
             &reserve.pubkey(),
-            with_balance,
-            reserve_account_size as u64,
+            reserve_with_balance,
+            Reserve::space() as u64,
             &program.id(),
         ))
         .signer(&reserve)
+        .instruction(system_instruction::create_account(
+            &program.payer(),
+            &snapshots.pubkey(),
+            snapshots_with_balance,
+            ReserveCapSnapshots::space() as u64,
+            &program.id(),
+        ))
+        .signer(&snapshots)
         .accounts(InitReserveAccounts {
             owner: owner.pubkey(),
             funder: funder.pubkey(),
             lending_market_pda,
             lending_market: market,
             reserve: reserve.pubkey(),
+            snapshots: snapshots.pubkey(),
             reserve_collateral_wallet: reserve_collateral_wallet.pubkey(),
             reserve_liquidity_wallet: reserve_liquidity_wallet.pubkey(),
             destination_collateral_wallet: destination_collateral_wallet

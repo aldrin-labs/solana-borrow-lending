@@ -411,11 +411,12 @@ checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 
 [[package]]
 name = "borrow-lending"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
  "borsh",
+ "bytemuck",
  "memoffset",
  "proptest",
  "pyth-client",
@@ -669,7 +670,7 @@ dependencies = [
 
 [[package]]
 name = "cli"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anchor-client",
  "anchor-spl",

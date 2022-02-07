@@ -20,7 +20,7 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 #[derive(Accounts)]
 pub struct CompoundLeveragedPositionOnAldrin<'info> {
     #[account(
-        constraint = lending_market.compound_bot == *caller.key
+        constraint = lending_market.admin_bot == *caller.key
             @ err::acc("Only designated bot account can call compound"),
     )]
     pub lending_market: Box<Account<'info, LendingMarket>>,
@@ -89,7 +89,7 @@ pub fn handle(
 
     if accounts.caller_farm_wallet.mint == accounts.caller_lp_wallet.mint {
         msg!("Farm wallet mint cannot be the same as the LP token mint");
-        return Err(ProgramError::InvalidAccountData);
+        return Err(ProgramError::InvalidArgument);
     }
 
     let farm_token_amount_before_withdraw = accounts.caller_farm_wallet.amount;
@@ -170,7 +170,7 @@ impl<'info> CompoundLeveragedPositionOnAldrin<'info> {
         let amm = amm::Pool::load(&amm_pool_data)?;
         if amm.pool_mint != self.pool_mint.key() {
             msg!("Pool mint doesn't match AMM pool account data");
-            return Err(ProgramError::InvalidAccountData);
+            return Err(ErrorCode::InvalidAccountInput.into());
         }
 
         let lp_token_price = amm::lp_token_market_price(

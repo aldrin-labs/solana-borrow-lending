@@ -121,6 +121,7 @@ pub fn handle<'info>(
         accounts.reserve.key(),
         borrow_amount,
         LoanKind::Standard,
+        accounts.clock.slot,
     )?;
 
     accounts.reserve.last_update.mark_stale();

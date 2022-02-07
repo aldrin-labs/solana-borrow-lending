@@ -106,4 +106,12 @@ mod tests {
         let dec = Decimal::from(&mut sdec);
         assert_eq!(dec.to_string(), sdec.to_dec().to_string());
     }
+
+    #[test]
+    fn it_represents_one_permill() {
+        let dec = SDecimal {
+            u192: [1000000000000000, 0, 0],
+        };
+        assert_eq!(dec.to_dec().to_string(), "0.001000000000000000");
+    }
 }

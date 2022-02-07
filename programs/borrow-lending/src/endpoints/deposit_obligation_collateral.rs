@@ -57,7 +57,11 @@ pub fn handle(
         return Err(err::market_mismatch());
     }
 
-    obligation.deposit(accounts.reserve.key(), collateral_amount)?;
+    obligation.deposit(
+        accounts.reserve.key(),
+        collateral_amount,
+        accounts.clock.slot,
+    )?;
     obligation.last_update.mark_stale();
 
     token::transfer(

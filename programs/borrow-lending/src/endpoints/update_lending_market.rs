@@ -6,7 +6,7 @@ use crate::prelude::*;
 pub struct UpdateLendingMarket<'info> {
     #[account(signer)]
     pub owner: AccountInfo<'info>,
-    pub compound_bot: AccountInfo<'info>,
+    pub admin_bot: AccountInfo<'info>,
     #[account(mut, has_one = owner @ ErrorCode::InvalidMarketOwner)]
     pub lending_market: Account<'info, LendingMarket>,
 }
@@ -19,7 +19,7 @@ pub fn handle(
     let accounts = ctx.accounts;
     msg!("update lending market '{}'", accounts.lending_market.key());
 
-    accounts.lending_market.compound_bot = accounts.compound_bot.key();
+    accounts.lending_market.admin_bot = accounts.admin_bot.key();
     accounts.lending_market.compound_fee = compound_fee;
     accounts
         .lending_market

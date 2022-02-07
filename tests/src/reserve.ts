@@ -324,14 +324,26 @@ export class Reserve {
     );
   }
 
+  public async takeSnapshot() {
+    await this.market.program.rpc.takeReserveCapSnapshot({
+      accounts: {
+        caller: this.market.owner.publicKey,
+        lendingMarket: this.market.id,
+        reserve: this.id,
+        snapshots: this.accounts.snapshots.publicKey,
+        clock: SYSVAR_CLOCK_PUBKEY,
+      },
+      preInstructions: [this.refreshInstruction()],
+      signers: [this.market.owner],
+    });
+  }
+
   public async createCollateralWalletWithCollateral(
     owner: PublicKey,
     collateralAmount: number
   ): Promise<PublicKey> {
     const sourceCollateralWallet =
       await this.accounts.reserveCollateralMint.createAccount(owner);
-
-    // await this.refreshOraclePrice(999);
 
     const depositAccounts = await this.deposit(
       collateralAmount / ONE_LIQ_TO_COL_INITIAL_PRICE
@@ -341,7 +353,14 @@ export class Reserve {
       sourceCollateralWallet,
       depositAccounts.funder,
       [],
-      collateralAmount
+      Math.min(
+        collateralAmount,
+        (
+          await this.accounts.reserveCollateralMint.getAccountInfo(
+            depositAccounts.destinationCollateralWallet
+          )
+        ).amount.toNumber()
+      )
     );
 
     return sourceCollateralWallet;
@@ -359,6 +378,7 @@ interface InitReserveAccounts {
   reserveCollateralWallet: Keypair;
   reserveLiquidityFeeRecvWallet: Keypair;
   reserveLiquidityWallet: Keypair;
+  snapshots: Keypair;
   sourceLiquidityWallet: PublicKey;
 }
 
@@ -383,6 +403,7 @@ async function createReserveAccounts(
   const reserveLiquidityFeeRecvWallet = Keypair.generate();
   const destinationCollateralWallet = Keypair.generate();
   const liquidityMintAuthority = Keypair.generate();
+  const snapshots = Keypair.generate();
 
   const liquidityMint = await Token.createMint(
     connection,
@@ -434,6 +455,7 @@ async function createReserveAccounts(
     reserveLiquidityFeeRecvWallet,
     reserveLiquidityWallet,
     sourceLiquidityWallet,
+    snapshots,
   };
 }
 
@@ -467,12 +489,16 @@ async function rpcInitReserve(
         reserveLiquidityFeeRecvWallet:
           accounts.reserveLiquidityFeeRecvWallet.publicKey,
         reserveCollateralWallet: accounts.reserveCollateralWallet.publicKey,
+        snapshots: accounts.snapshots.publicKey,
         rent: SYSVAR_RENT_PUBKEY,
         tokenProgram: TOKEN_PROGRAM_ID,
         clock: SYSVAR_CLOCK_PUBKEY,
       },
-      signers: [owner, accounts.reserve],
+      signers: [owner, accounts.reserve, accounts.snapshots],
       instructions: [
+        await program.account.reserveCapSnapshots.createInstruction(
+          accounts.snapshots
+        ),
         await program.account.reserve.createInstruction(accounts.reserve),
       ],
     }

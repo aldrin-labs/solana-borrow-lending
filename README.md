@@ -344,6 +344,53 @@ the farming ticket from the large one, thereby running away with the
 difference. Using this PDA helps us associate the specific loan
 ([`ObligationLiquidity`]) exactly.
 
+### Emissions
+Emissions, also known as liquidity farming/mining, is a feature which allows
+lenders and borrowers to claim extra rewards on their positions in the form of
+tokens. A market owner creates a new emission strategy and configures which
+tokens will be emitted over time, how many tokens per second for lenders and
+how many for borrowers. They must provide wallets with enough funds, or
+transfer funds over time into the wallets. The wallets are taken from their
+authority under the programs PDA and then when the strategy ends (configurable
+during the creation) the market owner gets the ownership of those wallets back.
+
+An emission strategy is always tied to a reserve. We keep track of how much can
+a user claim with an obligation's field `emissions_claimable_from_slot`. Each
+loan or deposit has this field. It's updated to current slot on deposit or loan
+for a particular position. This implies that e.g. if a user borrowed USDC and
+wants to borrow it again after a day, they must claim their rewards first,
+otherwise they lose them, because the field will be updated to latest slot.
+
+When claiming rewards, the user must provide wallets in the same order as
+defined in the strategy account, as remaining accounts. For example, if
+emission is from mints A, B and C, then 6 wallets are at play. 3 wallets owner
+by the borrower into which emissions are transferred, and 3 wallets defined in
+the strategy account owned by the PDA that tokens are transferred from. So,
+in this example, remaining accounts would be an array of 6 accounts:
+1. emission supply wallet A
+2. borrower wallet A
+3. emission supply wallet B
+4. borrower wallet B
+5. emission supply wallet C
+6. borrower wallet C
+
+To distribute more fairly, we periodically take reserve snapshots with admin
+bot and store them into `ReserveCapSnapshots` account associated with a reserve.
+Using the information on when a user last claimed their emissions, we average
+over deposit/borrowed amount since then to calculate their current share.
+
+### Refreshing reserves and obligations
+Before performing most obligation actions, you must refresh the obligation,
+which accrues interest on loans. In order to refresh an obligation, all the
+reserves which concern it (as loans or deposits) must be refreshed too. This
+guarantees latest market prices and interest accrual. Some endpoints have
+constraint for obligation or reserve staleness, which means they require the
+refresh.
+
+The leverage yield farming feature is a bit of an outlier. We allow extra
+generous refresh there. That is because the funds never reach the user, but at
+the same time we are limited by the transaction size and cannot provide many
+additional accounts.
 
 ### Equations
 Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
@@ -374,6 +421,8 @@ Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
 | $`V_u`$      | unhealthy borrow value |
 | $`V_{maxw}`$ | maximum withdrawable UAC value |
 | $`V_{maxb}`$ | maximum borrowable UAC value (against deposited collateral) |
+| $`E`$        | emission tokens which a user can claim |
+| $`\omega`$      | emitted tokens per slot |
 | $`\kappa`$   | constant liquidity close factor |
 | $`\epsilon`$ | liquidation threshold in \[0; 1) |
 
@@ -483,6 +532,22 @@ R_d = R_u R_b
 \tag{10}
 ```
 
+⊢
+
+Emission are distributed between the users based on their share in a particular
+reserve's pool. Following equations differ by parameters and are for borrowers
+and lenders respectively:
+
+```math
+E = \omega^{b} S_e \dfrac{L^{u}_b}{L^{r}_b}
+\tag{11}
+```
+
+```math
+E = \omega^{s} S_e \dfrac{L^{u}_s}{L^{r}_s}
+\tag{12}
+```
+
 ⌙
 
 ## Commands
@@ -491,6 +556,8 @@ Use following anchor command to build the `borrow-lending` program:
 ```
 anchor build
 ```
+
+To install test npm dependencies, use `$ yarn`.
 
 Use testing script to build dependencies for testing (such as `shmem`)
 and run the tests:

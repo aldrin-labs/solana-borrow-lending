@@ -72,6 +72,9 @@ pub struct InitReserve<'info> {
     /// We will create a new token wallet on this account.
     #[account(zero)]
     pub reserve_collateral_wallet: AccountInfo<'info>,
+    /// Here's where we store recent history of the reserve funds.
+    #[account(zero)]
+    pub snapshots: AccountLoader<'info, ReserveCapSnapshots>,
     /// Used to create collateral mint token, collateral token wallet, mint
     /// adequate amount of collateral (based on `liquidity_amount`). Then to
     /// create liquidity token wallet and transfer liquidity into it.
@@ -120,6 +123,7 @@ pub fn handle(
 
     accounts.reserve.last_update = LastUpdate::new(accounts.clock.slot);
     accounts.reserve.lending_market = accounts.lending_market.key();
+    accounts.reserve.snapshots = accounts.snapshots.key();
     accounts.reserve.config = config;
     accounts.reserve.liquidity = ReserveLiquidity {
         mint: accounts.reserve_liquidity_mint.key(),
@@ -173,6 +177,14 @@ pub fn handle(
         accounts.into_liquidity_deposit_context(),
         liquidity_amount,
     )?;
+
+    let mut snapshots = accounts.snapshots.load_init()?;
+    snapshots.ring_buffer[0] = ReserveCap {
+        slot: accounts.clock.slot,
+        borrowed_amount: 0,
+        available_amount: accounts.reserve.liquidity.available_amount,
+    };
+    snapshots.reserve = accounts.reserve.key();
 
     Ok(())
 }

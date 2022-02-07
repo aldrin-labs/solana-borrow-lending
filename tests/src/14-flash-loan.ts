@@ -24,7 +24,7 @@ export function test(
     const flashLoanTargetProgram = Keypair.generate();
     let market: LendingMarket, reserve: Reserve, borrowerLiqWallet: PublicKey;
 
-    before("deploy shmem", async () => {
+    before("deploy flashloan target", async () => {
       const programBin = await readFile(FLASHLOAN_TARGET_SO_BIN_PATH);
       BpfLoader.load(
         program.provider.connection,

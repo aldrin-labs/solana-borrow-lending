@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# You must create source_wallet in the accounts_path and transfer sufficient
+# liquidity into it (at least as much as provided into --fund).
+
 set -e
 
 if [ -f .env ]
@@ -34,6 +37,7 @@ while :; do
             config_path="${2}"
             shift
         ;;
+        # without the trailing backslash
         --accounts-path)
             accounts_path="${2}"
             shift
@@ -80,6 +84,7 @@ function gen_keypair {
 
 # generates new keypairs (!! overwrites originals !!)
 gen_keypair reserve # new reserve account
+gen_keypair snapshots # new snapshots account
 gen_keypair dest_wallet # BLp inits this account and transfers collateral to it
 gen_keypair reserve_liq_wallet # where reserve funded liquidity is  stored
 gen_keypair reserve_col_wallet # where reserve deposited collateral is stored
@@ -110,6 +115,7 @@ echo
 
 ./target/release/cli init-reserve \
     --keypair "${accounts_path}/reserve.json" \
+    --snapshots "${accounts_path}/snapshots.json" \
     --reserve-liq-wallet "${accounts_path}/reserve_liq_wallet.json" \
     --reserve-col-wallet "${accounts_path}/reserve_col_wallet.json" \
     --collateral-mint "${accounts_path}/col_mint.json" \

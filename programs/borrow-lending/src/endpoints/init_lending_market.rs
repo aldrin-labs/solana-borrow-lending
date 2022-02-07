@@ -8,7 +8,7 @@ use crate::prelude::*;
 pub struct InitLendingMarket<'info> {
     #[account(signer)]
     pub owner: AccountInfo<'info>,
-    pub compound_bot: AccountInfo<'info>,
+    pub admin_bot: AccountInfo<'info>,
     #[account(zero)]
     pub lending_market: Account<'info, LendingMarket>,
 }
@@ -24,7 +24,7 @@ pub fn handle(
 
     accounts.lending_market.owner = accounts.owner.key();
     accounts.lending_market.currency = currency;
-    accounts.lending_market.compound_bot = accounts.compound_bot.key();
+    accounts.lending_market.admin_bot = accounts.admin_bot.key();
     accounts.lending_market.compound_fee = compound_fee;
     accounts
         .lending_market
