@@ -6,7 +6,7 @@ import {
   SystemProgram,
   SYSVAR_RENT_PUBKEY,
 } from "@solana/web3.js";
-import { AccountsCoder, BN } from "@project-serum/anchor";
+import { BorshAccountsCoder, BN } from "@project-serum/anchor";
 import { LendingMarket } from "./lending-market";
 import { Reserve } from "./reserve";
 import {
@@ -17,7 +17,7 @@ import {
   waitForCommit,
 } from "./helpers";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { AmmPool } from "./amm-pool";
+import { AmmFarm, AmmPool } from "./amm-pool";
 
 export interface ObligationData {
   owner: PublicKey;
@@ -103,7 +103,7 @@ export class Obligation {
   }
 
   public async fetch() {
-    const discriminator = AccountsCoder.accountDiscriminator("obligation");
+    const discriminator = BorshAccountsCoder.accountDiscriminator("obligation");
 
     const info = await this.market.connection.getAccountInfo(this.id);
     if (discriminator.compare(info.data.slice(0, 8))) {
@@ -659,6 +659,7 @@ export class Obligation {
   public async openLeveragedPositionOnAldrin(
     reserveToBorrow: Reserve,
     pool: AmmPool,
+    farmingTicket: PublicKey,
     borrowerBaseWallet: PublicKey,
     borrowerQuoteWallet: PublicKey,
     borrowerLpWallet: PublicKey,
@@ -666,24 +667,27 @@ export class Obligation {
     liquidityAmount: number,
     swapAmount: number,
     minSwapReturn: number,
-    leverage: number
+    leverage: number,
+    config: {
+      ammId?: PublicKey;
+    } = {}
   ): Promise<PublicKey> {
+    const { ammId } = {
+      ammId: pool.amm.programId,
+      ...config,
+    };
+
     const farmingReceipt = await createEmptyAccount(
       this.market.connection,
       this.market.owner,
       this.market.program.programId,
-      this.market.program.account.farmingReceipt.size
+      this.market.program.account.aldrinFarmingReceipt.size
     );
     await waitForCommit();
 
-    const [positionPda, positionBumpSeed] = await PublicKey.findProgramAddress(
-      [
-        Buffer.from(this.market.id.toBytes()),
-        Buffer.from(this.id.toBytes()),
-        Buffer.from(reserveToBorrow.id.toBytes()),
-        new BN(leverage).toBuffer("le", 8),
-      ],
-      this.market.program.programId
+    const [positionPda, positionBumpSeed] = await this.leveragedPositionPda(
+      reserveToBorrow,
+      leverage
     );
 
     this.reservesToRefresh.add(reserveToBorrow);
@@ -708,19 +712,19 @@ export class Obligation {
           lendingMarketPda: this.market.pda,
           marketObligationPda: positionPda,
           farmingReceipt: farmingReceipt,
-          ammProgram: pool.amm,
+          ammProgram: ammId,
           pool: pool.id,
-          poolMint: pool.mint,
-          poolSigner: pool.vaultSigner,
-          baseTokenVault: pool.vaultBase,
-          quoteTokenVault: pool.vaultQuote,
-          feePoolWallet: pool.feeWallet,
+          poolMint: pool.accounts.mint.publicKey,
+          poolSigner: pool.accounts.vaultSigner,
+          baseTokenVault: pool.accounts.vaultBase,
+          quoteTokenVault: pool.accounts.vaultQuote,
+          feePoolWallet: pool.accounts.feeWallet,
           borrowerBaseWallet: borrowerBaseWallet,
           borrowerQuoteWallet: borrowerQuoteWallet,
-          farmingState: pool.farmingState,
-          farmingTicket: pool.farmingTicket,
+          farmingState: pool.accounts.farmingState.publicKey,
+          farmingTicket,
           borrowerLpWallet: borrowerLpWallet,
-          lpTokenFreezeVault: pool.lpTokenFreeze,
+          lpTokenFreezeVault: pool.accounts.lpTokenFreeze,
           tokenProgram: TOKEN_PROGRAM_ID,
           clock: SYSVAR_CLOCK_PUBKEY,
           rent: SYSVAR_RENT_PUBKEY,
@@ -735,7 +739,8 @@ export class Obligation {
 
   public async closeLeveragedPositionOnAldrin(
     borrowedReserve: Reserve,
-    pool: AmmPool,
+    farm: AmmFarm,
+    farmingTicket: PublicKey,
     farmingReceipt: PublicKey,
     callerBaseWallet: PublicKey,
     callerQuoteWallet: PublicKey,
@@ -750,14 +755,9 @@ export class Obligation {
       ...opt,
     };
 
-    const [positionPda, positionBumpSeed] = await PublicKey.findProgramAddress(
-      [
-        Buffer.from(this.market.id.toBytes()),
-        Buffer.from(this.id.toBytes()),
-        Buffer.from(borrowedReserve.id.toBytes()),
-        new BN(leverage).toBuffer("le", 8),
-      ],
-      this.market.program.programId
+    const [positionPda, positionBumpSeed] = await this.leveragedPositionPda(
+      borrowedReserve,
+      leverage
     );
 
     await this.refresh();
@@ -774,23 +774,23 @@ export class Obligation {
             borrowedReserve.accounts.reserveLiquidityWallet.publicKey,
           marketObligationPda: positionPda,
           farmingReceipt,
-          farmingSnapshots: pool.snapshots,
-          feeBaseWallet: pool.feeVaultBase,
-          feeQuoteWallet: pool.feeVaultQuote,
-          ammProgram: pool.amm,
-          pool: pool.id,
-          poolMint: pool.mint,
+          farmingSnapshots: farm.accounts.snapshots,
+          feeBaseWallet: farm.ammPool.accounts.feeVaultBase,
+          feeQuoteWallet: farm.ammPool.accounts.feeVaultQuote,
+          ammProgram: farm.ammPool.amm.programId,
+          pool: farm.ammPool.id,
+          poolMint: farm.ammPool.accounts.mint.publicKey,
           callerSolWallet: callerBaseWallet,
-          poolSigner: pool.vaultSigner,
-          baseTokenVault: pool.vaultBase,
-          quoteTokenVault: pool.vaultQuote,
-          feePoolWallet: pool.feeWallet,
+          poolSigner: farm.ammPool.accounts.vaultSigner,
+          baseTokenVault: farm.ammPool.accounts.vaultBase,
+          quoteTokenVault: farm.ammPool.accounts.vaultQuote,
+          feePoolWallet: farm.ammPool.accounts.feeWallet,
           callerBaseWallet,
           callerQuoteWallet,
-          farmingState: pool.farmingState,
-          farmingTicket: pool.farmingTicket,
+          farmingState: farm.ammPool.accounts.farmingState.publicKey,
+          farmingTicket: farmingTicket,
           callerLpWallet,
-          lpTokenFreezeVault: pool.lpTokenFreeze,
+          lpTokenFreezeVault: farm.ammPool.accounts.lpTokenFreeze,
           tokenProgram: TOKEN_PROGRAM_ID,
           clock: SYSVAR_CLOCK_PUBKEY,
           rent: SYSVAR_RENT_PUBKEY,
@@ -803,7 +803,7 @@ export class Obligation {
 
   public async compoundLeveragedPositionOnAldrin(
     borrowedReserve: Reserve,
-    pool: AmmPool,
+    farm: AmmFarm,
     farmingCalc: PublicKey,
     baseTokenReserve: Reserve,
     quoteTokenReserve: Reserve,
@@ -819,18 +819,13 @@ export class Obligation {
     reservesToRefresh.add(quoteTokenReserve);
     reservesToRefresh.add(farmTokenReserve);
 
-    const [positionPda, positionBumpSeed] = await PublicKey.findProgramAddress(
-      [
-        Buffer.from(this.market.id.toBytes()),
-        Buffer.from(this.id.toBytes()),
-        Buffer.from(borrowedReserve.id.toBytes()),
-        new BN(leverage).toBuffer("le", 8),
-      ],
-      this.market.program.programId
+    const [positionPda, positionBumpSeed] = await this.leveragedPositionPda(
+      borrowedReserve,
+      leverage
     );
 
-    await this.market.program.rpc.compoundLeveragedPositionOnAldrin(
-      new BN(lpTokensToStake),
+    await farm.compoundPositionOnAldrin(
+      positionPda,
       [
         Buffer.from(this.market.id.toBytes()),
         Buffer.from(this.id.toBytes()),
@@ -838,37 +833,14 @@ export class Obligation {
         new BN(leverage).toBuffer("le", 8),
         Buffer.from([positionBumpSeed]),
       ],
-      {
-        accounts: {
-          lendingMarket: this.market.id,
-          caller: this.market.owner.publicKey,
-          ammProgram: pool.amm,
-          pool: pool.id,
-          poolMint: pool.mint,
-          baseTokenReserve: baseTokenReserve.id,
-          quoteTokenReserve: quoteTokenReserve.id,
-          farmTokenReserve: farmTokenReserve.id,
-          callerLpWallet: ownerLpWallet,
-          callerFarmWallet: ownerFarmWallet,
-          lpTokenFreezeVault: pool.lpTokenFreeze,
-          farmingState: pool.farmingState,
-          farmingCalc,
-          farmTokenVault: pool.farmTokenVault,
-          poolSigner: pool.vaultSigner,
-          baseTokenVault: pool.vaultBase,
-          quoteTokenVault: pool.vaultQuote,
-          farmingSnapshots: pool.snapshots,
-          farmingTicketOwnerPda: positionPda,
-          newFarmingTicket,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          clock: SYSVAR_CLOCK_PUBKEY,
-          rent: SYSVAR_RENT_PUBKEY,
-        },
-        instructions: Array.from(reservesToRefresh).map((r) =>
-          r.refreshInstruction()
-        ),
-        signers: [this.market.owner],
-      }
+      farmingCalc,
+      baseTokenReserve,
+      quoteTokenReserve,
+      farmTokenReserve,
+      newFarmingTicket,
+      ownerLpWallet,
+      ownerFarmWallet,
+      lpTokensToStake
     );
   }
 
@@ -917,6 +889,21 @@ export class Obligation {
           });
         }
       });
+  }
+
+  public async leveragedPositionPda(
+    reserve: Reserve,
+    leverage: number
+  ): Promise<[PublicKey, number]> {
+    return PublicKey.findProgramAddress(
+      [
+        Buffer.from(this.market.id.toBytes()),
+        Buffer.from(this.id.toBytes()),
+        Buffer.from(reserve.id.toBytes()),
+        new BN(leverage).toBuffer("le", 8),
+      ],
+      this.market.program.programId
+    );
   }
 
   private refreshReservesInstructions(): TransactionInstruction[] {

@@ -1,3 +1,4 @@
+pub mod amm;
 pub mod borrow_obligation_liquidity;
 pub mod deposit_obligation_collateral;
 pub mod deposit_reserve_liquidity;
@@ -6,7 +7,6 @@ pub mod flash_loan;
 pub mod init_lending_market;
 pub mod init_obligation;
 pub mod init_reserve;
-pub mod leverage_farming;
 pub mod liquidate_obligation;
 pub mod redeem_reserve_collateral;
 pub mod refresh_obligation;
@@ -18,6 +18,7 @@ pub mod update_lending_market;
 pub mod update_reserve_config;
 pub mod withdraw_obligation_collateral;
 
+pub use amm::*;
 pub use borrow_obligation_liquidity::*;
 pub use deposit_obligation_collateral::*;
 pub use deposit_reserve_liquidity::*;
@@ -26,7 +27,6 @@ pub use flash_loan::*;
 pub use init_lending_market::*;
 pub use init_obligation::*;
 pub use init_reserve::*;
-pub use leverage_farming::*;
 pub use liquidate_obligation::*;
 pub use redeem_reserve_collateral::*;
 pub use refresh_obligation::*;

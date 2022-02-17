@@ -65,7 +65,7 @@ fn main() {
 
 fn cluster(opt: Option<&str>) -> Cluster {
     let env = env::var("CLUSTER").unwrap_or_default();
-    let cluster = match opt.or_else(|| Some(env.as_str())) {
+    let cluster = match opt.or(Some(env.as_str())) {
         Some("devnet") | None => Cluster::Devnet,
         Some("mainnet") => Cluster::Mainnet,
         Some("localnet") => Cluster::Localnet,

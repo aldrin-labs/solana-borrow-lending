@@ -109,13 +109,17 @@ impl PartialEq for Error {
 pub fn illegal_owner(msg: impl AsRef<str>) -> ProgramError {
     msg!("[IllegalOwner] {}", msg.as_ref());
 
-    return ProgramError::IllegalOwner;
+    ProgramError::IllegalOwner
 }
 
 pub fn acc(msg: impl AsRef<str>) -> ProgramError {
     msg!("[InvalidAccountInput] {}", msg.as_ref());
 
     ErrorCode::InvalidAccountInput.into()
+}
+
+pub fn aldrin_amm_program_mismatch() -> ProgramError {
+    acc("Market's AMM program ID must match provided account id")
 }
 
 pub fn reserve_stale() -> ProgramError {

@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2022-02-16
+
+### Changed
+- Upgraded from anchor v0.20 to v0.21.
+- `FarmingReceipt` is now `AldrinFarmingReceipt`, we dropped `amm` field and
+  added `ticket` field. Field `obligation` was renamed to `owner` and `reserve`
+  to `association`.
+
+### Added
+- Vaults feature endpoints `open_vault_position_on_aldrin` and
+  `close_vault_position_on_aldrin`. This feature stakes LP tokens (no borrow)
+  and allows the user to take advantage of auto compounding.
+- `LendingMarket` has new pubkey field `aldrin_amm`. See below why.
+
+### Fixed
+- Closing a leverage position now checks for correct farming receipt. This
+  prevents state drift which would otherwise make it hard to find all users
+  positions.
+- **`CRITICAL`** Endpoint `open_leveraged_farming_position_on_aldrin` takes as
+  as an input an executable account for Aldrin's AMM so that we can perform CPI
+  and stake the borrowed funds with leverage. However, BLp did not check the
+  program ID. Therefore, an attacker could provide their own version of AMM
+  which just extracted the leveraged funds, and used some of them as collateral
+  to borrow again with leverage. Rinse and repeat. New constraint checks that
+  the AMM program ID matches lending market's defined one.
+
+
 ## [2.0.0] - 2022-02-04
 ### Added
 - Account types for liquidity mining: `EmissionStrategy` and

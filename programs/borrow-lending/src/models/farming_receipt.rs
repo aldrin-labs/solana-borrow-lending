@@ -9,17 +9,15 @@
 use crate::prelude::*;
 
 #[account]
-pub struct FarmingReceipt {
-    pub obligation: Pubkey,
-    pub reserve: Pubkey,
+pub struct AldrinFarmingReceipt {
+    /// This is obligation pubkey in case of leveraged positions and the caller
+    /// wallet pubkey in case of vaults.
+    pub owner: Pubkey,
+    /// This is the borrow reserve pubkey in case of leveraged positions and
+    /// the AMM pool pubkey in case of vaults.
+    pub association: Pubkey,
+    /// The pubkey of the farming ticket this receipt represents.
+    pub ticket: Pubkey,
+    /// This will is 1x in case of vaults.
     pub leverage: Leverage,
-    pub platform: FarmPlatform,
-}
-
-#[derive(
-    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Eq, PartialEq,
-)]
-pub enum FarmPlatform {
-    Aldrin,
-    Orca,
 }

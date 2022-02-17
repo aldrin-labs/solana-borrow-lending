@@ -64,11 +64,26 @@ pub fn app() -> App<'static> {
                 .takes_value(true),
         )
         .arg(
-            Arg::new("compound-fee")
-                .long("compound-fee")
+            Arg::new("aldrin-amm")
+                .long("aldrin-amm")
+                .about("pubkey of aldrin's AMM program")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("leveraged-compound-fee")
+                .long("leveraged-compound-fee")
                 .about(
                     "how many percents of rewards we take on compounding, \
-                    (defaults to 10%)",
+                    of leveraged positions (defaults to 10%)",
+                )
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("vault-compound-fee")
+                .long("vault-compound-fee")
+                .about(
+                    "how many percents of rewards we take on compounding, \
+                    of vaults positions (defaults to 2%)",
                 )
                 .takes_value(true),
         )
@@ -103,15 +118,24 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         .value_of("bot")
         .map(ToString::to_string)
         .or_else(|| Some(owner.pubkey().to_string()));
-    let bot = load_pubkey(
-        bot_pubkey.as_ref().map(|s| s.as_str()),
-        "Provide bot's pubkey with --bot",
+    let bot =
+        load_pubkey(bot_pubkey.as_deref(), "Provide bot's pubkey with --bot");
+
+    let (_, leveraged_compound_fee) = load_value(
+        matches.value_of("leveraged-compound-fee").or(Some("10")),
+        || panic!("Leverage compound fee percentage must be provided"),
+        |fee| u8::from_str(fee).expect("leverage compound fee must be a byte"),
     );
 
-    let (_, compound_fee) = load_value(
-        matches.value_of("compound-fee").or(Some("10")),
-        || panic!("Compound fee percentage must be provided"),
-        |fee| u8::from_str(fee).expect("compound fee must be a byte"),
+    let (_, vault_compound_fee) = load_value(
+        matches.value_of("vault-compound-fee").or(Some("2")),
+        || panic!("Vaults compound fee percentage must be provided"),
+        |fee| u8::from_str(fee).expect("vaults compound fee must be a byte"),
+    );
+
+    let aldrin_amm = load_pubkey(
+        matches.value_of("aldrin-amm"),
+        "Aldrin's AMM program id must be provided with --aldrin-amm",
     );
 
     let currency = if matches.is_present("usd") {
@@ -142,7 +166,8 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         - currency:    {:?}
         - owner:       '{}'
         - bot:         '{}'
-        - compound-fee {}%
+        - leverage fee {}%
+        - vault fee    {}%
         \n",
         market.pubkey(),
         LendingMarket::space(),
@@ -150,7 +175,8 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         currency,
         owner.pubkey(),
         bot,
-        compound_fee
+        leveraged_compound_fee,
+        vault_compound_fee
     );
 
     let mut transaction = program
@@ -166,12 +192,16 @@ pub fn handle(program: Program, payer: Keypair, matches: &ArgMatches) {
         .accounts(Accounts {
             owner: owner.pubkey(),
             lending_market: market.pubkey(),
+            aldrin_amm,
             admin_bot: bot,
         })
         .args(Instruction {
             currency,
-            compound_fee: PercentageInt {
-                percent: compound_fee,
+            leveraged_compound_fee: PercentageInt {
+                percent: leveraged_compound_fee,
+            },
+            vault_compound_fee: PercentageInt {
+                percent: vault_compound_fee,
             },
             // $10 can be hard coded, extremely unlikely need for configuration
             // via CLI

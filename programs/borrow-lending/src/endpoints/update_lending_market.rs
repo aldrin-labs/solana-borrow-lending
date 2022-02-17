@@ -13,14 +13,16 @@ pub struct UpdateLendingMarket<'info> {
 
 pub fn handle(
     ctx: Context<UpdateLendingMarket>,
-    compound_fee: PercentageInt,
+    leveraged_compound_fee: PercentageInt,
+    vault_compound_fee: PercentageInt,
     min_collateral_uac_value_for_leverage: SDecimal,
 ) -> ProgramResult {
     let accounts = ctx.accounts;
     msg!("update lending market '{}'", accounts.lending_market.key());
 
     accounts.lending_market.admin_bot = accounts.admin_bot.key();
-    accounts.lending_market.compound_fee = compound_fee;
+    accounts.lending_market.leveraged_compound_fee = leveraged_compound_fee;
+    accounts.lending_market.vault_compound_fee = vault_compound_fee;
     accounts
         .lending_market
         .min_collateral_uac_value_for_leverage =

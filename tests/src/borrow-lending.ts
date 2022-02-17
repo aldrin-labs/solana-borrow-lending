@@ -34,6 +34,7 @@ import { test as testFlashLoan } from "./14-flash-loan";
 import { test as testLeveragedPositionOnAldrin } from "./15-leveraged-position-on-aldrin";
 import { test as testTakeReserveCapSnapshot } from "./16-take-reserve-cap-snapshot";
 import { test as testEmissionStrategy } from "./17-emission";
+import { test as testVaultPositionOnAldrin } from "./18-vault-position-on-aldrin";
 
 describe("borrow-lending", function () {
   const ammKeypair = Keypair.generate();
@@ -54,6 +55,8 @@ describe("borrow-lending", function () {
 
   const blp = anchor.workspace.BorrowLending as Program<BorrowLending>;
   // TODO: no types yet, old anchor version
+  // if your test suite needs amm, don't forget to add it to `needsAmm` list in
+  // this file
   const amm = anchor.workspace.MmFarmingPoolProductOnly as Program<any>;
 
   const shmemKeypair = Keypair.generate();
@@ -115,6 +118,13 @@ describe("borrow-lending", function () {
   );
   testTakeReserveCapSnapshot(blp, payer, shmemKeypair.publicKey);
   testEmissionStrategy(blp, payer, shmemKeypair.publicKey);
+  testVaultPositionOnAldrin(
+    blp,
+    amm,
+    payer,
+    ammPoolAuthority,
+    shmemKeypair.publicKey
+  );
 
   // get a list of top level suites which will run
   const onlySuites: string[] = this.suites
@@ -127,9 +137,13 @@ describe("borrow-lending", function () {
     .map((suite) => suite.title);
 
   before("deploy amm", async () => {
+    const needsAmm = [
+      "leveraged position on Aldrin",
+      "vault position on aldrin",
+    ];
     if (
       onlySuites.length > 0 &&
-      !onlySuites.includes("leveraged position on Aldrin")
+      !needsAmm.some((s) => onlySuites.includes(s))
     ) {
       // AMM is not necessary for all tests, but it takes long time to upload.
       // To speed up iteration, upload it only when necessary.

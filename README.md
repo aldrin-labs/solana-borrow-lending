@@ -2,7 +2,7 @@
 * [Rust docs][project-rust-docs]
 * [Changelog][project-changelog]
 * Solana v1.7.17
-* Anchor v0.20.1
+* Anchor v0.21.0
 
 A lending platform is a tool where users lend and borrow tokens. A user either
 gets an interest on lent tokens or they get a loan and pay interest.

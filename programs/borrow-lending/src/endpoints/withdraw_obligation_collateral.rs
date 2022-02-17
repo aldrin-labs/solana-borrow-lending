@@ -143,7 +143,7 @@ pub fn handle(
     ];
     token::transfer(
         accounts
-            .into_withdraw_collateral_context()
+            .as_withdraw_collateral_context()
             .with_signer(&[&pda_seeds[..]]),
         withdraw_amount,
     )?;
@@ -152,7 +152,7 @@ pub fn handle(
 }
 
 impl<'info> WithdrawObligationCollateral<'info> {
-    pub fn into_withdraw_collateral_context(
+    pub fn as_withdraw_collateral_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
         let cpi_accounts = token::Transfer {

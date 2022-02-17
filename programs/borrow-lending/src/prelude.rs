@@ -102,9 +102,10 @@ pub mod consts {
     /// However, we only need to do this in the last ~N slots, not
     /// necessarily in the same transaction. Thanks to that we can ignore
     /// the problem of how many reserves can be refreshed at once in
-    /// [`crate::endpoints::leverage_farming::aldrin::close`]
+    /// [`crate::endpoints::amm::aldrin::close_leveraged_position_on_aldrin`]
     /// endpoint, and all that matters is how many reserves can be refreshed
-    /// at once in [`crate::endpoints::leverage_farming::aldrin::open`]
+    /// at once in
+    /// [`crate::endpoints::amm::aldrin::open_leveraged_position_on_aldrin`]
     /// endpoint.
     pub const MAX_OBLIGATION_REFRESH_SLOTS_ELAPSED_FOR_LEVERAGED_POSITION: u64 =
         20;
