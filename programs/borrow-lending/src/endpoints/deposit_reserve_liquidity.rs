@@ -75,21 +75,18 @@ pub fn handle(
     ];
     token::mint_to(
         accounts
-            .into_mint_collateral_for_liquidity_context()
+            .as_mint_collateral_for_liquidity_context()
             .with_signer(&[&pda_seeds[..]]),
         collateral_amount,
     )?;
 
-    token::transfer(
-        accounts.into_deposit_liquidity_context(),
-        liquidity_amount,
-    )?;
+    token::transfer(accounts.as_deposit_liquidity_context(), liquidity_amount)?;
 
     Ok(())
 }
 
 impl<'info> DepositReserveLiquidity<'info> {
-    pub fn into_mint_collateral_for_liquidity_context(
+    pub fn as_mint_collateral_for_liquidity_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::MintTo<'info>> {
         let cpi_accounts = token::MintTo {
@@ -101,7 +98,7 @@ impl<'info> DepositReserveLiquidity<'info> {
         CpiContext::new(cpi_program, cpi_accounts)
     }
 
-    pub fn into_deposit_liquidity_context(
+    pub fn as_deposit_liquidity_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
         let cpi_accounts = token::Transfer {

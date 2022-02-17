@@ -30,6 +30,10 @@ use super::{GetLpTokensCpi, Side, StakeCpi, SwapCpi};
 use crate::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount};
 
+/// Contains market pubkey, obligation pubkey, reserve pubkey, leverage and bump
+/// seed.
+pub const LEVERAGED_POSITION_PDA_SEEDS_LEN: usize = 5;
+
 #[derive(Accounts)]
 #[instruction(
     lending_market_bump_seed: u8,
@@ -89,15 +93,14 @@ pub struct OpenLeveragedPositionOnAldrin<'info> {
     /// Allows us to search the blockchain accounts for associated farming
     /// ticket since the PDA is hard to work with.
     #[account(zero)]
-    pub farming_receipt: Box<Account<'info, FarmingReceipt>>,
+    pub farming_receipt: Box<Account<'info, AldrinFarmingReceipt>>,
     // -------------- AMM Accounts ----------------
-    #[account(executable)]
-    pub amm_program: AccountInfo<'info>,
     #[account(
-        constraint = *pool.owner == amm_program.key()
-            @ err::illegal_owner("Amm pool account \
-            must be owned by amm program"),
+        executable,
+        constraint = lending_market.aldrin_amm == amm_program.key()
+            @ err::aldrin_amm_program_mismatch(),
     )]
+    pub amm_program: AccountInfo<'info>,
     pub pool: AccountInfo<'info>,
     pub pool_signer: AccountInfo<'info>,
     #[account(mut)]
@@ -125,6 +128,7 @@ pub struct OpenLeveragedPositionOnAldrin<'info> {
     pub rent: AccountInfo<'info>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn handle(
     ctx: Context<OpenLeveragedPositionOnAldrin>,
     lending_market_bump_seed: u8,
@@ -231,7 +235,7 @@ pub fn handle(
 
     token::transfer(
         accounts
-            .into_borrow_liquidity_context(side)
+            .as_borrow_liquidity_context(side)
             .with_signer(&[&pda_seeds[..]]),
         liquidity_amount,
     )?;
@@ -277,10 +281,10 @@ pub fn handle(
         ],
         stake_lp_amount,
     )?;
-    accounts.farming_receipt.obligation = accounts.obligation.key();
+    accounts.farming_receipt.owner = accounts.obligation.key();
     accounts.farming_receipt.leverage = leverage;
-    accounts.farming_receipt.reserve = accounts.reserve.key();
-    accounts.farming_receipt.platform = FarmPlatform::Aldrin;
+    accounts.farming_receipt.association = accounts.reserve.key();
+    accounts.farming_receipt.ticket = accounts.farming_ticket.key();
 
     // Doesn't let the user to exit the instruction with either token ending up
     // in their possession. They must perform the calculation before calling the
@@ -367,7 +371,7 @@ impl<'info> From<&&mut OpenLeveragedPositionOnAldrin<'info>>
 }
 
 impl<'info> OpenLeveragedPositionOnAldrin<'info> {
-    fn into_borrow_liquidity_context(
+    fn as_borrow_liquidity_context(
         &self,
         side: Side,
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {

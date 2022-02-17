@@ -23,7 +23,7 @@
 //! will repay the loan if there's something extra, it will stay in the caller's
 //! wallets.
 
-use super::{EndFarming, RedeemBasket, Side, SwapCpi};
+use super::{RedeemBasket, Side, SwapCpi, UnstakeCpi};
 use crate::prelude::*;
 use anchor_lang::solana_program::{
     instruction::Instruction, program::invoke_signed,
@@ -67,8 +67,9 @@ pub struct CloseLeveragedPositionOnAldrin<'info> {
             @ err::acc("Source liq. wallet must eq. reserve's liq. supply"),
     )]
     pub reserve_liquidity_wallet: AccountInfo<'info>,
-    /// See the [`crate::endpoints::leverage_farming::aldrin::open`] module for
-    /// documentation on the rational behind these seeds, or the README.
+    /// See the [`crate::endpoints::amm::aldrin::
+    /// open_leveraged_position_on_aldrin`] module for documentation on the
+    /// rational behind these seeds, or the README.
     #[account(
         seeds = [
             reserve.lending_market.as_ref(), obligation.key().as_ref(),
@@ -79,8 +80,13 @@ pub struct CloseLeveragedPositionOnAldrin<'info> {
     pub market_obligation_pda: AccountInfo<'info>,
     /// We no longer need the receipt as the farming ticket is closed.
     /// Therefore we return the rent back to borrower.
-    #[account(mut, close = caller)]
-    pub farming_receipt: Account<'info, FarmingReceipt>,
+    #[account(
+        mut,
+        close = caller,
+        constraint = farming_receipt.ticket == *farming_ticket.key
+            @ err::acc("Farming ticket must match farming ticket"),
+    )]
+    pub farming_receipt: Account<'info, AldrinFarmingReceipt>,
     // -------------- AMM Accounts ----------------
     #[account(executable)]
     pub amm_program: AccountInfo<'info>,
@@ -141,8 +147,20 @@ pub fn handle(
     //
     // 1.
     //
-    let unstaked_lp_amount =
-        accounts.unstake(market_obligation_bump_seed, leverage)?;
+    let lp_tokens_before = accounts.caller_lp_wallet.amount;
+    UnstakeCpi::from(&accounts).unstake(&[
+        &accounts.reserve.lending_market.to_bytes()[..],
+        &accounts.obligation.key().to_bytes()[..],
+        &accounts.reserve.key().to_bytes()[..],
+        &leverage.to_le_bytes()[..],
+        &[market_obligation_bump_seed],
+    ])?;
+    accounts.caller_lp_wallet.reload()?;
+    let unstaked_lp_amount = accounts
+        .caller_lp_wallet
+        .amount
+        .checked_sub(lp_tokens_before)
+        .ok_or(ErrorCode::MathOverflow)?;
 
     //
     // 2.
@@ -195,67 +213,6 @@ pub fn handle(
 }
 
 impl<'info> CloseLeveragedPositionOnAldrin<'info> {
-    fn unstake(
-        &mut self,
-        market_obligation_bump_seed: u8,
-        leverage: Leverage,
-    ) -> Result<u64> {
-        let lp_tokens_before = self.caller_lp_wallet.amount;
-
-        let end_farming_instruction_accounts = vec![
-            AccountMeta::new_readonly(*self.pool.key, false),
-            AccountMeta::new_readonly(*self.farming_state.key, false),
-            AccountMeta::new_readonly(*self.farming_snapshots.key, false),
-            AccountMeta::new(*self.farming_ticket.key, false),
-            AccountMeta::new(*self.lp_token_freeze_vault.key, false),
-            AccountMeta::new_readonly(*self.pool_signer.key, false),
-            AccountMeta::new(self.caller_lp_wallet.key(), false),
-            AccountMeta::new_readonly(*self.market_obligation_pda.key, true),
-            AccountMeta::new_readonly(*self.token_program.key, false),
-            AccountMeta::new_readonly(self.clock.key(), false),
-            AccountMeta::new_readonly(*self.rent.key, false),
-        ];
-        let end_farming_instruction_account_infos: Vec<AccountInfo> = vec![
-            self.pool.to_account_info(),
-            self.pool_signer.to_account_info(),
-            self.farming_state.to_account_info(),
-            self.farming_ticket.to_account_info(),
-            self.farming_snapshots.to_account_info(),
-            self.lp_token_freeze_vault.to_account_info(),
-            self.caller_lp_wallet.to_account_info(),
-            self.market_obligation_pda.to_account_info(),
-            self.token_program.to_account_info(),
-            self.clock.to_account_info(),
-            self.rent.to_account_info(),
-        ];
-
-        // ~35k units
-        invoke_signed(
-            &Instruction {
-                program_id: self.amm_program.key(),
-                accounts: end_farming_instruction_accounts,
-                data: EndFarming.instruction_data(),
-            },
-            &end_farming_instruction_account_infos[..],
-            &[&[
-                &self.reserve.lending_market.to_bytes()[..],
-                &self.obligation.key().to_bytes()[..],
-                &self.reserve.key().to_bytes()[..],
-                &leverage.to_le_bytes()[..],
-                &[market_obligation_bump_seed],
-            ]],
-        )?;
-
-        self.caller_lp_wallet.reload()?;
-        let unstaked_lp_amount = self
-            .caller_lp_wallet
-            .amount
-            .checked_sub(lp_tokens_before)
-            .ok_or_else(|| ErrorCode::MathOverflow)?;
-
-        Ok(unstaked_lp_amount)
-    }
-
     fn exchange_lp_tokens_for_constituent_tokens(
         &self,
         market_obligation_bump_seed: u8,
@@ -392,7 +349,7 @@ impl<'info> CloseLeveragedPositionOnAldrin<'info> {
             obligation.last_update.mark_stale();
 
             token::transfer(
-                self.into_repay_liquidity_context(side),
+                self.as_repay_liquidity_context(side),
                 repay_amount,
             )?;
         }
@@ -421,8 +378,29 @@ impl<'info> From<&&mut CloseLeveragedPositionOnAldrin<'info>>
     }
 }
 
+impl<'info> From<&&mut CloseLeveragedPositionOnAldrin<'info>>
+    for UnstakeCpi<'info>
+{
+    fn from(a: &&mut CloseLeveragedPositionOnAldrin<'info>) -> Self {
+        Self {
+            amm_program: *a.amm_program.key,
+            pool: a.pool.to_account_info(),
+            pool_signer: a.pool_signer.to_account_info(),
+            farming_state: a.farming_state.to_account_info(),
+            farming_ticket: a.farming_ticket.to_account_info(),
+            farming_snapshots: a.farming_snapshots.to_account_info(),
+            lp_token_freeze_vault: a.lp_token_freeze_vault.to_account_info(),
+            caller_lp_wallet: a.caller_lp_wallet.to_account_info(),
+            authority: a.market_obligation_pda.to_account_info(),
+            token_program: a.token_program.to_account_info(),
+            clock: a.clock.to_account_info(),
+            rent: a.rent.to_account_info(),
+        }
+    }
+}
+
 impl<'info> CloseLeveragedPositionOnAldrin<'info> {
-    fn into_repay_liquidity_context(
+    fn as_repay_liquidity_context(
         &self,
         side: Side,
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {

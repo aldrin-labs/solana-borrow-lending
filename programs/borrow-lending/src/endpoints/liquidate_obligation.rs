@@ -180,7 +180,7 @@ pub fn handle(
     obligation.last_update.mark_stale();
     accounts.repay_reserve.last_update.mark_stale();
 
-    token::transfer(accounts.into_repay_liquidity_context(), repay_amount)?;
+    token::transfer(accounts.as_repay_liquidity_context(), repay_amount)?;
 
     let pda_seeds = &[
         &accounts.withdraw_reserve.lending_market.to_bytes()[..],
@@ -188,7 +188,7 @@ pub fn handle(
     ];
     token::transfer(
         accounts
-            .into_withdraw_collateral_context()
+            .as_withdraw_collateral_context()
             .with_signer(&[&pda_seeds[..]]),
         withdraw_amount,
     )?;
@@ -359,7 +359,7 @@ fn calculate_liquidation_amounts(
 }
 
 impl<'info> LiquidateObligation<'info> {
-    pub fn into_repay_liquidity_context(
+    pub fn as_repay_liquidity_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
         let cpi_accounts = token::Transfer {
@@ -371,7 +371,7 @@ impl<'info> LiquidateObligation<'info> {
         CpiContext::new(cpi_program, cpi_accounts)
     }
 
-    pub fn into_withdraw_collateral_context(
+    pub fn as_withdraw_collateral_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
         let cpi_accounts = token::Transfer {

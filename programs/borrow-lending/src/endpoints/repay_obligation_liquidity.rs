@@ -4,8 +4,8 @@
 //!
 //! Both [`LoanKind::Standard`] and [`LoanKind::YieldFarming`] can be repaid
 //! this way. However, for leveraged position you should also call
-//! [`crate::endpoints::leverage_farming::aldrin::close`], because the borrower
-//! might have liquidity staked. See [`crate::endpoints::leverage_farming`] for
+//! [`crate::endpoints::amm::aldrin::close_leveraged_position_on_aldrin`],
+//! because the borrower might have liquidity staked. See the endpoint above for
 //! more information on how to repay a leveraged loan.
 
 use crate::prelude::*;
@@ -96,13 +96,13 @@ pub fn handle(
     accounts.reserve.last_update.mark_stale();
     obligation.last_update.mark_stale();
 
-    token::transfer(accounts.into_repay_liquidity_context(), repay_amount)?;
+    token::transfer(accounts.as_repay_liquidity_context(), repay_amount)?;
 
     Ok(())
 }
 
 impl<'info> RepayObligationLiquidity<'info> {
-    pub fn into_repay_liquidity_context(
+    pub fn as_repay_liquidity_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
         let cpi_accounts = token::Transfer {

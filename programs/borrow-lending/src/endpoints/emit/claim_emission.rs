@@ -199,10 +199,7 @@ pub fn handle<'info>(
 
         token::transfer(
             accounts
-                .into_claim_tokens_context(
-                    wallets[0].clone(),
-                    wallets[1].clone(),
-                )
+                .as_claim_tokens_context(wallets[0].clone(), wallets[1].clone())
                 .with_signer(&[&pda_seeds[..]]),
             amount.try_floor_u64()?,
         )?;
@@ -212,7 +209,7 @@ pub fn handle<'info>(
 }
 
 impl<'info> ClaimEmission<'info> {
-    pub fn into_claim_tokens_context(
+    pub fn as_claim_tokens_context(
         &self,
         source_wallet: AccountInfo<'info>,
         destination_wallet: AccountInfo<'info>,

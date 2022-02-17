@@ -71,7 +71,7 @@ pub fn handle<'info>(
         }
 
         token::set_authority(
-            accounts.into_set_wallet_authority_to_pda_context(wallet.clone()),
+            accounts.as_set_wallet_authority_to_pda_context(wallet.clone()),
             AuthorityType::AccountOwner,
             Some(*accounts.lending_market_pda.key),
         )?;
@@ -101,7 +101,7 @@ pub fn handle<'info>(
 }
 
 impl<'info> CreateEmission<'info> {
-    pub fn into_set_wallet_authority_to_pda_context(
+    pub fn as_set_wallet_authority_to_pda_context(
         &self,
         wallet: AccountInfo<'info>,
     ) -> CpiContext<'_, '_, '_, 'info, token::SetAuthority<'info>> {

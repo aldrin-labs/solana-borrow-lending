@@ -90,13 +90,13 @@ pub fn handle(
     ];
     token::transfer(
         accounts
-            .into_return_funders_liquidity_context()
+            .as_return_funders_liquidity_context()
             .with_signer(&[&pda_seeds[..]]),
         liquidity_amount,
     )?;
 
     token::burn(
-        accounts.into_burn_collateral_token_context(),
+        accounts.as_burn_collateral_token_context(),
         collateral_amount,
     )?;
 
@@ -104,7 +104,7 @@ pub fn handle(
 }
 
 impl<'info> RedeemReserveCollateral<'info> {
-    pub fn into_burn_collateral_token_context(
+    pub fn as_burn_collateral_token_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::Burn<'info>> {
         let cpi_accounts = token::Burn {
@@ -116,7 +116,7 @@ impl<'info> RedeemReserveCollateral<'info> {
         CpiContext::new(cpi_program, cpi_accounts)
     }
 
-    pub fn into_return_funders_liquidity_context(
+    pub fn as_return_funders_liquidity_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
         let cpi_accounts = token::Transfer {

@@ -64,7 +64,7 @@ pub fn handle<'info>(
         }
 
         token::set_authority(
-            accounts.into_set_wallet_authority_to_owner_context(wallet.clone()),
+            accounts.as_set_wallet_authority_to_owner_context(wallet.clone()),
             AuthorityType::AccountOwner,
             Some(*accounts.owner.key),
         )?;
@@ -74,7 +74,7 @@ pub fn handle<'info>(
 }
 
 impl<'info> CloseEmission<'info> {
-    pub fn into_set_wallet_authority_to_owner_context(
+    pub fn as_set_wallet_authority_to_owner_context(
         &self,
         wallet: AccountInfo<'info>,
     ) -> CpiContext<'_, '_, '_, 'info, token::SetAuthority<'info>> {

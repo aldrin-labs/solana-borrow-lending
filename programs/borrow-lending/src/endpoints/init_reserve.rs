@@ -142,16 +142,16 @@ pub fn handle(
 
     let freeze_authority = None;
     token::initialize_mint(
-        accounts.into_init_collateral_mint_context(),
+        accounts.as_init_collateral_mint_context(),
         accounts.reserve_liquidity_mint.decimals,
         &accounts.lending_market_pda.key(),
         freeze_authority,
     )?;
 
-    token::initialize_account(accounts.into_init_fee_recv_wallet_context())?;
-    token::initialize_account(accounts.into_init_liquidity_wallet_context())?;
+    token::initialize_account(accounts.as_init_fee_recv_wallet_context())?;
+    token::initialize_account(accounts.as_init_liquidity_wallet_context())?;
     token::initialize_account(
-        accounts.into_init_reserve_collateral_wallet_context(),
+        accounts.as_init_reserve_collateral_wallet_context(),
     )?;
 
     let pda_seeds = &[
@@ -161,22 +161,19 @@ pub fn handle(
 
     // a wallet for the funder
     token::initialize_account(
-        accounts.into_init_destination_collateral_wallet_context(),
+        accounts.as_init_destination_collateral_wallet_context(),
     )?;
     // to get their collateral token
     let collateral_amount =
         accounts.reserve.deposit_liquidity(liquidity_amount)?;
     token::mint_to(
         accounts
-            .into_mint_collateral_for_liquidity_context()
+            .as_mint_collateral_for_liquidity_context()
             .with_signer(&[&pda_seeds[..]]),
         collateral_amount,
     )?;
     // in exchange for the deposited initial liquidity
-    token::transfer(
-        accounts.into_liquidity_deposit_context(),
-        liquidity_amount,
-    )?;
+    token::transfer(accounts.as_liquidity_deposit_context(), liquidity_amount)?;
 
     let mut snapshots = accounts.snapshots.load_init()?;
     snapshots.ring_buffer[0] = ReserveCap {
@@ -190,7 +187,7 @@ pub fn handle(
 }
 
 impl<'info> InitReserve<'info> {
-    pub fn into_init_collateral_mint_context(
+    pub fn as_init_collateral_mint_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::InitializeMint<'info>> {
         let cpi_accounts = token::InitializeMint {
@@ -201,7 +198,7 @@ impl<'info> InitReserve<'info> {
         CpiContext::new(cpi_program, cpi_accounts)
     }
 
-    pub fn into_init_fee_recv_wallet_context(
+    pub fn as_init_fee_recv_wallet_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::InitializeAccount<'info>> {
         let cpi_accounts = token::InitializeAccount {
@@ -214,7 +211,7 @@ impl<'info> InitReserve<'info> {
         CpiContext::new(cpi_program, cpi_accounts)
     }
 
-    pub fn into_init_liquidity_wallet_context(
+    pub fn as_init_liquidity_wallet_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::InitializeAccount<'info>> {
         let cpi_accounts = token::InitializeAccount {
@@ -227,7 +224,7 @@ impl<'info> InitReserve<'info> {
         CpiContext::new(cpi_program, cpi_accounts)
     }
 
-    pub fn into_init_reserve_collateral_wallet_context(
+    pub fn as_init_reserve_collateral_wallet_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::InitializeAccount<'info>> {
         let cpi_accounts = token::InitializeAccount {
@@ -240,7 +237,7 @@ impl<'info> InitReserve<'info> {
         CpiContext::new(cpi_program, cpi_accounts)
     }
 
-    pub fn into_init_destination_collateral_wallet_context(
+    pub fn as_init_destination_collateral_wallet_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::InitializeAccount<'info>> {
         let cpi_accounts = token::InitializeAccount {
@@ -253,7 +250,7 @@ impl<'info> InitReserve<'info> {
         CpiContext::new(cpi_program, cpi_accounts)
     }
 
-    pub fn into_liquidity_deposit_context(
+    pub fn as_liquidity_deposit_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
         let cpi_accounts = token::Transfer {
@@ -265,7 +262,7 @@ impl<'info> InitReserve<'info> {
         CpiContext::new(cpi_program, cpi_accounts)
     }
 
-    pub fn into_mint_collateral_for_liquidity_context(
+    pub fn as_mint_collateral_for_liquidity_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::MintTo<'info>> {
         let cpi_accounts = token::MintTo {

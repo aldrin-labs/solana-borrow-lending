@@ -27,23 +27,30 @@ export class LendingMarket {
     //
   }
 
+  // Provided amm key will be used to verify Aldrin's AMM program id with
+  // LYF or vaults. For tests which don't interact with AMM, it can be defaulted
+  // to a BLp because it doesn't affect anything and it's a bother to pass
+  // the AMM's public key.
   public static async init(
     program: Program<BorrowLending>,
     owner: Keypair,
     oracle: PublicKey,
+    amm: PublicKey = program.programId,
     currency: "usd" | PublicKey = "usd"
   ): Promise<LendingMarket> {
     const marketAccount = Keypair.generate();
 
     await program.rpc.initLendingMarket(
       currency === "usd" ? { usd: {} } : { pubkey: { address: currency } },
-      { percent: 10 }, // 10% borrow fee
+      { percent: 10 }, // 10% compound fee for leverage
+      { percent: 2 }, // 2% compound fee for vault
       numberToU192(10), // $10 min collateral for borrowing
       {
         accounts: {
           owner: owner.publicKey,
           lendingMarket: marketAccount.publicKey,
           adminBot: owner.publicKey,
+          aldrinAmm: amm,
         },
         instructions: [
           await program.account.lendingMarket.createInstruction(marketAccount),

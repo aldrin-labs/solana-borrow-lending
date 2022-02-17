@@ -31,25 +31,29 @@ pub mod borrow_lending {
     pub fn init_lending_market(
         ctx: Context<InitLendingMarket>,
         currency: UniversalAssetCurrency,
-        compound_fee: PercentageInt,
+        leveraged_compound_fee: PercentageInt,
+        vault_compound_fee: PercentageInt,
         min_collateral_uac_value_for_leverage: SDecimal,
     ) -> ProgramResult {
         endpoints::init_lending_market::handle(
             ctx,
             currency,
-            compound_fee,
+            leveraged_compound_fee,
+            vault_compound_fee,
             min_collateral_uac_value_for_leverage,
         )
     }
 
     pub fn update_lending_market(
         ctx: Context<UpdateLendingMarket>,
-        compound_fee: PercentageInt,
+        leveraged_compound_fee: PercentageInt,
+        vault_compound_fee: PercentageInt,
         min_collateral_uac_value_for_leverage: SDecimal,
     ) -> ProgramResult {
         endpoints::update_lending_market::handle(
             ctx,
-            compound_fee,
+            leveraged_compound_fee,
+            vault_compound_fee,
             min_collateral_uac_value_for_leverage,
         )
     }
@@ -224,6 +228,7 @@ pub mod borrow_lending {
     /// Whether the base or quote token mint is the borrowed liquidity token
     /// is given by which one matches the above mentioned
     /// `reserve.liquidity.mint`.
+    #[allow(clippy::too_many_arguments)]
     pub fn open_leveraged_position_on_aldrin(
         ctx: Context<OpenLeveragedPositionOnAldrin>,
         lending_market_bump_seed: u8,
@@ -234,7 +239,7 @@ pub mod borrow_lending {
         min_swap_return: u64,
         leverage: Leverage,
     ) -> ProgramResult {
-        endpoints::leverage_farming::aldrin::open::handle(
+        endpoints::amm::aldrin::open_leveraged_position_on_aldrin::handle(
             ctx,
             lending_market_bump_seed,
             market_obligation_bump_seed,
@@ -251,19 +256,23 @@ pub mod borrow_lending {
         market_obligation_bump_seed: u8,
         leverage: Leverage,
     ) -> ProgramResult {
-        endpoints::leverage_farming::aldrin::close::handle(
+        endpoints::amm::aldrin::close_leveraged_position_on_aldrin::handle(
             ctx,
             market_obligation_bump_seed,
             leverage,
         )
     }
 
-    pub fn compound_leveraged_position_on_aldrin(
-        ctx: Context<CompoundLeveragedPositionOnAldrin>,
+    /// Used for both leverage yield farming and vaults. Can only be called by
+    /// the aldrin's admin bot. However, should we want to remove this
+    /// constraint in future, the endpoint is designed to be safe similarly to
+    /// liquidation.
+    pub fn compound_position_on_aldrin(
+        ctx: Context<CompoundPositionOnAldrin>,
         stake_lp_amount: u64,
         seeds: Vec<Vec<u8>>,
     ) -> ProgramResult {
-        endpoints::leverage_farming::aldrin::compound::handle(
+        endpoints::amm::aldrin::compound_position_on_aldrin::handle(
             ctx,
             stake_lp_amount,
             seeds,
@@ -320,6 +329,34 @@ pub mod borrow_lending {
             ctx,
             lending_market_bump_seed,
             reserve_index,
+        )
+    }
+
+    /// Stakes LP tokens on behalf of the user, the benefit to the user being
+    /// auto compounding our bot does.
+    ///
+    /// The user pubkey is in the PDA of the ticket authority.
+    pub fn open_vault_position_on_aldrin(
+        ctx: Context<OpenVaultPositionOnAldrin>,
+        bump_seed: u8,
+        stake_lp_amount: u64,
+    ) -> ProgramResult {
+        endpoints::amm::aldrin::open_vault_position_on_aldrin::handle(
+            ctx,
+            bump_seed,
+            stake_lp_amount,
+        )
+    }
+
+    /// Closes given vault position by unstaking the LP tokens and returning
+    /// them to the user's wallet. The user must be a signer and their pubkey is
+    /// in the PDA seed of the ticket owner.
+    pub fn close_vault_position_on_aldrin(
+        ctx: Context<CloseVaultPositionOnAldrin>,
+        bump_seed: u8,
+    ) -> ProgramResult {
+        endpoints::amm::aldrin::close_vault_position_on_aldrin::handle(
+            ctx, bump_seed,
         )
     }
 }

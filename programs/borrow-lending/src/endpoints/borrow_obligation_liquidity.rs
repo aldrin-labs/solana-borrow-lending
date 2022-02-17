@@ -141,7 +141,7 @@ pub fn handle<'info>(
 
             token::transfer(
                 accounts
-                    .into_pay_host_fee_context(host_fee_receiver)
+                    .as_pay_host_fee_context(host_fee_receiver)
                     .with_signer(&[&pda_seeds[..]]),
                 host_fee,
             )?;
@@ -150,16 +150,14 @@ pub fn handle<'info>(
 
     if owner_fee > 0 {
         token::transfer(
-            accounts
-                .into_pay_fee_context()
-                .with_signer(&[&pda_seeds[..]]),
+            accounts.as_pay_fee_context().with_signer(&[&pda_seeds[..]]),
             owner_fee,
         )?;
     }
 
     token::transfer(
         accounts
-            .into_borrow_liquidity_context()
+            .as_borrow_liquidity_context()
             .with_signer(&[&pda_seeds[..]]),
         liquidity_amount,
     )?;
@@ -168,7 +166,7 @@ pub fn handle<'info>(
 }
 
 impl<'info> BorrowObligationLiquidity<'info> {
-    pub fn into_borrow_liquidity_context(
+    pub fn as_borrow_liquidity_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
         let cpi_accounts = token::Transfer {
@@ -180,7 +178,7 @@ impl<'info> BorrowObligationLiquidity<'info> {
         CpiContext::new(cpi_program, cpi_accounts)
     }
 
-    pub fn into_pay_fee_context(
+    pub fn as_pay_fee_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
         let cpi_accounts = token::Transfer {
@@ -192,7 +190,7 @@ impl<'info> BorrowObligationLiquidity<'info> {
         CpiContext::new(cpi_program, cpi_accounts)
     }
 
-    pub fn into_pay_host_fee_context(
+    pub fn as_pay_host_fee_context(
         &self,
         host_fee_receiver: &AccountInfo<'info>,
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
