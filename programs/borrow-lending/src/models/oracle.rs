@@ -6,17 +6,29 @@
 //! changes as long as any new method doesn't change the byte size of the enum.
 
 use crate::prelude::*;
+use models::aldrin_amm::Side;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq, Eq)]
 pub enum Oracle {
     SimplePyth {
+        /// The account key which contains USD information.
         price: Pubkey,
+    },
+    AldrinAmmLpPyth {
+        /// The wallet which holds pool's base tokens.
+        base_vault: Pubkey,
+        /// The wallet which holds pool's quote tokens.
+        quote_vault: Pubkey,
+        /// The account key which contains UAC information on either base or
+        /// quote token, depending on the variable `side`.
+        price: Pubkey,
+        /// The price oracle gives us UAC price of base ([`Side::Ask`]) or
+        /// quote ([`Side::Bid`]) token.
+        side: Side,
     },
     /// this variant won't ever be used in production, here we use it
     /// for padding up to 4 pubkeys for future variants
-    Never {
-        padding: [u8; 128],
-    },
+    Never { padding: [u8; 128] },
 }
 
 impl Oracle {

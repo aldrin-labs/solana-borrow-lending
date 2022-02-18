@@ -155,13 +155,13 @@ trait Compoundable<'info> {
     ) -> ProgramResult {
         let pool = self.pool();
         let amm_pool_data = pool.try_borrow_data()?;
-        let amm = amm::Pool::load(&amm_pool_data)?;
+        let amm = aldrin_amm::Pool::load(&amm_pool_data)?;
         if amm.pool_mint != self.pool_mint().key() {
             msg!("Pool mint doesn't match AMM pool account data");
             return Err(ErrorCode::InvalidAccountInput.into());
         }
 
-        let lp_token_price = amm::lp_token_market_price(
+        let lp_token_price = aldrin_amm::lp_token_market_price(
             self.pool_mint().supply,
             self.base_token_market_price(),
             self.base_token_vault_amount(),

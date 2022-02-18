@@ -7,6 +7,7 @@
 pub mod close_leveraged_position_on_aldrin;
 pub mod close_vault_position_on_aldrin;
 pub mod compound_position_on_aldrin;
+pub mod init_reserve_aldrin_unstable_lp_token;
 pub mod open_leveraged_position_on_aldrin;
 pub mod open_vault_position_on_aldrin;
 
@@ -21,9 +22,8 @@ use anchor_lang::solana_program::{
     instruction::Instruction,
     program::{invoke, invoke_signed},
 };
-use anchor_spl::token::TokenAccount;
+use models::aldrin_amm::Side;
 use std::mem;
-use std::ops::Not;
 
 struct StakeCpi<'info> {
     amm_program: Pubkey,
@@ -322,47 +322,6 @@ impl<'info> WithdrawFarmCpi<'info> {
         )?;
 
         Ok(())
-    }
-}
-
-#[derive(Copy, Clone)]
-enum Side {
-    /// User's quote tokens swapped for vault's base tokens.
-    Bid = 0,
-    /// User's base tokens swapped for vault's quote tokens.
-    Ask = 1,
-}
-
-impl Not for Side {
-    type Output = Self;
-
-    fn not(self) -> Self::Output {
-        match self {
-            Self::Bid => Self::Ask,
-            Self::Ask => Self::Bid,
-        }
-    }
-}
-
-impl Side {
-    fn try_from(
-        reserve: &Reserve,
-        base_token: &Account<'_, TokenAccount>,
-        quote_token: &Account<'_, TokenAccount>,
-    ) -> Result<Self> {
-        let side = if reserve.liquidity.mint == base_token.mint {
-            Ok(Side::Ask)
-        } else if reserve.liquidity.mint == quote_token.mint {
-            Ok(Side::Bid)
-        } else {
-            msg!(
-                "The reserve's liquidity mint must match either \
-                the base token vault mint or quote token vault mint"
-            );
-            Err(ProgramError::from(ErrorCode::InvalidAccountInput))
-        };
-
-        Ok(side?)
     }
 }
 

@@ -1,16 +1,20 @@
-//! [`Reserve`] is in many-to-one relationship to [`LendingMarket`] and allows
-//! the market owner to add new tokens which can be borrowed. When a funder
-//! lends an asset they get a collateral mint token in return as a proof of
-//! their deposit.
+//! Similar to the [`crate::endpoints::init_reserve`] endpoint but works with
+//! an automated market maker (amm) ecosystem. An amm has liquidity pools of
+//! two currencies. Base currency (e.g. SOL) and quote currency (e.g. USDC).
+//!
+//! The difference to a standard reserve is that LP reserve works with two
+//! currencies and therefore needs two oracle price accounts. These two
+//! currencies can be used together to value LP tokens in USD.
+//!
+//! Liquidity in context of LP reserve are the amm's LP tokens.
 
 use crate::prelude::*;
-use crate::pyth::{self, Load};
-use anchor_spl::token::{self, Mint, Token, TokenAccount};
-use std::convert::TryFrom;
+use anchor_spl::token::{Mint, Token, TokenAccount};
+use models::aldrin_amm::Side;
 
 #[derive(Accounts)]
 #[instruction(lending_market_bump_seed: u8, liquidity_amount: u64)]
-pub struct InitReserve<'info> {
+pub struct InitReserveLp<'info> {
     /// The entity which created the [`LendingMarket`].
     #[account(signer)]
     pub owner: AccountInfo<'info>,
@@ -29,6 +33,11 @@ pub struct InitReserve<'info> {
     #[account(zero)]
     pub reserve: Box<Account<'info, Reserve>>,
     #[account(
+        constraint = lending_market.aldrin_amm == *pool.owner
+            @ err::acc("Pool must be owned Aldrin's AMM program"),
+    )]
+    pub pool: AccountInfo<'info>,
+    #[account(
         constraint = oracle_product.owner == oracle_price.owner
             @ err::oracle("Product's owner must be prices's owner"),
     )]
@@ -36,6 +45,8 @@ pub struct InitReserve<'info> {
     pub oracle_price: AccountInfo<'info>,
     /// From what wallet will liquidity tokens be transferred to the reserve
     /// wallet for the initial liquidity amount.
+    ///
+    /// Liquidity are the AMM LP tokens.
     #[account(
         mut,
         constraint = source_liquidity_wallet.amount >= liquidity_amount
@@ -63,6 +74,7 @@ pub struct InitReserve<'info> {
             @ err::acc("Source liq. wallet mustn't eq. reserve's liq. wallet"),
     )]
     pub reserve_liquidity_wallet: AccountInfo<'info>,
+    /// This is the AMM LP mint.
     pub reserve_liquidity_mint: Account<'info, Mint>,
     #[account(zero)]
     pub reserve_liquidity_fee_recv_wallet: AccountInfo<'info>,
@@ -85,10 +97,11 @@ pub struct InitReserve<'info> {
 }
 
 pub fn handle(
-    ctx: Context<InitReserve>,
+    ctx: Context<InitReserveLp>,
     lending_market_bump_seed: u8,
     liquidity_amount: u64,
     config: InputReserveConfig,
+    is_oracle_for_base_vault: bool,
 ) -> ProgramResult {
     let mut accounts = ctx.accounts;
 
@@ -99,35 +112,37 @@ pub fn handle(
         return Err(ErrorCode::InvalidAmount.into());
     }
 
-    let oracle_product_data = accounts.oracle_product.try_borrow_data()?;
-    let oracle_product =
-        pyth::Product::load(&oracle_product_data)?.validate()?;
-    if oracle_product.px_acc.val != accounts.oracle_price.key().to_bytes() {
-        return Err(err::oracle(
-            "Pyth product price account does not match the Pyth price provided",
-        ));
+    // we validate that the oracle accounts meet expectations
+    let oracle_market_price = pyth::token_market_price(
+        &accounts.clock,
+        accounts.lending_market.currency,
+        accounts.oracle_product.try_borrow_data()?,
+        accounts.oracle_price.key(),
+        accounts.oracle_price.try_borrow_data()?,
+    )?;
+
+    let pool_data = accounts.pool.try_borrow_data()?;
+    let pool = aldrin_amm::Pool::load(&pool_data)?;
+    if pool.pool_mint != accounts.reserve_liquidity_mint.key() {
+        return Err(err::acc("AMM pool mint doesn't match liquidity mint"));
     }
 
-    let currency = UniversalAssetCurrency::try_from(oracle_product)?;
-    if currency != accounts.lending_market.currency {
-        return Err(err::oracle(
-            "Lending market quote currency does not match \
-            the oracle quote currency",
-        ));
-    }
-
-    let oracle_price_data = accounts.oracle_price.try_borrow_data()?;
-    let oracle_price = pyth::Price::load(&oracle_price_data)?.validate()?;
-    let market_price =
-        pyth::calculate_market_price(oracle_price, &accounts.clock)?;
-
-    drop(oracle_product_data);
-    drop(oracle_price_data);
+    let oracle = Oracle::AldrinAmmLpPyth {
+        base_vault: pool.base_token_vault,
+        quote_vault: pool.quote_token_vault,
+        price: accounts.oracle_price.key(),
+        side: if is_oracle_for_base_vault {
+            Side::Ask
+        } else {
+            Side::Bid
+        },
+    };
+    drop(pool_data); // we're moving accounts, so need to destruct borrow
 
     accounts.init_reserve_data(
-        Oracle::simple_pyth(accounts.oracle_price.key()),
+        oracle,
         config,
-        market_price.into(),
+        oracle_market_price.into(),
         liquidity_amount,
     )?;
 
@@ -141,7 +156,7 @@ pub fn handle(
     Ok(())
 }
 
-impl<'info> InitReserveOps<'info> for &mut InitReserve<'info> {
+impl<'info> InitReserveOps<'info> for &mut InitReserveLp<'info> {
     fn slot(&self) -> u64 {
         self.clock.slot
     }
@@ -210,94 +225,5 @@ impl<'info> InitReserveOps<'info> for &mut InitReserve<'info> {
 
     fn snapshots_key(&self) -> Pubkey {
         self.snapshots.key()
-    }
-}
-
-impl<'info> InitReserve<'info> {
-    pub fn as_init_collateral_mint_context(
-        &self,
-    ) -> CpiContext<'_, '_, '_, 'info, token::InitializeMint<'info>> {
-        let cpi_accounts = token::InitializeMint {
-            mint: self.reserve_collateral_mint.clone(),
-            rent: self.rent.clone(),
-        };
-        let cpi_program = self.token_program.to_account_info();
-        CpiContext::new(cpi_program, cpi_accounts)
-    }
-
-    pub fn as_init_fee_recv_wallet_context(
-        &self,
-    ) -> CpiContext<'_, '_, '_, 'info, token::InitializeAccount<'info>> {
-        let cpi_accounts = token::InitializeAccount {
-            mint: self.reserve_liquidity_mint.to_account_info(),
-            authority: self.lending_market_pda.clone(),
-            account: self.reserve_liquidity_fee_recv_wallet.to_account_info(),
-            rent: self.rent.clone(),
-        };
-        let cpi_program = self.token_program.to_account_info();
-        CpiContext::new(cpi_program, cpi_accounts)
-    }
-
-    pub fn as_init_liquidity_wallet_context(
-        &self,
-    ) -> CpiContext<'_, '_, '_, 'info, token::InitializeAccount<'info>> {
-        let cpi_accounts = token::InitializeAccount {
-            mint: self.reserve_liquidity_mint.to_account_info(),
-            authority: self.lending_market_pda.clone(),
-            account: self.reserve_liquidity_wallet.to_account_info(),
-            rent: self.rent.clone(),
-        };
-        let cpi_program = self.token_program.to_account_info();
-        CpiContext::new(cpi_program, cpi_accounts)
-    }
-
-    pub fn as_init_reserve_collateral_wallet_context(
-        &self,
-    ) -> CpiContext<'_, '_, '_, 'info, token::InitializeAccount<'info>> {
-        let cpi_accounts = token::InitializeAccount {
-            mint: self.reserve_collateral_mint.to_account_info(),
-            authority: self.lending_market_pda.clone(),
-            account: self.reserve_collateral_wallet.to_account_info(),
-            rent: self.rent.clone(),
-        };
-        let cpi_program = self.token_program.to_account_info();
-        CpiContext::new(cpi_program, cpi_accounts)
-    }
-
-    pub fn as_init_destination_collateral_wallet_context(
-        &self,
-    ) -> CpiContext<'_, '_, '_, 'info, token::InitializeAccount<'info>> {
-        let cpi_accounts = token::InitializeAccount {
-            mint: self.reserve_collateral_mint.to_account_info(),
-            authority: self.funder.clone(),
-            account: self.destination_collateral_wallet.clone(),
-            rent: self.rent.clone(),
-        };
-        let cpi_program = self.token_program.to_account_info();
-        CpiContext::new(cpi_program, cpi_accounts)
-    }
-
-    pub fn as_liquidity_deposit_context(
-        &self,
-    ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
-        let cpi_accounts = token::Transfer {
-            from: self.source_liquidity_wallet.to_account_info(),
-            to: self.reserve_liquidity_wallet.to_account_info(),
-            authority: self.funder.clone(),
-        };
-        let cpi_program = self.token_program.to_account_info();
-        CpiContext::new(cpi_program, cpi_accounts)
-    }
-
-    pub fn as_mint_collateral_for_liquidity_context(
-        &self,
-    ) -> CpiContext<'_, '_, '_, 'info, token::MintTo<'info>> {
-        let cpi_accounts = token::MintTo {
-            mint: self.reserve_collateral_mint.clone(),
-            to: self.destination_collateral_wallet.clone(),
-            authority: self.lending_market_pda.clone(),
-        };
-        let cpi_program = self.token_program.to_account_info();
-        CpiContext::new(cpi_program, cpi_accounts)
     }
 }

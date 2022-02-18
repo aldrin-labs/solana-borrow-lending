@@ -1,7 +1,7 @@
 pub use crate::accounts::*;
 pub use crate::err::{self, Error, ErrorCode, Result};
-pub use crate::math::*;
-pub use crate::models::*;
+pub use crate::math::{self, *};
+pub use crate::models::{self, *};
 pub use anchor_lang::prelude::*;
 
 pub mod consts {

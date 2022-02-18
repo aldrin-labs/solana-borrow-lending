@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use anchor_spl::token;
 
 /// Lending market reserve account. It's associated a reserve token wallet
 /// account where the tokens that borrowers will want to borrow and funders will
@@ -693,6 +694,195 @@ impl ReserveFees {
                 host_fee: 0,
             })
         }
+    }
+}
+
+pub(crate) trait InitReserveOps<'info> {
+    fn reserve_mut(&mut self) -> &mut Reserve;
+    fn funder(&self) -> AccountInfo<'info>;
+    fn lending_market_pda(&self) -> AccountInfo<'info>;
+    fn lending_market_key(&self) -> Pubkey;
+    fn snapshots_key(&self) -> Pubkey;
+    fn snapshots_mut(
+        &mut self,
+    ) -> &mut AccountLoader<'info, ReserveCapSnapshots>;
+    fn fee_receiver(&self) -> AccountInfo<'info>;
+    fn collateral_mint(&self) -> AccountInfo<'info>;
+    fn reserve_collateral_wallet(&self) -> AccountInfo<'info>;
+    fn destination_collateral_wallet(&self) -> AccountInfo<'info>;
+    fn liquidity_mint(&self) -> AccountInfo<'info>;
+    fn liquidity_mint_decimals(&self) -> u8;
+    fn reserve_liquidity_wallet(&self) -> AccountInfo<'info>;
+    fn source_liquidity_wallet(&self) -> AccountInfo<'info>;
+    fn token_program(&self) -> AccountInfo<'info>;
+    fn rent(&self) -> AccountInfo<'info>;
+    fn slot(&self) -> u64;
+
+    fn as_init_collateral_mint_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, token::InitializeMint<'info>> {
+        let cpi_accounts = token::InitializeMint {
+            mint: self.collateral_mint(),
+            rent: self.rent(),
+        };
+        CpiContext::new(self.token_program(), cpi_accounts)
+    }
+
+    fn as_init_fee_recv_wallet_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, token::InitializeAccount<'info>> {
+        let cpi_accounts = token::InitializeAccount {
+            mint: self.liquidity_mint(),
+            authority: self.lending_market_pda(),
+            account: self.fee_receiver(),
+            rent: self.rent(),
+        };
+        CpiContext::new(self.token_program(), cpi_accounts)
+    }
+
+    fn as_init_liquidity_wallet_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, token::InitializeAccount<'info>> {
+        let cpi_accounts = token::InitializeAccount {
+            mint: self.liquidity_mint(),
+            authority: self.lending_market_pda(),
+            account: self.reserve_liquidity_wallet(),
+            rent: self.rent(),
+        };
+        CpiContext::new(self.token_program(), cpi_accounts)
+    }
+
+    fn as_init_reserve_collateral_wallet_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, token::InitializeAccount<'info>> {
+        let cpi_accounts = token::InitializeAccount {
+            mint: self.collateral_mint(),
+            authority: self.lending_market_pda(),
+            account: self.reserve_collateral_wallet(),
+            rent: self.rent(),
+        };
+        CpiContext::new(self.token_program(), cpi_accounts)
+    }
+
+    fn as_init_destination_collateral_wallet_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, token::InitializeAccount<'info>> {
+        let cpi_accounts = token::InitializeAccount {
+            mint: self.collateral_mint(),
+            authority: self.funder(),
+            account: self.destination_collateral_wallet(),
+            rent: self.rent(),
+        };
+        CpiContext::new(self.token_program(), cpi_accounts)
+    }
+
+    fn as_liquidity_deposit_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
+        let cpi_accounts = token::Transfer {
+            from: self.source_liquidity_wallet(),
+            to: self.reserve_liquidity_wallet(),
+            authority: self.funder(),
+        };
+        CpiContext::new(self.token_program(), cpi_accounts)
+    }
+
+    fn as_mint_collateral_for_liquidity_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, token::MintTo<'info>> {
+        let cpi_accounts = token::MintTo {
+            mint: self.collateral_mint(),
+            to: self.destination_collateral_wallet(),
+            authority: self.lending_market_pda(),
+        };
+        CpiContext::new(self.token_program(), cpi_accounts)
+    }
+
+    fn init_reserve_data(
+        &mut self,
+        oracle: Oracle,
+        config: ReserveConfig,
+        market_price: SDecimal,
+        liquidity_amount: u64,
+    ) -> ProgramResult {
+        let slot = self.slot();
+        let last_update = LastUpdate::new(slot);
+        let lending_market = self.lending_market_key();
+        let snapshots = self.snapshots_key();
+        let liquidity = ReserveLiquidity {
+            mint: self.liquidity_mint().key(),
+            mint_decimals: self.liquidity_mint_decimals(),
+            supply: self.reserve_liquidity_wallet().key(),
+            fee_receiver: self.fee_receiver().key(),
+            oracle,
+            market_price,
+            ..Default::default()
+        };
+        let collateral = ReserveCollateral {
+            mint: self.collateral_mint().key(),
+            supply: self.reserve_collateral_wallet().key(),
+            ..Default::default()
+        };
+
+        let mut reserve = self.reserve_mut();
+        reserve.collateral = collateral;
+        reserve.config = config;
+        reserve.last_update = last_update;
+        reserve.lending_market = lending_market;
+        reserve.liquidity = liquidity;
+        reserve.snapshots = snapshots;
+
+        let mut snapshots = self.snapshots_mut().load_init()?;
+        snapshots.ring_buffer[0] = ReserveCap {
+            slot,
+            borrowed_amount: 0,
+            available_amount: liquidity_amount,
+        };
+
+        Ok(())
+    }
+
+    fn init_token_accounts_and_fund_initial_liquidity(
+        &mut self,
+        liquidity_amount: u64,
+        liquidity_mint_decimals: u8,
+        lending_market_bump_seed: u8,
+    ) -> ProgramResult {
+        let freeze_authority = None;
+        token::initialize_mint(
+            self.as_init_collateral_mint_context(),
+            liquidity_mint_decimals,
+            &self.lending_market_pda().key(),
+            freeze_authority,
+        )?;
+
+        token::initialize_account(self.as_init_fee_recv_wallet_context())?;
+        token::initialize_account(self.as_init_liquidity_wallet_context())?;
+        token::initialize_account(
+            self.as_init_reserve_collateral_wallet_context(),
+        )?;
+
+        let pda_seeds = &[
+            &self.lending_market_key().to_bytes()[..],
+            &[lending_market_bump_seed],
+        ];
+
+        // a wallet for the funder
+        token::initialize_account(
+            self.as_init_destination_collateral_wallet_context(),
+        )?;
+        // to get their collateral token
+        let collateral_amount =
+            self.reserve_mut().deposit_liquidity(liquidity_amount)?;
+        token::mint_to(
+            self.as_mint_collateral_for_liquidity_context()
+                .with_signer(&[&pda_seeds[..]]),
+            collateral_amount,
+        )?;
+        // in exchange for the deposited initial liquidity
+        token::transfer(self.as_liquidity_deposit_context(), liquidity_amount)?;
+
+        Ok(())
     }
 }
 
