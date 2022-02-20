@@ -104,6 +104,18 @@ pub fn lp_token_market_price(
         .try_div(Decimal::from(lp_tokens_supply))
 }
 
+pub fn unstable_lp_token_market_price(
+    lp_tokens_supply: u64,
+    constituent_token_market_price: Decimal,
+    constituent_tokens_deposited: u64,
+) -> Result<Decimal> {
+    constituent_token_market_price
+        .try_mul(Decimal::from(constituent_tokens_deposited))?
+        .try_div(Decimal::from(lp_tokens_supply))?
+        // times two because there are 2 vaults of the same price
+        .try_mul(Decimal::from(2u64))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

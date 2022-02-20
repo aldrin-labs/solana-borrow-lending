@@ -78,6 +78,25 @@ pub mod borrow_lending {
         )
     }
 
+    /// A reserve which stores LP tokens from Aldrin's AMM and thereby allows
+    /// the user to use them as collateral. This only works for non stable pools
+    /// in which the amount of tokens in both vaults is of equal value.
+    pub fn init_reserve_aldrin_unstable_lp_token(
+        ctx: Context<InitReserveAldrinUnstableLpToken>,
+        lending_market_bump_seed: u8,
+        liquidity_amount: u64,
+        config: InputReserveConfig,
+        is_oracle_for_base_vault: bool,
+    ) -> ProgramResult {
+        endpoints::amm::aldrin::init_reserve_aldrin_unstable_lp_token::handle(
+            ctx,
+            lending_market_bump_seed,
+            liquidity_amount,
+            config,
+            is_oracle_for_base_vault,
+        )
+    }
+
     pub fn update_reserve_config(
         ctx: Context<UpdateReserveConfig>,
         config: InputReserveConfig,
@@ -87,6 +106,12 @@ pub mod borrow_lending {
 
     pub fn refresh_reserve(ctx: Context<RefreshReserve>) -> ProgramResult {
         endpoints::refresh_reserve::handle(ctx)
+    }
+
+    pub fn refresh_reserve_aldrin_unstable_lp_token(
+        ctx: Context<RefreshReserveAldrinUnstableLpToken>,
+    ) -> ProgramResult {
+        endpoints::refresh_reserve_aldrin_unstable_lp_token::handle(ctx)
     }
 
     pub fn deposit_reserve_liquidity(

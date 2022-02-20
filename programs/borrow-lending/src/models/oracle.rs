@@ -6,7 +6,6 @@
 //! changes as long as any new method doesn't change the byte size of the enum.
 
 use crate::prelude::*;
-use models::aldrin_amm::Side;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq, Eq)]
 pub enum Oracle {
@@ -15,16 +14,16 @@ pub enum Oracle {
         price: Pubkey,
     },
     AldrinAmmLpPyth {
-        /// The wallet which holds pool's base tokens.
-        base_vault: Pubkey,
-        /// The wallet which holds pool's quote tokens.
-        quote_vault: Pubkey,
+        /// The wallet which holds either pool's base or quote tokens,
+        /// depending on the side. For our purposes it doesn't really matter.
+        vault: Pubkey,
+        /// To get the LP token price, we must sum over base and quote wallets
+        /// (which have the same worth in non stable pools) and then divide by
+        /// minted LP tokens.
+        lp_token_mint: Pubkey,
         /// The account key which contains UAC information on either base or
         /// quote token, depending on the variable `side`.
         price: Pubkey,
-        /// The price oracle gives us UAC price of base ([`Side::Ask`]) or
-        /// quote ([`Side::Bid`]) token.
-        side: Side,
     },
     /// this variant won't ever be used in production, here we use it
     /// for padding up to 4 pubkeys for future variants
@@ -38,6 +37,26 @@ impl Oracle {
 
     pub fn is_simple_pyth_price(&self, input_price: &Pubkey) -> bool {
         matches!(self, Self::SimplePyth { price } if price == input_price)
+    }
+
+    pub fn is_aldrin_amm_lp_pyth(
+        &self,
+        input_vault: Pubkey,
+        input_lp_token_mint: Pubkey,
+        input_price: Pubkey,
+    ) -> bool {
+        match self {
+            Self::AldrinAmmLpPyth {
+                vault,
+                price,
+                lp_token_mint,
+            } => {
+                input_vault == *vault
+                    && input_price == *price
+                    && input_lp_token_mint == *lp_token_mint
+            }
+            _ => false,
+        }
     }
 }
 

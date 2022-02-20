@@ -10,11 +10,10 @@
 
 use crate::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
-use models::aldrin_amm::Side;
 
 #[derive(Accounts)]
 #[instruction(lending_market_bump_seed: u8, liquidity_amount: u64)]
-pub struct InitReserveLp<'info> {
+pub struct InitReserveAldrinUnstableLpToken<'info> {
     /// The entity which created the [`LendingMarket`].
     #[account(signer)]
     pub owner: AccountInfo<'info>,
@@ -97,7 +96,7 @@ pub struct InitReserveLp<'info> {
 }
 
 pub fn handle(
-    ctx: Context<InitReserveLp>,
+    ctx: Context<InitReserveAldrinUnstableLpToken>,
     lending_market_bump_seed: u8,
     liquidity_amount: u64,
     config: InputReserveConfig,
@@ -128,14 +127,13 @@ pub fn handle(
     }
 
     let oracle = Oracle::AldrinAmmLpPyth {
-        base_vault: pool.base_token_vault,
-        quote_vault: pool.quote_token_vault,
-        price: accounts.oracle_price.key(),
-        side: if is_oracle_for_base_vault {
-            Side::Ask
+        vault: if is_oracle_for_base_vault {
+            pool.base_token_vault
         } else {
-            Side::Bid
+            pool.quote_token_vault
         },
+        lp_token_mint: pool.pool_mint,
+        price: accounts.oracle_price.key(),
     };
     drop(pool_data); // we're moving accounts, so need to destruct borrow
 
@@ -156,7 +154,9 @@ pub fn handle(
     Ok(())
 }
 
-impl<'info> InitReserveOps<'info> for &mut InitReserveLp<'info> {
+impl<'info> InitReserveOps<'info>
+    for &mut InitReserveAldrinUnstableLpToken<'info>
+{
     fn slot(&self) -> u64 {
         self.clock.slot
     }

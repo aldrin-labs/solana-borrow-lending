@@ -639,10 +639,8 @@ impl ReserveFees {
         &self,
         _borrow_amount: Decimal,
     ) -> Result<FeesCalculation> {
-        // let host_fee_rate = Decimal::from_percent(self.host_fee);
-        // self.calculate(borrow_amount, self.leverage_fee.into(),
-        // host_fee_rate) In the first release, we disable fees for
-        // leverage yield farming. https://gitlab.com/crypto_project/clockwork/borrow-lending/-/issues/29
+        // In the first release, we disable fees for leverage yield farming.
+        // https://gitlab.com/crypto_project/perk/borrow-lending/-/issues/29
         Ok(FeesCalculation {
             host_fee: 0,
             borrow_fee: 0,

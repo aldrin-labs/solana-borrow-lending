@@ -23,7 +23,7 @@ pub mod consts {
 
     /// Number of slots to consider oracle provided info stale after.
     ///
-    /// TBD: <https://gitlab.com/crypto_project/clockwork/borrow-lending/-/issues/30>
+    /// TBD: <https://gitlab.com/crypto_project/perk/borrow-lending/-/issues/30>
     pub const ORACLE_STALE_AFTER_SLOTS_ELAPSED: u64 = 20;
 
     /// Collateral tokens are initially valued at a ratio of 1:1
