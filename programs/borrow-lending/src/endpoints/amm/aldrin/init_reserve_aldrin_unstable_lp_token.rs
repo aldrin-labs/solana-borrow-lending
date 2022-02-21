@@ -165,6 +165,10 @@ impl<'info> InitReserveOps<'info>
         self.clock.slot
     }
 
+    fn reserve_key(&self) -> Pubkey {
+        self.reserve.key()
+    }
+
     fn reserve_mut(&mut self) -> &mut Reserve {
         &mut self.reserve
     }

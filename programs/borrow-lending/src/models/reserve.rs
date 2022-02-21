@@ -696,6 +696,7 @@ impl ReserveFees {
 }
 
 pub(crate) trait InitReserveOps<'info> {
+    fn reserve_key(&self) -> Pubkey;
     fn reserve_mut(&mut self) -> &mut Reserve;
     fn funder(&self) -> AccountInfo<'info>;
     fn lending_market_pda(&self) -> AccountInfo<'info>;
@@ -806,7 +807,8 @@ pub(crate) trait InitReserveOps<'info> {
         let slot = self.slot();
         let last_update = LastUpdate::new(slot);
         let lending_market = self.lending_market_key();
-        let snapshots = self.snapshots_key();
+        let snapshots_key = self.snapshots_key();
+        let reserve_key = self.reserve_key();
         let liquidity = ReserveLiquidity {
             mint: self.liquidity_mint().key(),
             mint_decimals: self.liquidity_mint_decimals(),
@@ -828,7 +830,7 @@ pub(crate) trait InitReserveOps<'info> {
         reserve.last_update = last_update;
         reserve.lending_market = lending_market;
         reserve.liquidity = liquidity;
-        reserve.snapshots = snapshots;
+        reserve.snapshots = snapshots_key;
 
         let mut snapshots = self.snapshots_mut().load_init()?;
         snapshots.ring_buffer[0] = ReserveCap {
@@ -836,6 +838,7 @@ pub(crate) trait InitReserveOps<'info> {
             borrowed_amount: 0,
             available_amount: liquidity_amount,
         };
+        snapshots.reserve = reserve_key;
 
         Ok(())
     }
