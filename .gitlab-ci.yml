@@ -12,7 +12,7 @@ unit:
   stage: build
   image: registry.gitlab.com/crypto_project/defi/infra/rust-solana:latest
   cache:
-    key: unit-cache-1
+    key: unit-cache-2
     paths:
       - target
   script:
@@ -24,7 +24,7 @@ program:
   stage: build
   image: registry.gitlab.com/crypto_project/defi/infra/rust-solana:latest
   cache:
-    key: program-cache-1
+    key: program-cache-2
     paths:
       - target
   artifacts:
@@ -44,7 +44,7 @@ cli:
   stage: build
   image: registry.gitlab.com/crypto_project/defi/infra/rust-solana:latest
   cache:
-    key: cli-cache-1
+    key: cli-cache-2
     paths:
       - target
   artifacts:

@@ -24,6 +24,19 @@ pub struct CompoundPositionOnAldrin<'info> {
     pub lending_market: Box<Account<'info, LendingMarket>>,
     #[account(signer)]
     pub caller: AccountInfo<'info>,
+    /// We don't check for correctness of the PDA in constraints because it
+    /// will be checked when we invoke signed CPI on AMM. The farming
+    /// ticket's authority is the PDA, and therefore the pubkey here must
+    /// be valid. The seeds are provided as argument because they vary for
+    /// leveraged position and for vaults position.
+    ///
+    /// All endpoints for creating a position on AMM use different seeds to
+    /// create the PDA, but for compounding we don't really care. It's
+    /// because this endpoint doesn't have much influence on the position,
+    /// it cannot move the funds out of it. This endpoint is meant to be
+    /// called by Aldrin's bot. If you provide incorrectly generated PDA
+    /// with wrong seed, the endpoint will fail because AMM returns an
+    /// error about authority mismatch.
     pub farming_ticket_owner_pda: AccountInfo<'info>,
     // -------------- AMM Accounts ----------------
     #[account(executable)]
