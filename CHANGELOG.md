@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2022-02-21
+
+### Added
+- Two endpoints which works directly with Aldrin's AMM and allow us to create a
+  reserve with a pools LP token. The LP token is not available in oracle's, but
+  its price can be derived from constituent tokens and the amount of minted LP
+  tokens. Create a new reserve with `init_reserve_aldrin_unstable_lp_token` and
+  then refresh its market price with
+  `refresh_reserve_aldrin_unstable_lp_token`.
+
+
 ## [3.0.0] - 2022-02-16
 
 ### Changed

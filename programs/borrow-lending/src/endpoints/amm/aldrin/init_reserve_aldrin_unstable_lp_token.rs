@@ -3,8 +3,12 @@
 //! two currencies. Base currency (e.g. SOL) and quote currency (e.g. USDC).
 //!
 //! The difference to a standard reserve is that LP reserve works with two
-//! currencies and therefore needs two oracle price accounts. These two
-//! currencies can be used together to value LP tokens in USD.
+//! constituent tokens and the sum of their value divided by the number of
+//! minted LP tokens gives us the value of a single LP token. However, for
+//! unstable pools, we don't need two different oracles. That's because the
+//! value of base token vault equals the value of the value of the quote token
+//! vault. Therefore, we only need price oracle for one token (either base or
+//! quote) and then multiply that by two.
 //!
 //! Liquidity in context of LP reserve are the amm's LP tokens.
 

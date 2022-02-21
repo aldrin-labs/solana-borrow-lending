@@ -38,6 +38,18 @@ import {
   LIQ_MINTED_TO_RESEVE_SOURCE_WALLET,
   ONE_LIQ_TO_COL_INITIAL_PRICE,
 } from "./consts";
+import { AmmPool } from "./amm-pool";
+
+interface ReserveOracle {
+  simplePyth?: {
+    price: PublicKey;
+  };
+  aldrinAmmLpPyth?: {
+    vault: PublicKey;
+    price: PublicKey;
+    lpTokenMint: PublicKey;
+  };
+}
 
 export interface ReserveConfig {
   conf: {
@@ -76,13 +88,15 @@ export class ReserveBuilder {
     market: LendingMarket,
     oracleProgram: PublicKey,
     owner: Keypair,
-    oracleMarket: OracleMarket = "srm"
+    oracleMarket: OracleMarket = "srm",
+    ammPool?: AmmPool
   ) {
     const accounts = await createReserveAccounts(
       market.connection,
       oracleProgram,
       owner,
-      oracleMarket
+      oracleMarket,
+      ammPool
     );
     await waitForCommit();
 
@@ -124,6 +138,27 @@ export class ReserveBuilder {
       this.oracleMarket
     );
   }
+
+  /**
+   * Creates the reserve account for Aldrin's AMM LP tokens.
+   */
+  public async buildAldrinUnstableLpToken(
+    ammPool: AmmPool,
+    liquidityAmount: number,
+    config: ReserveConfig = Reserve.defaultConfig(),
+    isOracleForBaseVault: boolean = true
+  ): Promise<Reserve> {
+    return Reserve.initAldrinUnstableLpToken(
+      this.market,
+      this.market.owner,
+      this.accounts,
+      ammPool,
+      liquidityAmount,
+      config,
+      isOracleForBaseVault,
+      this.oracleMarket
+    );
+  }
 }
 
 export class Reserve {
@@ -135,7 +170,12 @@ export class Reserve {
     public market: LendingMarket,
     public owner: Keypair,
     public accounts: InitReserveAccounts,
-    public oracleMarket: OracleMarket
+    public oracleMarket: OracleMarket,
+    public kind: ReserveOracle = {
+      simplePyth: {
+        price: accounts.oraclePrice.publicKey,
+      },
+    }
   ) {
     //
   }
@@ -158,6 +198,38 @@ export class Reserve {
     );
 
     return new Reserve(market, owner, accounts, oracleMarket);
+  }
+
+  public static async initAldrinUnstableLpToken(
+    market: LendingMarket,
+    owner: Keypair,
+    accounts: InitReserveAccounts,
+    ammPool: AmmPool,
+    liquidityAmount: number,
+    config: ReserveConfig = Reserve.defaultConfig(),
+    isOracleForBaseVault: boolean = true,
+    oracleMarket: OracleMarket = "srm"
+  ): Promise<Reserve> {
+    await rpcInitReserveAldrinUnstableLpToken(
+      market.program,
+      owner,
+      accounts,
+      market,
+      ammPool.id,
+      liquidityAmount,
+      config,
+      isOracleForBaseVault
+    );
+
+    return new Reserve(market, owner, accounts, oracleMarket, {
+      aldrinAmmLpPyth: {
+        price: accounts.oraclePrice.publicKey,
+        vault: isOracleForBaseVault
+          ? ammPool.accounts.vaultBase
+          : ammPool.accounts.vaultQuote,
+        lpTokenMint: ammPool.accounts.mint.publicKey,
+      },
+    });
   }
 
   public static defaultConfig(): ReserveConfig {
@@ -194,13 +266,29 @@ export class Reserve {
   }
 
   public refreshInstruction(): TransactionInstruction {
-    return this.market.program.instruction.refreshReserve({
-      accounts: {
-        reserve: this.accounts.reserve.publicKey,
-        oraclePrice: this.accounts.oraclePrice.publicKey,
-        clock: SYSVAR_CLOCK_PUBKEY,
-      },
-    });
+    if (this.kind.simplePyth) {
+      return this.market.program.instruction.refreshReserve({
+        accounts: {
+          reserve: this.accounts.reserve.publicKey,
+          oraclePrice: this.accounts.oraclePrice.publicKey,
+          clock: SYSVAR_CLOCK_PUBKEY,
+        },
+      });
+    } else if (this.kind.aldrinAmmLpPyth) {
+      return this.market.program.instruction.refreshReserveAldrinUnstableLpToken(
+        {
+          accounts: {
+            reserve: this.accounts.reserve.publicKey,
+            oraclePrice: this.accounts.oraclePrice.publicKey,
+            vault: this.kind.aldrinAmmLpPyth.vault,
+            poolMint: this.kind.aldrinAmmLpPyth.lpTokenMint,
+            clock: SYSVAR_CLOCK_PUBKEY,
+          },
+        }
+      );
+    }
+
+    throw new Error("Unknown reserve oracle kind");
   }
 
   public async refreshOraclePrice(intoFuture: number = 0) {
@@ -338,6 +426,21 @@ export class Reserve {
     });
   }
 
+  public async createLiquidityWallet(
+    owner: PublicKey,
+    amount: number
+  ): Promise<PublicKey> {
+    const wallet = await this.accounts.liquidityMint.createAccount(owner);
+    await this.accounts.liquidityMint.mintTo(
+      wallet,
+      this.accounts.liquidityMintAuthority,
+      [],
+      amount
+    );
+
+    return wallet;
+  }
+
   public async createCollateralWalletWithCollateral(
     owner: PublicKey,
     collateralAmount: number
@@ -392,7 +495,8 @@ async function createReserveAccounts(
   connection: Connection,
   shmemProgramId: PublicKey,
   owner: Keypair,
-  oracleMarket?: OracleMarket
+  oracleMarket?: OracleMarket,
+  ammPool?: AmmPool
 ): Promise<InitReserveAccounts> {
   const reserve = Keypair.generate();
   const oracleProduct = Keypair.generate();
@@ -402,26 +506,30 @@ async function createReserveAccounts(
   const reserveCollateralWallet = Keypair.generate();
   const reserveLiquidityFeeRecvWallet = Keypair.generate();
   const destinationCollateralWallet = Keypair.generate();
-  const liquidityMintAuthority = Keypair.generate();
+  const liquidityMintAuthority = ammPool ? undefined : Keypair.generate();
   const snapshots = Keypair.generate();
 
-  const liquidityMint = await Token.createMint(
-    connection,
-    owner,
-    liquidityMintAuthority.publicKey,
-    null,
-    0,
-    TOKEN_PROGRAM_ID
-  );
-  const sourceLiquidityWallet = await liquidityMint.createAccount(
-    owner.publicKey
-  );
-  await liquidityMint.mintTo(
-    sourceLiquidityWallet,
-    liquidityMintAuthority,
-    [],
-    LIQ_MINTED_TO_RESEVE_SOURCE_WALLET
-  );
+  const liquidityMint = ammPool
+    ? ammPool.accounts.mint
+    : await Token.createMint(
+        connection,
+        owner,
+        liquidityMintAuthority.publicKey,
+        null,
+        0,
+        TOKEN_PROGRAM_ID
+      );
+  const sourceLiquidityWallet = ammPool
+    ? ammPool.accounts.lpWallet
+    : await liquidityMint.createAccount(owner.publicKey);
+  if (liquidityMintAuthority) {
+    await liquidityMint.mintTo(
+      sourceLiquidityWallet,
+      liquidityMintAuthority,
+      [],
+      LIQ_MINTED_TO_RESEVE_SOURCE_WALLET
+    );
+  }
 
   // prepare empty oracle stub accounts
   await createProgramAccounts(connection, shmemProgramId, owner, [
@@ -478,6 +586,56 @@ async function rpcInitReserve(
         lendingMarketPda: market.pda,
         lendingMarket: market.id,
         reserve: accounts.reserve.publicKey,
+        oraclePrice: accounts.oraclePrice.publicKey,
+        oracleProduct: accounts.oracleProduct.publicKey,
+        destinationCollateralWallet:
+          accounts.destinationCollateralWallet.publicKey,
+        sourceLiquidityWallet: accounts.sourceLiquidityWallet,
+        reserveLiquidityMint: accounts.liquidityMint.publicKey,
+        reserveCollateralMint: accounts.reserveCollateralMint.publicKey,
+        reserveLiquidityWallet: accounts.reserveLiquidityWallet.publicKey,
+        reserveLiquidityFeeRecvWallet:
+          accounts.reserveLiquidityFeeRecvWallet.publicKey,
+        reserveCollateralWallet: accounts.reserveCollateralWallet.publicKey,
+        snapshots: accounts.snapshots.publicKey,
+        rent: SYSVAR_RENT_PUBKEY,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        clock: SYSVAR_CLOCK_PUBKEY,
+      },
+      signers: [owner, accounts.reserve, accounts.snapshots],
+      instructions: [
+        await program.account.reserveCapSnapshots.createInstruction(
+          accounts.snapshots
+        ),
+        await program.account.reserve.createInstruction(accounts.reserve),
+      ],
+    }
+  );
+}
+
+async function rpcInitReserveAldrinUnstableLpToken(
+  program: Program<BorrowLending>,
+  owner: Keypair,
+  accounts: InitReserveAccounts,
+  market: LendingMarket,
+  ammPool: PublicKey,
+  liquidityAmount: number,
+  config: ReserveConfig,
+  isOracleForBaseVault: boolean
+) {
+  await program.rpc.initReserveAldrinUnstableLpToken(
+    market.bumpSeed,
+    new BN(liquidityAmount),
+    config as any, // IDL is not very good with types,
+    isOracleForBaseVault,
+    {
+      accounts: {
+        owner: owner.publicKey,
+        funder: owner.publicKey,
+        lendingMarketPda: market.pda,
+        lendingMarket: market.id,
+        reserve: accounts.reserve.publicKey,
+        pool: ammPool,
         oraclePrice: accounts.oraclePrice.publicKey,
         oracleProduct: accounts.oracleProduct.publicKey,
         destinationCollateralWallet:
