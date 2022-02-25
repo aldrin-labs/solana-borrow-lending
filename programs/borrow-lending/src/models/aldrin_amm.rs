@@ -2,6 +2,8 @@
 //! can be removed once it's updated.
 
 use crate::prelude::*;
+use anchor_spl::token::TokenAccount;
+use std::ops::Not;
 
 /// We don't even have all the fields on the struct, everything beyond the
 /// field we need has been removed. The order must stay the same. See
@@ -14,6 +16,20 @@ pub struct Pool {
     pub base_token_mint: Pubkey,
     pub quote_token_vault: Pubkey,
     pub quote_token_mint: Pubkey,
+}
+
+#[derive(
+    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Eq,
+)]
+pub enum Side {
+    /// User's quote tokens swapped for vault's base tokens, or also
+    /// interpreted as "quote" token when used to discriminate for
+    /// [`Oracle::AldrinAmmLpPyth`] price.
+    Bid = 0,
+    /// User's base tokens swapped for vault's quote tokens, or also
+    /// interpreted as "base" token when used to discriminate for
+    /// [`Oracle::AldrinAmmLpPyth`] price.
+    Ask = 1,
 }
 
 impl Pool {
@@ -37,6 +53,39 @@ impl Pool {
     }
 }
 
+impl Not for Side {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        match self {
+            Self::Bid => Self::Ask,
+            Self::Ask => Self::Bid,
+        }
+    }
+}
+
+impl Side {
+    pub fn try_from(
+        reserve: &Reserve,
+        base_token: &Account<'_, TokenAccount>,
+        quote_token: &Account<'_, TokenAccount>,
+    ) -> Result<Self> {
+        let side = if reserve.liquidity.mint == base_token.mint {
+            Ok(Side::Ask)
+        } else if reserve.liquidity.mint == quote_token.mint {
+            Ok(Side::Bid)
+        } else {
+            msg!(
+                "The reserve's liquidity mint must match either \
+                the base token vault mint or quote token vault mint"
+            );
+            Err(ProgramError::from(ErrorCode::InvalidAccountInput))
+        };
+
+        Ok(side?)
+    }
+}
+
 pub fn lp_token_market_price(
     lp_tokens_supply: u64,
     base_market_price: Decimal,
@@ -53,6 +102,18 @@ pub fn lp_token_market_price(
     base_market_total
         .try_add(quote_market_total)?
         .try_div(Decimal::from(lp_tokens_supply))
+}
+
+pub fn unstable_lp_token_market_price(
+    lp_tokens_supply: u64,
+    constituent_token_market_price: Decimal,
+    constituent_tokens_deposited: u64,
+) -> Result<Decimal> {
+    constituent_token_market_price
+        .try_mul(Decimal::from(constituent_tokens_deposited))?
+        .try_div(Decimal::from(lp_tokens_supply))?
+        // times two because there are 2 vaults of the same price
+        .try_mul(Decimal::from(2u64))
 }
 
 #[cfg(test)]

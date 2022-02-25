@@ -18,6 +18,7 @@
 
 use crate::prelude::*;
 pub use pyth_client::*;
+use std::cell::Ref;
 use std::convert::{TryFrom, TryInto};
 
 pub trait Load {
@@ -112,6 +113,38 @@ impl TryFrom<&Product> for UniversalAssetCurrency {
         msg!("Pyth product quote currency not found");
         Err(ErrorCode::InvalidOracleConfig.into())
     }
+}
+
+/// Returns the market price in the UAC of 1 token described by the product
+/// data.
+pub fn token_market_price<'info>(
+    clock: &Clock,
+    uac: UniversalAssetCurrency,
+    product_data: Ref<'info, &mut [u8]>,
+    price_key: Pubkey,
+    price_data: Ref<'info, &mut [u8]>,
+) -> Result<Decimal> {
+    let oracle_product = Product::load(&product_data)?.validate()?;
+    if oracle_product.px_acc.val != price_key.to_bytes() {
+        return Err(err::oracle(
+            "Pyth product price account does not match the Pyth price provided",
+        )
+        .into());
+    }
+
+    let currency = UniversalAssetCurrency::try_from(oracle_product)?;
+    if currency != uac {
+        return Err(err::oracle(
+            "Lending market quote currency does not match \
+            the oracle quote currency",
+        )
+        .into());
+    }
+
+    let oracle_price = Price::load(&price_data)?.validate()?;
+    let market_price = calculate_market_price(oracle_price, clock)?;
+
+    Ok(market_price)
 }
 
 pub fn calculate_market_price(pyth: &Price, clock: &Clock) -> Result<Decimal> {

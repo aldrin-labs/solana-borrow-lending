@@ -1,12 +1,12 @@
-pub mod amm;
-mod emissions;
-mod farming_receipt;
-mod last_update;
-mod lending_market;
-mod obligation;
-mod oracle;
+pub mod aldrin_amm;
+pub mod emissions;
+pub mod farming_receipt;
+pub mod last_update;
+pub mod lending_market;
+pub mod obligation;
+pub mod oracle;
 pub mod pyth;
-mod reserve;
+pub mod reserve;
 
 use crate::prelude::*;
 pub use emissions::*;

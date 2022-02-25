@@ -45,22 +45,12 @@ export function test(
     });
 
     before("airdrop liquidity to owner", async () => {
-      dogeWallet = await reserveDoge.accounts.liquidityMint.createAccount(
-        owner.publicKey
-      );
-      await reserveDoge.accounts.liquidityMint.mintTo(
-        dogeWallet,
-        reserveDoge.accounts.liquidityMintAuthority,
-        [],
+      srmWallet = await reserveSrm.createLiquidityWallet(
+        owner.publicKey,
         110_000
       );
-      srmWallet = await reserveSrm.accounts.liquidityMint.createAccount(
-        owner.publicKey
-      );
-      await reserveSrm.accounts.liquidityMint.mintTo(
-        srmWallet,
-        reserveSrm.accounts.liquidityMintAuthority,
-        [],
+      dogeWallet = await reserveDoge.createLiquidityWallet(
+        owner.publicKey,
         110_000
       );
     });
