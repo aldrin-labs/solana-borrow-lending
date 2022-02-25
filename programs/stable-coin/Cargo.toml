@@ -1,0 +1,22 @@
+[package]
+name = "stable-coin"
+version = "0.1.0"
+description = ""
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "stable_coin"
+doctest = false
+
+[features]
+no-entrypoint = []
+no-idl = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.21"
+anchor-spl = "0.21"
+uint = "0.9"
+decimal = { path = "../../decimal" }

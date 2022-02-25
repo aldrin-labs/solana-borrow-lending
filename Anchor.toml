@@ -1,5 +1,6 @@
 [programs.localnet]
 borrow_lending = "HH6BiQtvsL6mh7En2knBeTDqmGjYCJFiXiqixrG8nndB"
+stable_coin = "9oiokTQXJSgbzLcmvsGXMvw8SM2a6vRTnthYhRycnP18"
 
 [registry]
 url = "https://anchor.projectserum.com"
