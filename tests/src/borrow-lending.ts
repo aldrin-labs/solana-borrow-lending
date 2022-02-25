@@ -35,6 +35,7 @@ import { test as testLeveragedPositionOnAldrin } from "./15-leveraged-position-o
 import { test as testTakeReserveCapSnapshot } from "./16-take-reserve-cap-snapshot";
 import { test as testEmissionStrategy } from "./17-emission";
 import { test as testVaultPositionOnAldrin } from "./18-vault-position-on-aldrin";
+import { test as testReserveAldrinUnstableLpToken } from "./19-reserve-aldrin-unstable-lp-token";
 
 describe("borrow-lending", function () {
   const ammKeypair = Keypair.generate();
@@ -74,13 +75,13 @@ describe("borrow-lending", function () {
     await provider.connection.confirmTransaction(
       await provider.connection.requestAirdrop(
         provider.wallet.publicKey,
-        10000000000
+        100_000_000_000
       ),
       "confirmed"
     );
 
     await provider.connection.confirmTransaction(
-      await provider.connection.requestAirdrop(payer.publicKey, 10000000000),
+      await provider.connection.requestAirdrop(payer.publicKey, 100_000_000_000),
       "confirmed"
     );
   });
@@ -125,6 +126,13 @@ describe("borrow-lending", function () {
     ammPoolAuthority,
     shmemKeypair.publicKey
   );
+  testReserveAldrinUnstableLpToken(
+    blp,
+    amm,
+    payer,
+    ammPoolAuthority,
+    shmemKeypair.publicKey
+  );
 
   // get a list of top level suites which will run
   const onlySuites: string[] = this.suites
@@ -140,6 +148,7 @@ describe("borrow-lending", function () {
     const needsAmm = [
       "leveraged position on Aldrin",
       "vault position on aldrin",
+      "reserve of Aldrin's AMM unstable LP token",
     ];
     if (
       onlySuites.length > 0 &&

@@ -5,6 +5,7 @@ import { Reserve, ReserveBuilder, ReserveConfig } from "./reserve";
 import { Obligation } from "./obligation";
 import { OracleMarket } from "./pyth";
 import { numberToU192 } from "./helpers";
+import { AmmPool } from "./amm-pool";
 
 export class LendingMarket {
   public get id(): PublicKey {
@@ -116,6 +117,29 @@ export class LendingMarket {
     );
 
     return builder.build(liquidityAmount, config);
+  }
+
+  public async addReserveAldrinUnstableLpToken(
+    ammPool: AmmPool,
+    liquidityAmount: number,
+    config: ReserveConfig = Reserve.defaultConfig(),
+    isOracleForBaseVault: boolean = true,
+    oracleMarket?: OracleMarket
+  ): Promise<Reserve> {
+    const builder = await ReserveBuilder.new(
+      this,
+      this.oracleProgram,
+      this.owner,
+      oracleMarket,
+      ammPool
+    );
+
+    return builder.buildAldrinUnstableLpToken(
+      ammPool,
+      liquidityAmount,
+      config,
+      isOracleForBaseVault
+    );
   }
 
   public addObligation(): Promise<Obligation> {

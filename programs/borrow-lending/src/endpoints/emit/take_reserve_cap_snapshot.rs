@@ -32,6 +32,13 @@ pub fn handle(ctx: Context<TakeReserveCapSnapshot>) -> ProgramResult {
 
     let mut snapshots = accounts.snapshots.load_mut()?;
 
+    // Since we're already checking for `reserve.snapshots == snapshots.key()`,
+    // this condition is a bit superfluous. It's sort of "if and only if"
+    // instead of "if", but if the program's init_reserve endpoint is
+    // functioning correctly, then there shouldn't even be a situation where
+    // only one of those two conditions is true. So `Reserve` is always
+    // associated with exactly one `ReserveCapSnapshots`, both accounts have
+    // the other one's pubkey stored on them.
     if snapshots.reserve != accounts.reserve.key() {
         return Err(err::acc(
             "Snapshot reserve setting must match reserve account",

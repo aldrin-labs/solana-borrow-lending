@@ -452,7 +452,7 @@ export function test(
       expect(u192ToBN(liquidity.accruedInterest).lt(ONE_WAD)).to.be.true;
     });
 
-    it.only("compounds", async () => {
+    it("compounds", async () => {
       const leverage = 200;
       const [positionPda, _bumpSeed] = await obligation.leveragedPositionPda(
         reserveDoge,

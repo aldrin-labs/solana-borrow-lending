@@ -23,12 +23,13 @@
 //! will repay the loan if there's something extra, it will stay in the caller's
 //! wallets.
 
-use super::{RedeemBasket, Side, SwapCpi, UnstakeCpi};
+use super::{RedeemBasket, SwapCpi, UnstakeCpi};
 use crate::prelude::*;
 use anchor_lang::solana_program::{
     instruction::Instruction, program::invoke_signed,
 };
 use anchor_spl::token::{self, Token, TokenAccount};
+use models::aldrin_amm::Side;
 
 #[derive(Accounts)]
 #[instruction(
