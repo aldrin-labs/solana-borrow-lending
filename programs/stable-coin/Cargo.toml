@@ -18,5 +18,6 @@ default = []
 [dependencies]
 anchor-lang = "0.21"
 anchor-spl = "0.21"
+borrow-lending = { path = "../borrow-lending", features = ["no-entrypoint"] }
 uint = "0.9"
 decimal = { path = "../../decimal" }

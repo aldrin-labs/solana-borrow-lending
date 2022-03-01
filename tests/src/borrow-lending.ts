@@ -81,7 +81,10 @@ describe("borrow-lending", function () {
     );
 
     await provider.connection.confirmTransaction(
-      await provider.connection.requestAirdrop(payer.publicKey, 100_000_000_000),
+      await provider.connection.requestAirdrop(
+        payer.publicKey,
+        100_000_000_000
+      ),
       "confirmed"
     );
   });

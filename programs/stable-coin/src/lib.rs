@@ -11,14 +11,7 @@ declare_id!("9oiokTQXJSgbzLcmvsGXMvw8SM2a6vRTnthYhRycnP18");
 pub mod stable_coin {
     use super::*;
 
-    pub fn test(
-        ctx: Context<Test>,
-    ) -> ProgramResult {
-        Ok(())
+    pub fn init_stable_coin(ctx: Context<InitStableCoin>) -> ProgramResult {
+        endpoints::init_stable_coin::handle(ctx)
     }
-}
-
-#[derive(Accounts)]
-pub struct Test<'info> {
-    pub acc: Account<'info, Reserve>,
 }

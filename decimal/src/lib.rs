@@ -12,8 +12,8 @@
 #![allow(clippy::ptr_offset_with_cast)]
 #![allow(clippy::manual_range_contains)]
 
-use anchor_lang::prelude::*;
 use anchor_lang::error::Result;
+use anchor_lang::prelude::*;
 use std::{convert::TryFrom, fmt};
 
 /// Try to subtract, return an error on underflow
@@ -94,7 +94,10 @@ impl Decimal {
     /// Return raw scaled value if it fits within u128
     #[allow(clippy::wrong_self_convention)]
     pub fn to_scaled_val(&self) -> Result<u128> {
-        Ok(u128::try_from(self.0).map_err(|_| ProgramError::InvalidArgument)?)
+        Ok(
+            u128::try_from(self.0)
+                .map_err(|_| ProgramError::InvalidArgument)?,
+        )
     }
 
     pub fn from_scaled_val(scaled_val: u128) -> Self {
@@ -107,7 +110,8 @@ impl Decimal {
             .ok_or(ProgramError::InvalidArgument)?
             .checked_div(Self::wad())
             .ok_or(ProgramError::InvalidArgument)?;
-        Ok(u64::try_from(rounded_val).map_err(|_| ProgramError::InvalidArgument)?)
+        Ok(u64::try_from(rounded_val)
+            .map_err(|_| ProgramError::InvalidArgument)?)
     }
 
     pub fn try_ceil_u64(&self) -> Result<u64> {
@@ -118,7 +122,8 @@ impl Decimal {
             .ok_or(ProgramError::InvalidArgument)?
             .checked_div(Self::wad())
             .ok_or(ProgramError::InvalidArgument)?;
-        Ok(u64::try_from(ceil_val).map_err(|_| ProgramError::InvalidArgument)?)
+        Ok(u64::try_from(ceil_val)
+            .map_err(|_| ProgramError::InvalidArgument)?)
     }
 
     pub fn try_floor_u64(&self) -> Result<u64> {
@@ -126,7 +131,8 @@ impl Decimal {
             .0
             .checked_div(Self::wad())
             .ok_or(ProgramError::InvalidArgument)?;
-        Ok(u64::try_from(ceil_val).map_err(|_| ProgramError::InvalidArgument)?)
+        Ok(u64::try_from(ceil_val)
+            .map_err(|_| ProgramError::InvalidArgument)?)
     }
 
     /// Calculates base^exp
@@ -178,7 +184,9 @@ impl From<u128> for Decimal {
 impl TryAdd for Decimal {
     fn try_add(self, rhs: Self) -> Result<Self> {
         Ok(Self(
-            self.0.checked_add(rhs.0).ok_or(ProgramError::InvalidArgument)?,
+            self.0
+                .checked_add(rhs.0)
+                .ok_or(ProgramError::InvalidArgument)?,
         ))
     }
 }
@@ -186,7 +194,9 @@ impl TryAdd for Decimal {
 impl TrySub for Decimal {
     fn try_sub(self, rhs: Self) -> Result<Self> {
         Ok(Self(
-            self.0.checked_sub(rhs.0).ok_or(ProgramError::InvalidArgument)?,
+            self.0
+                .checked_sub(rhs.0)
+                .ok_or(ProgramError::InvalidArgument)?,
         ))
     }
 }
@@ -235,120 +245,9 @@ impl TryMul<Decimal> for Decimal {
     }
 }
 
-/// We use storable decimal (hence [`SDecimal`]) when storing stuff into account
-/// because at the moment Anchor's IDL TS library doesn't work with tuple
-/// structs. That's why we cannot just use [`Decimal`].
-///
-/// The number is encoded as three u64s in little-endian. To create a
-/// [`BN`][web3-bn] from the inner value you can use following typescript
-/// method:
-///
-/// ```typescript
-/// type U64 = BN;
-/// type U192 = [U64, U64, U64];
-///
-/// function u192ToBN(u192: U192): BN {
-///     return new BN(
-///         [
-///             ...u192[0].toArray("le", 8),
-///             ...u192[1].toArray("le", 8),
-///             ...u192[2].toArray("le", 8),
-///         ],
-///         "le"
-///     );
-/// }
-/// ```
-///
-/// [web3-bn]: https://web3js.readthedocs.io/en/v1.5.2/web3-utils.html#bn
-#[derive(
-    AnchorSerialize,
-    AnchorDeserialize,
-    Default,
-    Debug,
-    Copy,
-    Clone,
-    PartialEq,
-    Eq,
-)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde_crate::Serialize, serde_crate::Deserialize),
-    serde(crate = "serde_crate")
-)]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-pub struct SDecimal {
-    u192: [u64; 3],
-}
-
-impl From<SDecimal> for Decimal {
-    fn from(dec: SDecimal) -> Self {
-        Self(U192(dec.u192))
-    }
-}
-
-impl From<&mut SDecimal> for Decimal {
-    fn from(dec: &mut SDecimal) -> Self {
-        Self(U192(dec.u192))
-    }
-}
-
-impl From<Decimal> for SDecimal {
-    fn from(dec: Decimal) -> Self {
-        Self { u192: dec.0 .0 }
-    }
-}
-
-impl From<u64> for SDecimal {
-    fn from(v: u64) -> Self {
-        Decimal::from(v).into()
-    }
-}
-
-impl SDecimal {
-    pub fn to_dec(self) -> Decimal {
-        self.into()
-    }
-
-    #[cfg(test)]
-    pub fn fill(with: u64) -> Self {
-        Self {
-            u192: [with, with, with],
-        }
-    }
-}
-
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
-
-    #[test]
-    fn it_is_created_from_u64() {
-        let n: u64 = 17_890;
-
-        let sdec = SDecimal::from(n);
-        let dec = Decimal::from(sdec);
-
-        assert_eq!(dec.try_round_u64().unwrap(), n);
-        assert_eq!(dec.try_ceil_u64().unwrap(), n);
-        assert_eq!(dec.try_floor_u64().unwrap(), n);
-    }
-
-    #[test]
-    fn test_basic_operations() {
-        let dec = Decimal::one().try_div(Decimal::from(2u128)).unwrap();
-        let mut sdec = SDecimal::from(dec);
-        assert_eq!(sdec, sdec.clone());
-        let dec = Decimal::from(&mut sdec);
-        assert_eq!(dec.to_string(), sdec.to_dec().to_string());
-    }
-
-    #[test]
-    fn it_represents_one_permill() {
-        let dec = SDecimal {
-            u192: [1000000000000000, 0, 0],
-        };
-        assert_eq!(dec.to_dec().to_string(), "0.001000000000000000");
-    }
 
     #[test]
     fn test_scaler() {
