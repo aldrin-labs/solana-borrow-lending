@@ -13,9 +13,9 @@ pub struct InitComponent<'info> {
     #[account(
         constraint = stable_coin.admin == admin.key() @ err::admin_mismatch(),
     )]
-    pub stable_coin: Account<'info, StableCoin>,
+    pub stable_coin: Box<Account<'info, StableCoin>>,
     #[account(zero)]
-    pub component: Account<'info, Component>,
+    pub component: Box<Account<'info, Component>>,
     /// The liquidity mint which will be used as collateral.
     pub mint: Account<'info, Mint>,
     /// We piggyback on the borrow lending logic to avoid duplicating oracle
@@ -25,7 +25,7 @@ pub struct InitComponent<'info> {
     /// reserve's collateral mint. When calculating component token price, we
     /// use the correct formula based on which one of the two equals to the
     /// component mint.
-    pub blp_reserve: Account<'info, borrow_lending::models::Reserve>,
+    pub blp_reserve: Box<Account<'info, borrow_lending::models::Reserve>>,
     /// We store the collateral here.
     #[account(
         constraint = freeze_wallet.mint == mint.key()

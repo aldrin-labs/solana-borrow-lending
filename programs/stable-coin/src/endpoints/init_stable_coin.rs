@@ -12,7 +12,7 @@ pub struct InitStableCoin<'info> {
     pub admin: Signer<'info>,
     /// The account holding state and configuration.
     #[account(zero)]
-    pub stable_coin: Account<'info, StableCoin>,
+    pub stable_coin: Box<Account<'info, StableCoin>>,
     #[account(
         seeds = [stable_coin.to_account_info().key.as_ref()],
         bump = stable_coin_bump_seed,
@@ -23,7 +23,7 @@ pub struct InitStableCoin<'info> {
         constraint = mint.mint_authority == Some(stable_coin_pda.key()).into(),
         constraint = mint.freeze_authority.is_none(),
     )]
-    pub mint: Account<'info, Mint>,
+    pub mint: Box<Account<'info, Mint>>,
     /// Address of the AMM program is important so that we can verify that
     /// swap etc hits the right target.
     #[account(executable)]
