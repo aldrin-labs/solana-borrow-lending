@@ -1,5 +1,6 @@
-mod endpoints;
-mod models;
+pub mod endpoints;
+pub mod err;
+pub mod models;
 mod prelude;
 
 use endpoints::*;
