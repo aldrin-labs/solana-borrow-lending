@@ -12,7 +12,6 @@
 #![allow(clippy::ptr_offset_with_cast)]
 #![allow(clippy::manual_range_contains)]
 
-// use anchor_lang::error::Result;
 use anchor_lang::prelude::*;
 use std::{convert::TryFrom, fmt};
 
