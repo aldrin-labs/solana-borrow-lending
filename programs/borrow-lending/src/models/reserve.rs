@@ -398,6 +398,7 @@ impl ReserveLiquidity {
     pub fn total_supply(&self) -> Result<Decimal> {
         Decimal::from(self.available_amount)
             .try_add(self.borrowed_amount.into())
+            .map_err(From::from)
     }
 
     pub fn deposit(&mut self, liquidity_amount: u64) -> Result<()> {
@@ -587,7 +588,10 @@ impl CollateralExchangeRate {
         &self,
         liquidity_amount: u64,
     ) -> Result<u64> {
-        self.0.try_mul(liquidity_amount)?.try_floor_u64()
+        self.0
+            .try_mul(liquidity_amount)?
+            .try_floor_u64()
+            .map_err(From::from)
     }
 
     pub fn collateral_to_liquidity(
@@ -597,13 +601,14 @@ impl CollateralExchangeRate {
         Decimal::from(collateral_amount)
             .try_div(self.0)?
             .try_floor_u64()
+            .map_err(From::from)
     }
 
     pub fn decimal_collateral_to_liquidity(
         &self,
         collateral_amount: Decimal,
     ) -> Result<Decimal> {
-        collateral_amount.try_div(self.0)
+        collateral_amount.try_div(self.0).map_err(From::from)
     }
 }
 

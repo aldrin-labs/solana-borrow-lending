@@ -418,6 +418,7 @@ dependencies = [
  "anchor-spl",
  "borsh",
  "bytemuck",
+ "decimal",
  "memoffset",
  "proptest",
  "pyth-client",

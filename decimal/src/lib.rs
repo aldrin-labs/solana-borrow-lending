@@ -12,9 +12,27 @@
 #![allow(clippy::ptr_offset_with_cast)]
 #![allow(clippy::manual_range_contains)]
 
-use anchor_lang::error::Result;
+// use anchor_lang::error::Result;
 use anchor_lang::prelude::*;
 use std::{convert::TryFrom, fmt};
+
+pub mod consts {
+    /// Scale of precision.
+    pub const SCALE: usize = 18;
+
+    /// Identity
+    pub const WAD: u64 = 1_000_000_000_000_000_000;
+
+    pub const HALF_WAD: u64 = WAD / 2;
+
+    pub const PERCENT_SCALER: u64 = 10_000_000_000_000_000;
+}
+
+#[error]
+#[derive(PartialEq, Eq)]
+pub enum ErrorCode {
+    MathOverflow,
+}
 
 /// Try to subtract, return an error on underflow
 pub trait TrySub: Sized {
@@ -38,18 +56,6 @@ pub trait TryDiv<RHS>: Sized {
 pub trait TryMul<RHS>: Sized {
     /// Multiply
     fn try_mul(self, rhs: RHS) -> Result<Self>;
-}
-
-pub mod consts {
-    /// Scale of precision.
-    pub const SCALE: usize = 18;
-
-    /// Identity
-    pub const WAD: u64 = 1_000_000_000_000_000_000;
-
-    pub const HALF_WAD: u64 = WAD / 2;
-
-    pub const PERCENT_SCALER: u64 = 10_000_000_000_000_000;
 }
 
 mod custom_u192 {

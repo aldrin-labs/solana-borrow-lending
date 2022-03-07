@@ -209,6 +209,7 @@ impl Obligation {
         self.deposited_value
             .to_dec()
             .try_sub(required_deposit_value)
+            .map_err(From::from)
     }
 
     pub fn get_collateral(
@@ -439,7 +440,10 @@ impl ObligationLiquidity {
             .min(self.market_value.to_dec());
         let max_liquidation_pct =
             max_liquidation_value.try_div(self.market_value.to_dec())?;
-        self.borrowed_amount.to_dec().try_mul(max_liquidation_pct)
+        self.borrowed_amount
+            .to_dec()
+            .try_mul(max_liquidation_pct)
+            .map_err(From::from)
     }
 
     fn repay(&mut self, settle_amount: Decimal, slot: u64) -> Result<()> {

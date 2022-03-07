@@ -11,6 +11,18 @@ pub enum ErrorCode {
     InvalidAccountInput,
 }
 
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
+impl From<decimal::Error> for Error {
+    fn from(_e: decimal::Error) -> Self {
+        ErrorCode::MathOverflow.into()
+    }
+}
+
 pub fn admin_mismatch() -> ProgramError {
     msg!("[IllegalOwner] Stable coin's admin mismatches signer");
 
