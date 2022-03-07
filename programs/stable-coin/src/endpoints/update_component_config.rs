@@ -20,3 +20,7 @@ pub struct UpdateComponentConfig<'info> {
     )]
     pub component: Account<'info, Component>,
 }
+
+pub fn handle(_ctx: Context<UpdateComponentConfig>) -> ProgramResult {
+    Ok(())
+}

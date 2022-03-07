@@ -17,5 +17,8 @@ pub struct Receipt {
     /// Every time a user interacts with receipt, we first calculate interest.
     /// Since the interest is a simple formulate, we can just take the
     /// difference between the last slot and this slot.
+    ///
+    /// If set to 0, then the receipt hasn't been used yet to borrow stable
+    /// coin.
     pub last_interest_accrual_slot: u64,
 }

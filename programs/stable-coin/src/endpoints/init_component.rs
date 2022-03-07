@@ -43,3 +43,7 @@ pub struct InitComponent<'info> {
     )]
     pub component_pda: AccountInfo<'info>,
 }
+
+pub fn handle(_ctx: Context<InitComponent>) -> ProgramResult {
+    Ok(())
+}

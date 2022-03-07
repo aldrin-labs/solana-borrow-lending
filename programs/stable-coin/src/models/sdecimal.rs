@@ -1,6 +1,7 @@
 //! TODO: deduplicate with borrow lending's SDecimal
 
 use crate::prelude::*;
+use decimal::U192;
 
 /// We use storable decimal (hence [`SDecimal`]) when storing stuff into account
 /// because at the moment Anchor's IDL TS library doesn't work with tuple
