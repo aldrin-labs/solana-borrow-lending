@@ -99,10 +99,7 @@ impl Decimal {
     /// Return raw scaled value if it fits within u128
     #[allow(clippy::wrong_self_convention)]
     pub fn to_scaled_val(&self) -> Result<u128> {
-        Ok(
-            u128::try_from(self.0)
-                .map_err(|_| ProgramError::InvalidArgument)?,
-        )
+        Ok(u128::try_from(self.0).map_err(|_| ErrorCode::MathOverflow)?)
     }
 
     pub fn from_scaled_val(scaled_val: u128) -> Self {
@@ -112,32 +109,29 @@ impl Decimal {
     pub fn try_round_u64(&self) -> Result<u64> {
         let rounded_val = Self::half_wad()
             .checked_add(self.0)
-            .ok_or(ProgramError::InvalidArgument)?
+            .ok_or(ErrorCode::MathOverflow)?
             .checked_div(Self::wad())
-            .ok_or(ProgramError::InvalidArgument)?;
-        Ok(u64::try_from(rounded_val)
-            .map_err(|_| ProgramError::InvalidArgument)?)
+            .ok_or(ErrorCode::MathOverflow)?;
+        Ok(u64::try_from(rounded_val).map_err(|_| ErrorCode::MathOverflow)?)
     }
 
     pub fn try_ceil_u64(&self) -> Result<u64> {
         let ceil_val = Self::wad()
             .checked_sub(U192::from(1u64))
-            .ok_or(ProgramError::InvalidArgument)?
+            .ok_or(ErrorCode::MathOverflow)?
             .checked_add(self.0)
-            .ok_or(ProgramError::InvalidArgument)?
+            .ok_or(ErrorCode::MathOverflow)?
             .checked_div(Self::wad())
-            .ok_or(ProgramError::InvalidArgument)?;
-        Ok(u64::try_from(ceil_val)
-            .map_err(|_| ProgramError::InvalidArgument)?)
+            .ok_or(ErrorCode::MathOverflow)?;
+        Ok(u64::try_from(ceil_val).map_err(|_| ErrorCode::MathOverflow)?)
     }
 
     pub fn try_floor_u64(&self) -> Result<u64> {
         let ceil_val = self
             .0
             .checked_div(Self::wad())
-            .ok_or(ProgramError::InvalidArgument)?;
-        Ok(u64::try_from(ceil_val)
-            .map_err(|_| ProgramError::InvalidArgument)?)
+            .ok_or(ErrorCode::MathOverflow)?;
+        Ok(u64::try_from(ceil_val).map_err(|_| ErrorCode::MathOverflow)?)
     }
 
     /// Calculates base^exp
@@ -189,9 +183,7 @@ impl From<u128> for Decimal {
 impl TryAdd for Decimal {
     fn try_add(self, rhs: Self) -> Result<Self> {
         Ok(Self(
-            self.0
-                .checked_add(rhs.0)
-                .ok_or(ProgramError::InvalidArgument)?,
+            self.0.checked_add(rhs.0).ok_or(ErrorCode::MathOverflow)?,
         ))
     }
 }
@@ -199,9 +191,7 @@ impl TryAdd for Decimal {
 impl TrySub for Decimal {
     fn try_sub(self, rhs: Self) -> Result<Self> {
         Ok(Self(
-            self.0
-                .checked_sub(rhs.0)
-                .ok_or(ProgramError::InvalidArgument)?,
+            self.0.checked_sub(rhs.0).ok_or(ErrorCode::MathOverflow)?,
         ))
     }
 }
@@ -211,7 +201,7 @@ impl TryDiv<u64> for Decimal {
         Ok(Self(
             self.0
                 .checked_div(U192::from(rhs))
-                .ok_or(ProgramError::InvalidArgument)?,
+                .ok_or(ErrorCode::MathOverflow)?,
         ))
     }
 }
@@ -221,9 +211,9 @@ impl TryDiv<Decimal> for Decimal {
         Ok(Self(
             self.0
                 .checked_mul(Self::wad())
-                .ok_or(ProgramError::InvalidArgument)?
+                .ok_or(ErrorCode::MathOverflow)?
                 .checked_div(rhs.0)
-                .ok_or(ProgramError::InvalidArgument)?,
+                .ok_or(ErrorCode::MathOverflow)?,
         ))
     }
 }
@@ -233,7 +223,7 @@ impl TryMul<u64> for Decimal {
         Ok(Self(
             self.0
                 .checked_mul(U192::from(rhs))
-                .ok_or(ProgramError::InvalidArgument)?,
+                .ok_or(ErrorCode::MathOverflow)?,
         ))
     }
 }
@@ -243,9 +233,9 @@ impl TryMul<Decimal> for Decimal {
         Ok(Self(
             self.0
                 .checked_mul(rhs.0)
-                .ok_or(ProgramError::InvalidArgument)?
+                .ok_or(ErrorCode::MathOverflow)?
                 .checked_div(Self::wad())
-                .ok_or(ProgramError::InvalidArgument)?,
+                .ok_or(ErrorCode::MathOverflow)?,
         ))
     }
 }
