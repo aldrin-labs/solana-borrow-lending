@@ -878,13 +878,13 @@ mod tests {
         }
     }
 
-    const MAX_BORROWED: u128 = u64::MAX as u128 * consts::WAD as u128;
+    const MAX_BORROWED: u128 = u64::MAX as u128 * decimal::consts::WAD as u128;
 
     // Creates liquidity amounts (repay, borrow) where repay < borrow
     prop_compose! {
         fn repay_partial_amounts()(amount in 1..=u64::MAX)(
-            repay_amount in Just(consts::WAD as u128 * amount as u128),
-            borrowed_amount in (consts::WAD as u128 * amount as u128 + 1)..=MAX_BORROWED,
+            repay_amount in Just(decimal::consts::WAD as u128 * amount as u128),
+            borrowed_amount in (decimal::consts::WAD as u128 * amount as u128 + 1)..=MAX_BORROWED,
         ) -> (u128, u128) {
             (repay_amount, borrowed_amount)
         }
@@ -893,7 +893,7 @@ mod tests {
     // Creates liquidity amounts (repay, borrow) where repay >= borrow
     prop_compose! {
         fn repay_full_amounts()(amount in 1..=u64::MAX)(
-            repay_amount in Just(consts::WAD as u128 * amount as u128),
+            repay_amount in Just(decimal::consts::WAD as u128 * amount as u128),
         ) -> (u128, u128) {
             (repay_amount, repay_amount)
         }

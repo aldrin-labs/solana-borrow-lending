@@ -1254,7 +1254,7 @@ mod tests {
         ) -> (Decimal, u8) {
             (
                 Decimal::from_scaled_val(
-                    ltv_rate as u128 * consts::PERCENT_SCALER as u128
+                    ltv_rate as u128 * decimal::consts::PERCENT_SCALER as u128
                 ),
                 threshold,
             )
@@ -1282,7 +1282,7 @@ mod tests {
             -> CollateralExchangeRate
         {
             CollateralExchangeRate(
-                Decimal::from_scaled_val((percent * consts::PERCENT_SCALER) as u128)
+                Decimal::from_scaled_val((percent * decimal::consts::PERCENT_SCALER) as u128)
             )
         }
     }
@@ -1291,7 +1291,7 @@ mod tests {
         #[test]
         fn test_current_borrow_rate(
             total_liquidity in 0..=MAX_LIQUIDITY,
-            borrowed_percent in 0..=consts::WAD,
+            borrowed_percent in 0..=decimal::consts::WAD,
             optimal_utilization_rate in 0..=100u8,
             (min_borrow_rate, optimal_borrow_rate, max_borrow_rate)
                     in borrow_rates()
@@ -1347,7 +1347,7 @@ mod tests {
         #[test]
         fn test_current_utilization_rate(
             total_liquidity in 0..=MAX_LIQUIDITY,
-            borrowed_percent in 0..=consts::WAD,
+            borrowed_percent in 0..=decimal::consts::WAD,
         ) {
             let borrowed_amount = Decimal::from(total_liquidity)
                 .try_mul(Decimal::from_scaled_val(borrowed_percent as u128))?;
@@ -1366,8 +1366,8 @@ mod tests {
         #[test]
         fn test_collateral_exchange_rate(
             total_liquidity in 0..=MAX_LIQUIDITY,
-            borrowed_percent in 0..=consts::WAD,
-            collateral_multiplier in consts::WAD..=(5 * consts::WAD),
+            borrowed_percent in 0..=decimal::consts::WAD,
+            collateral_multiplier in decimal::consts::WAD..=(5 * decimal::consts::WAD),
             borrow_rate in 0..=u8::MAX
         ) {
             let borrowed_liquidity = Decimal::from(total_liquidity)
@@ -1400,7 +1400,7 @@ mod tests {
             let exchange_rate = reserve.collateral_exchange_rate()?;
             assert!(
                 exchange_rate.0.to_scaled_val().unwrap()
-                    <= 5u128 * consts::WAD as u128
+                    <= 5u128 * decimal::consts::WAD as u128
             );
 
             // After interest accrual, total liquidity increases
@@ -1476,7 +1476,7 @@ mod tests {
 
         #[test]
         fn test_borrow_fee_calculation(
-            borrow_fee in 0..consts::WAD,
+            borrow_fee in 0..decimal::consts::WAD,
             host_fee in 0..=100u8,
             borrow_amount in 3..=u64::MAX
         ) {
