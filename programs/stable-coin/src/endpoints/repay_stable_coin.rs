@@ -8,10 +8,10 @@ pub struct RepayStableCoin<'info> {
         constraint = stable_coin.key() == component.stable_coin,
         constraint = stable_coin.mint == stable_coin_mint.key(),
     )]
-    pub stable_coin: Account<'info, StableCoin>,
+    pub stable_coin: Box<Account<'info, StableCoin>>,
     /// We need to mutate mint allowance in config.
     #[account(mut)]
-    pub component: Account<'info, Component>,
+    pub component: Box<Account<'info, Component>>,
     #[account(mut)]
     pub stable_coin_mint: AccountInfo<'info>,
     /// Necessary to authorize burning of existing stable coin tokens.
