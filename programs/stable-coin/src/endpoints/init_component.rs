@@ -44,6 +44,18 @@ pub struct InitComponent<'info> {
     pub component_pda: AccountInfo<'info>,
 }
 
-pub fn handle(_ctx: Context<InitComponent>) -> ProgramResult {
+pub fn handle(
+    ctx: Context<InitComponent>,
+    _component_bump_seed: u8,
+    config: ComponentConfiguration,
+) -> ProgramResult {
+    let accounts = ctx.accounts;
+
+    accounts.component.blp_reserve = accounts.blp_reserve.key();
+    accounts.component.config = config;
+    accounts.component.freeze_wallet = accounts.freeze_wallet.key();
+    accounts.component.mint = accounts.mint.key();
+    accounts.component.stable_coin = accounts.stable_coin.key();
+
     Ok(())
 }

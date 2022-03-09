@@ -9,6 +9,8 @@ pub enum ErrorCode {
     InvalidConfig,
     #[msg("Invalid account combination provided")]
     InvalidAccountInput,
+    #[msg("Provided amount is in invalid range")]
+    InvalidAmount,
 }
 
 impl PartialEq for Error {

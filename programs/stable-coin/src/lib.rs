@@ -15,4 +15,34 @@ pub mod stable_coin {
     pub fn init_stable_coin(ctx: Context<InitStableCoin>) -> ProgramResult {
         endpoints::init_stable_coin::handle(ctx)
     }
+
+    pub fn init_component(
+        ctx: Context<InitComponent>,
+        component_bump_seed: u8,
+        config: ComponentConfiguration,
+    ) -> ProgramResult {
+        endpoints::init_component::handle(ctx, component_bump_seed, config)
+    }
+
+    pub fn update_component_config(
+        ctx: Context<UpdateComponentConfig>,
+        config: ComponentConfiguration,
+    ) -> ProgramResult {
+        endpoints::update_component_config::handle(ctx, config)
+    }
+
+    pub fn deposit_collateral(
+        ctx: Context<DepositCollateral>,
+        amount: u64,
+    ) -> ProgramResult {
+        endpoints::deposit_collateral::handle(ctx, amount)
+    }
+
+    pub fn withdraw_collateral(
+        ctx: Context<WithdrawCollateral>,
+        component_bump_seed: u8,
+        amount: u64,
+    ) -> ProgramResult {
+        endpoints::withdraw_collateral::handle(ctx, component_bump_seed, amount)
+    }
 }
