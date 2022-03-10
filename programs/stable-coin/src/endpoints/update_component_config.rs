@@ -12,7 +12,7 @@ pub struct UpdateComponentConfig<'info> {
     #[account(
         constraint = stable_coin.admin == admin.key() @ err::admin_mismatch(),
     )]
-    pub stable_coin: Account<'info, StableCoin>,
+    pub stable_coin: Box<Account<'info, StableCoin>>,
     #[account(
         mut,
         constraint = stable_coin.key() == component.stable_coin

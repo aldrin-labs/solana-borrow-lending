@@ -14,7 +14,7 @@ pub struct WithdrawCollateral<'info> {
         constraint = freeze_wallet.key() == component.freeze_wallet
             @ err::acc("Freeze wallet doesn't match component's configuration"),
     )]
-    pub component: Account<'info, Component>,
+    pub component: Box<Account<'info, Component>>,
     /// Authorizes transfer from freeze wallet
     #[account(
         seeds = [component.key().as_ref()],
@@ -38,7 +38,7 @@ pub struct WithdrawCollateral<'info> {
         constraint = !reserve.is_stale(&clock)
             @ borrow_lending::err::reserve_stale(),
     )]
-    pub reserve: Account<'info, borrow_lending::models::Reserve>,
+    pub reserve: Box<Account<'info, borrow_lending::models::Reserve>>,
     /// Tokens from the freeze wallet are sent here.
     #[account(mut)]
     pub borrower_collateral_wallet: AccountInfo<'info>,
