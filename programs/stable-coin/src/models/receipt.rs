@@ -22,3 +22,25 @@ pub struct Receipt {
     /// coin.
     pub last_interest_accrual_slot: u64,
 }
+
+impl Receipt {
+    /// Market price of a single token and how much of the loan must be
+    /// over-collateralized. Max collateral ratio is in interval (0; 1].
+    pub fn is_healthy(
+        &self,
+        market_price: Decimal,
+        max_collateral_ratio: Decimal,
+    ) -> Result<bool> {
+        let price = self.collateral_price(market_price)?;
+
+        price.try_mul(max_collateral_ratio).map_err(From::from).map(
+            |max_loan_price| self.borrowed_amount.to_dec() <= max_loan_price,
+        )
+    }
+
+    pub fn collateral_price(&self, market_price: Decimal) -> Result<Decimal> {
+        market_price
+            .try_mul(self.collateral_amount)
+            .map_err(From::from)
+    }
+}

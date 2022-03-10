@@ -47,3 +47,40 @@ pub struct ComponentConfiguration {
     /// withdraws their collateral, this gets increased.
     pub mint_allowance: u64,
 }
+
+impl Component {
+    /// The component might represent either the liquidity mint, in which case
+    /// the market price per component token is the liquidity market price,
+    /// or the collateral token mint, in which case we need to first get an
+    /// exchange ration from 1 collateral token to X liquidity tokens and then
+    /// multiply by the liquidity market price.
+    pub fn market_price(
+        &self,
+        reserve: &borrow_lending::models::Reserve,
+    ) -> Result<Decimal> {
+        if reserve.liquidity.mint == self.mint {
+            Ok(reserve.liquidity.market_price.into())
+        } else if reserve.collateral.mint == self.mint {
+            let liquidity_amount = reserve
+                .collateral_exchange_rate()
+                .and_then(|rate| {
+                    // since market price is per 1 token of the mint, we want
+                    // 1 collateral to X liquidity
+                    rate.decimal_collateral_to_liquidity(1u64.into())
+                })
+                .map_err(Error::from)?;
+            liquidity_amount
+                .try_mul(reserve.liquidity.market_price.to_dec())
+                .map_err(From::from)
+        } else {
+            msg!(
+                "Provided reserve's liquidity ({}) nor collateral ({}) mints \
+                match components mint ({})",
+                reserve.liquidity.mint,
+                reserve.collateral.mint,
+                self.mint
+            );
+            todo!()
+        }
+    }
+}

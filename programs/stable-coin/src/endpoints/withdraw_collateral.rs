@@ -11,7 +11,8 @@ pub struct WithdrawCollateral<'info> {
     pub borrower: Signer<'info>,
     #[account(
         mut,
-        constraint = freeze_wallet.key() == component.freeze_wallet,
+        constraint = freeze_wallet.key() == component.freeze_wallet
+            @ err::acc("Freeze wallet doesn't match component's configuration"),
     )]
     pub component: Account<'info, Component>,
     /// Authorizes transfer from freeze wallet
@@ -20,19 +21,29 @@ pub struct WithdrawCollateral<'info> {
         bump = component_bump_seed,
     )]
     pub component_pda: AccountInfo<'info>,
-    /// Freezes user's collateral tokens.
+    /// Returns user's collateral
     #[account(mut)]
     pub freeze_wallet: AccountInfo<'info>,
     #[account(
         mut,
-        constraint = receipt.component == component.key(),
-        constraint = receipt.borrower == borrower.key(),
+        constraint = receipt.component == component.key()
+            @ err::acc("Receipt belongs to a different component"),
+        constraint = receipt.borrower == borrower.key()
+            @ err::acc("Receipt's borrower doesn't match"),
     )]
     pub receipt: Account<'info, Receipt>,
-    /// Tokens from here are sent to freeze wallet.
+    #[account(
+        constraint = reserve.key() == component.blp_reserve
+            @ err::reserve_mismatch(),
+        constraint = !reserve.is_stale(&clock)
+            @ borrow_lending::err::reserve_stale(),
+    )]
+    pub reserve: Account<'info, borrow_lending::models::Reserve>,
+    /// Tokens from the freeze wallet are sent here.
     #[account(mut)]
     pub borrower_collateral_wallet: AccountInfo<'info>,
     pub token_program: Program<'info, Token>,
+    pub clock: Sysvar<'info, Clock>,
 }
 
 pub fn handle(
@@ -52,7 +63,19 @@ pub fn handle(
     // we don't need checked sub because we've used min
     accounts.receipt.collateral_amount -= amount;
 
-    // TODO: check whether allowed
+    let token_market_price =
+        accounts.component.market_price(&accounts.reserve)?;
+    if !accounts.receipt.is_healthy(
+        token_market_price,
+        accounts.component.config.max_collateral_ratio.into(),
+    )? {
+        msg!(
+            "Cannot withdraw {} tokens because loan needs to be \
+            over-collateralized",
+            amount
+        );
+        return Err(ErrorCode::WithdrawTooLarge.into());
+    }
 
     let pda_seeds = &[
         &accounts.component.key().to_bytes()[..],

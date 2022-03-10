@@ -1,4 +1,7 @@
 use crate::prelude::*;
+use borrow_lending::err::{
+    Error as BorrowLendingError, ErrorCode as BorrowLendingErrorCode,
+};
 
 #[error]
 #[derive(PartialEq, Eq)]
@@ -11,6 +14,8 @@ pub enum ErrorCode {
     InvalidAccountInput,
     #[msg("Provided amount is in invalid range")]
     InvalidAmount,
+    #[msg("Cannot withdraw more than allowed amount of collateral")]
+    WithdrawTooLarge,
 }
 
 impl PartialEq for Error {
@@ -22,6 +27,22 @@ impl PartialEq for Error {
 impl From<decimal::Error> for Error {
     fn from(_e: decimal::Error) -> Self {
         ErrorCode::MathOverflow.into()
+    }
+}
+
+impl From<BorrowLendingError> for Error {
+    fn from(e: BorrowLendingError) -> Self {
+        match e {
+            BorrowLendingError::ProgramError(program_err) => {
+                Self::ProgramError(program_err)
+            }
+            BorrowLendingError::ErrorCode(err_code) => match err_code {
+                BorrowLendingErrorCode::MathOverflow => {
+                    ErrorCode::MathOverflow.into()
+                }
+                other => Self::ProgramError(other.into()),
+            },
+        }
     }
 }
 
@@ -41,4 +62,8 @@ pub fn acc(msg: impl AsRef<str>) -> ProgramError {
     msg!("[InvalidAccountInput] {}", msg.as_ref());
 
     ErrorCode::InvalidAccountInput.into()
+}
+
+pub fn reserve_mismatch() -> ProgramError {
+    acc("Reserve account does not match component's config")
 }
