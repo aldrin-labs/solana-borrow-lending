@@ -16,6 +16,8 @@ pub enum ErrorCode {
     InvalidAmount,
     #[msg("Cannot withdraw more than allowed amount of collateral")]
     WithdrawTooLarge,
+    #[msg("Cannot borrow that amount of liquidity against this obligation")]
+    BorrowTooLarge,
 }
 
 impl PartialEq for Error {

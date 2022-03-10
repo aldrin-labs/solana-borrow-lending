@@ -15,6 +15,13 @@ pub struct WithdrawCollateral<'info> {
             @ err::acc("Freeze wallet doesn't match component's configuration"),
     )]
     pub component: Box<Account<'info, Component>>,
+    #[account(
+        constraint = reserve.key() == component.blp_reserve
+            @ err::reserve_mismatch(),
+        constraint = !reserve.is_stale(&clock)
+            @ borrow_lending::err::reserve_stale(),
+    )]
+    pub reserve: Box<Account<'info, borrow_lending::models::Reserve>>,
     /// Authorizes transfer from freeze wallet
     #[account(
         seeds = [component.key().as_ref()],
@@ -32,13 +39,6 @@ pub struct WithdrawCollateral<'info> {
             @ err::acc("Receipt's borrower doesn't match"),
     )]
     pub receipt: Account<'info, Receipt>,
-    #[account(
-        constraint = reserve.key() == component.blp_reserve
-            @ err::reserve_mismatch(),
-        constraint = !reserve.is_stale(&clock)
-            @ borrow_lending::err::reserve_stale(),
-    )]
-    pub reserve: Box<Account<'info, borrow_lending::models::Reserve>>,
     /// Tokens from the freeze wallet are sent here.
     #[account(mut)]
     pub borrower_collateral_wallet: AccountInfo<'info>,
@@ -54,9 +54,11 @@ pub fn handle(
     let accounts = ctx.accounts;
 
     if amount == 0 {
-        msg!("Collateral amount to deposit mustn't be zero");
+        msg!("Collateral amount to withdraw mustn't be zero");
         return Err(ErrorCode::InvalidAmount.into());
     }
+
+    // TODO: interest
 
     let amount = amount.min(accounts.receipt.collateral_amount);
 

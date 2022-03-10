@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use anchor_spl::token::Token;
 
 #[derive(Accounts)]
 #[instruction(stable_coin_bump_seed: u8)]
@@ -29,6 +30,8 @@ pub struct RepayStableCoin<'info> {
     /// Some tokens in this wallet are burned.
     #[account(mut)]
     pub borrower_stable_coin_wallet: AccountInfo<'info>,
+    pub token_program: Program<'info, Token>,
+    pub clock: Sysvar<'info, Clock>,
 }
 
 pub fn handle(_ctx: Context<RepayStableCoin>) -> ProgramResult {

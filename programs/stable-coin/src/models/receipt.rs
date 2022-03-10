@@ -43,4 +43,24 @@ impl Receipt {
             .try_mul(self.collateral_amount)
             .map_err(From::from)
     }
+
+    /// Tries to borrow given amount of stable coin. Fails if the borrow value
+    /// would grow over a limit given by the max collateral ratio.
+    ///
+    /// The stable coin market price is 1.00
+    pub fn borrow(
+        &mut self,
+        amount: u64,
+        market_price: Decimal,
+        max_collateral_ratio: Decimal,
+    ) -> ProgramResult {
+        self.borrowed_amount =
+            self.borrowed_amount.to_dec().try_add(amount.into())?.into();
+
+        if self.is_healthy(market_price, max_collateral_ratio)? {
+            Ok(())
+        } else {
+            Err(ErrorCode::BorrowTooLarge.into())
+        }
+    }
 }
