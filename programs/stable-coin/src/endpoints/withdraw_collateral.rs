@@ -58,7 +58,11 @@ pub fn handle(
         return Err(ErrorCode::InvalidAmount.into());
     }
 
-    // TODO: interest
+    // we ought to accrue interest to correctly calculate the owed amount
+    accounts.receipt.accrue_interest(
+        accounts.clock.slot,
+        accounts.component.config.interest.into(),
+    )?;
 
     let amount = amount.min(accounts.receipt.collateral_amount);
 

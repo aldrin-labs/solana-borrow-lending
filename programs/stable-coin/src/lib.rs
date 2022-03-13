@@ -45,4 +45,27 @@ pub mod stable_coin {
     ) -> ProgramResult {
         endpoints::withdraw_collateral::handle(ctx, component_bump_seed, amount)
     }
+
+    pub fn init_receipt(ctx: Context<InitReceipt>) -> ProgramResult {
+        endpoints::init_receipt::handle(ctx)
+    }
+
+    pub fn borrow_stable_coin(
+        ctx: Context<BorrowStableCoin>,
+        stable_coin_bump_seed: u8,
+        amount: u64,
+    ) -> ProgramResult {
+        endpoints::borrow_stable_coin::handle(
+            ctx,
+            stable_coin_bump_seed,
+            amount,
+        )
+    }
+
+    pub fn repay_stable_coin(
+        ctx: Context<RepayStableCoin>,
+        max_amount_to_repay: u64,
+    ) -> ProgramResult {
+        endpoints::repay_stable_coin::handle(ctx, max_amount_to_repay)
+    }
 }

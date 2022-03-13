@@ -1,3 +1,6 @@
+//! Mints given amount of stable coin under the condition that the deposited
+//! collateral in borrower's receipt is sufficient.
+
 use crate::prelude::*;
 use anchor_spl::token::{self, Mint, Token};
 
@@ -37,7 +40,7 @@ pub struct BorrowStableCoin<'info> {
             @ err::acc("Receipt's borrower doesn't match"),
     )]
     pub receipt: Account<'info, Receipt>,
-    /// Mint tokens here
+    /// Mint tokens in here
     #[account(mut)]
     pub borrower_stable_coin_wallet: AccountInfo<'info>,
     pub token_program: Program<'info, Token>,
@@ -52,25 +55,31 @@ pub fn handle(
     let accounts = ctx.accounts;
 
     if amount == 0 {
-        msg!("Collateral amount to borrow mustn't be zero");
+        msg!("Stable coin amount to borrow mustn't be zero");
         return Err(ErrorCode::InvalidAmount.into());
     }
 
-    // TODO: interest
+    if amount > accounts.component.config.mint_allowance {
+        msg!(
+            "This type of collateral can be presently used to
+            mint at most {} stable coin tokens",
+            accounts.component.config.mint_allowance
+        );
+        return Err(ErrorCode::MintAllowanceTooSmall.into());
+    }
+
+    // we've just checked that this doesn't underflow
+    accounts.component.config.mint_allowance -= amount;
 
     let token_market_price =
         accounts.component.market_price(&accounts.reserve)?;
+    // this fails if there isn't enough collateral to cover the borow
     accounts.receipt.borrow(
+        &accounts.component.config,
+        accounts.clock.slot,
         amount,
         token_market_price,
-        accounts.component.config.max_collateral_ratio.into(),
     )?;
-    accounts.component.config.mint_allowance = accounts
-        .component
-        .config
-        .mint_allowance
-        .checked_sub(amount)
-        .ok_or(ErrorCode::MathOverflow)?;
 
     let pda_seeds = &[
         &accounts.component.stable_coin.to_bytes()[..],

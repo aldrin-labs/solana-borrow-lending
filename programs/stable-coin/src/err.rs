@@ -18,6 +18,10 @@ pub enum ErrorCode {
     WithdrawTooLarge,
     #[msg("Cannot borrow that amount of liquidity against this obligation")]
     BorrowTooLarge,
+    #[msg(
+        "The admin must increase mint allowance for this type of collateral"
+    )]
+    MintAllowanceTooSmall,
 }
 
 impl PartialEq for Error {
@@ -55,9 +59,11 @@ pub fn admin_mismatch() -> ProgramError {
 }
 
 pub fn stable_coin_mismatch() -> ProgramError {
-    msg!("[InvalidAccountInput] Stable coin's key doesn't match expected one");
+    acc("[InvalidAccountInput] Stable coin's key doesn't match expected one")
+}
 
-    ErrorCode::InvalidAccountInput.into()
+pub fn stable_coin_mint_mismatch() -> ProgramError {
+    acc("[InvalidAccountInput] Stable coin's mint doesn't match expected one")
 }
 
 pub fn acc(msg: impl AsRef<str>) -> ProgramError {
