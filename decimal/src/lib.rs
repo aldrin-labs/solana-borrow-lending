@@ -33,6 +33,12 @@ pub enum ErrorCode {
     MathOverflow,
 }
 
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
 /// Try to subtract, return an error on underflow
 pub trait TrySub: Sized {
     /// Subtract

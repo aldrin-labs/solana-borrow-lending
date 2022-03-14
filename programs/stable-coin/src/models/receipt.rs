@@ -1,6 +1,7 @@
 use crate::prelude::*;
 
 #[account]
+#[derive(Default)]
 pub struct Receipt {
     /// The pubkey of the user who "owns" this receipt.
     pub borrower: Pubkey,
@@ -160,5 +161,224 @@ impl Receipt {
 
         self.last_interest_accrual_slot = slot;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    #[test]
+    fn it_calculates_whether_receipt_is_healthy() {
+        let receipt = Receipt {
+            collateral_amount: 2,
+            borrowed_amount: Decimal::from(2u64).into(),
+            interest_amount: Decimal::from(1u64).into(),
+            ..Default::default()
+        };
+
+        assert_eq!(receipt.owed_amount(), Ok(3u64.into()));
+
+        // (5 * 2) * 0.9 > 3
+        assert_eq!(
+            Ok(true),
+            receipt.is_healthy(5u64.into(), Decimal::from_percent(90u64))
+        );
+
+        // (5 * 2) * 0.1 < 3
+        assert_eq!(
+            Ok(false),
+            receipt.is_healthy(5u64.into(), Decimal::from_percent(10u64))
+        );
+
+        // (100 * 2) * 0.1 > 3
+        assert_eq!(
+            Ok(true),
+            receipt.is_healthy(100u64.into(), Decimal::from_percent(10u64))
+        );
+    }
+
+    #[test]
+    fn it_borrows() {
+        let last_interest_accrual_slot = 100;
+
+        let config = ComponentConfiguration {
+            interest: Decimal::from_percent(50u64).into(),
+            borrow_fee: Decimal::from_percent(10u64).into(),
+            max_collateral_ratio: Decimal::from_percent(90u64).into(),
+            ..Default::default()
+        };
+
+        let mut receipt = Receipt {
+            collateral_amount: 100,
+            interest_amount: Decimal::one().into(),
+            borrowed_amount: Decimal::one().into(),
+            last_interest_accrual_slot,
+            ..Default::default()
+        };
+
+        // first let's see how it acts when we skip interest accrual
+        let owed_before =
+            receipt.owed_amount().unwrap().try_round_u64().unwrap();
+        receipt
+            .borrow(
+                &config,
+                last_interest_accrual_slot,
+                50,
+                Decimal::from(100u64),
+            )
+            .unwrap();
+        assert_eq!(
+            receipt.owed_amount().unwrap(),
+            Decimal::from(
+                50u64 // borrow amount
+            + 5 // borrow fee
+            + owed_before
+            )
+        );
+
+        // now let's accrue interest
+        let owed_before =
+            receipt.owed_amount().unwrap().try_round_u64().unwrap();
+        receipt
+            .borrow(
+                &config,
+                last_interest_accrual_slot
+                    + borrow_lending::prelude::consts::SLOTS_PER_YEAR,
+                50,
+                Decimal::from(1_000u64),
+            )
+            .unwrap();
+        assert_eq!(
+            receipt.owed_amount().unwrap().try_round_u64(),
+            Decimal::from(
+                50u64 // borrow amount
+                + 5 // borrow fee
+                + owed_before / 2 // interest is 50%
+                + owed_before
+            )
+            .try_round_u64()
+        );
+        assert_eq!(
+            receipt.last_interest_accrual_slot,
+            last_interest_accrual_slot
+                + borrow_lending::prelude::consts::SLOTS_PER_YEAR
+        );
+
+        // cannot borrow if unhealthy
+        assert_eq!(
+            receipt.borrow(
+                &config,
+                receipt.last_interest_accrual_slot,
+                50,
+                Decimal::from(1u64),
+            ),
+            Err(ErrorCode::BorrowTooLarge.into())
+        );
+    }
+
+    #[test]
+    fn it_repays() {
+        let last_interest_accrual_slot = 100;
+
+        let config = ComponentConfiguration {
+            interest: Decimal::from_percent(50u64).into(),
+            max_collateral_ratio: Decimal::from_percent(90u64).into(),
+            ..Default::default()
+        };
+
+        let mut receipt = Receipt {
+            collateral_amount: 100,
+            interest_amount: Decimal::from(10u64).into(),
+            borrowed_amount: Decimal::from(90u64).into(),
+            last_interest_accrual_slot,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            receipt.repay(&config, last_interest_accrual_slot, 75),
+            Ok(75)
+        );
+        assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(10));
+        assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(15));
+
+        assert_eq!(
+            receipt.repay(&config, last_interest_accrual_slot, 20),
+            Ok(20)
+        );
+        assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(5));
+        assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(0));
+
+        assert_eq!(
+            receipt.repay(&config, last_interest_accrual_slot, u64::MAX),
+            Ok(5)
+        );
+        assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(0));
+        assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(0));
+
+        receipt.borrowed_amount = Decimal::from(100u64).into();
+        receipt.interest_amount = Decimal::from(1u64).into();
+        assert_eq!(
+            receipt.repay(
+                &config,
+                last_interest_accrual_slot
+                    + borrow_lending::prelude::consts::SLOTS_PER_YEAR,
+                1_000
+            ),
+            Ok(
+                100 // borrowed amount set before the call
+                + 100 / 2 // interest is 50%
+                + 1 // interest set before the call
+            )
+        );
+        assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(0));
+        assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(0));
+    }
+
+    proptest! {
+        #[test]
+        fn it_proptests_is_healthy(
+            collateral_amount in 0..=u64::MAX,
+            borrowed_amount in 0..=u64::MAX,
+            interest_amount in 0..=u64::MAX,
+            market_price in 0..=u64::MAX,
+            ratio in 1..=100u64,
+        ) {
+            let receipt = Receipt {
+                collateral_amount,
+                borrowed_amount: Decimal::from(borrowed_amount).into(),
+                interest_amount: Decimal::from(interest_amount).into(),
+                ..Default::default()
+            };
+
+            if borrowed_amount.checked_add(interest_amount).is_some() {
+                let owed = receipt.owed_amount().unwrap();
+                assert_eq!(
+                    owed,
+                    Decimal::from(borrowed_amount + interest_amount)
+                );
+
+                let collateral_market_price =
+                    Decimal::from(market_price).try_div(1_000).unwrap();
+                if let Ok(total_collateral_market_price) =
+                    collateral_market_price
+                        .try_mul(Decimal::from(collateral_amount))
+                {
+                    // (collateral_amount * market_price) * col_to_loan >
+                    // borrowed
+                    assert_eq!(
+                        Ok(total_collateral_market_price
+                            .try_mul(Decimal::from_percent(ratio))
+                            .unwrap()
+                            >= owed),
+                        receipt.is_healthy(
+                            collateral_market_price,
+                            Decimal::from_percent(ratio)
+                        )
+                    );
+                }
+            }
+        }
     }
 }

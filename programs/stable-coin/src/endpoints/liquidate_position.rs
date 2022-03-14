@@ -10,8 +10,10 @@ use crate::prelude::*;
 pub struct LiquidatePosition<'info> {
     pub liquidator: Signer<'info>,
     #[account(
-        constraint = stable_coin.key() == component.stable_coin,
-        constraint = stable_coin.mint == stable_coin_mint.key(),
+        constraint = stable_coin.key() == component.stable_coin
+            @ err::stable_coin_mismatch(),
+        constraint = stable_coin.mint == stable_coin_mint.key()
+            @ err::stable_coin_mint_mismatch(),
     )]
     pub stable_coin: Box<Account<'info, StableCoin>>,
     #[account(mut)]
@@ -27,16 +29,17 @@ pub struct LiquidatePosition<'info> {
     pub component: Box<Account<'info, Component>>,
     /// Authorizes transfer from freeze wallet.
     #[account(
-            seeds = [component.to_account_info().key.as_ref()],
-            bump = component_bump_seed,
-        )]
+        seeds = [component.to_account_info().key.as_ref()],
+        bump = component_bump_seed,
+    )]
     pub component_pda: AccountInfo<'info>,
     /// Gives user's collateral away to liquidator at a discount price.
     #[account(mut)]
     pub freeze_wallet: AccountInfo<'info>,
     #[account(
         mut,
-        constraint = receipt.component == component.key(),
+        constraint = receipt.component == component.key()
+            @ err::acc("Receipt belongs to a different component"),
     )]
     pub receipt: Account<'info, Receipt>,
     /// Some tokens in this wallet are burned.
@@ -48,6 +51,10 @@ pub struct LiquidatePosition<'info> {
     pub liquidator_collateral_wallet: AccountInfo<'info>,
 }
 
-pub fn handle(_ctx: Context<LiquidatePosition>) -> ProgramResult {
+pub fn handle(ctx: Context<LiquidatePosition>) -> ProgramResult {
+    let _accounts = ctx.accounts;
+
+    //
+
     Ok(())
 }

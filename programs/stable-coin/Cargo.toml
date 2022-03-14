@@ -21,3 +21,6 @@ anchor-spl = "0.21"
 borrow-lending = { path = "../borrow-lending", features = ["no-entrypoint"] }
 uint = "0.9"
 decimal = { path = "../../decimal" }
+
+[dev-dependencies]
+proptest = "1.0"
