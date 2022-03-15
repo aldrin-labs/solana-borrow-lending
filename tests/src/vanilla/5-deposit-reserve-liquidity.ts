@@ -1,22 +1,20 @@
 import { Program } from "@project-serum/anchor";
 import { BorrowLending } from "../../../target/types/borrow_lending";
-import { PublicKey, Keypair } from "@solana/web3.js";
+import { Keypair } from "@solana/web3.js";
 import { expect } from "chai";
 import { CaptureStdoutAndStderr, waitForCommit } from "../helpers";
 import { ONE_LIQ_TO_COL_INITIAL_PRICE } from "../consts";
 import { LendingMarket } from "../lending-market";
 import { Reserve } from "../reserve";
+import { globalContainer } from "../globalContainer";
 
-export function test(
-  program: Program<BorrowLending>,
-  owner: Keypair,
-  shmemProgramId: PublicKey
-) {
+export function test(owner: Keypair) {
+  const program: Program<BorrowLending> = globalContainer.blp;
   describe("deposit_reserve_liquidity", () => {
     let market: LendingMarket, reserve: Reserve;
 
     before("initialize lending market", async () => {
-      market = await LendingMarket.init(program, owner, shmemProgramId);
+      market = await LendingMarket.init(program, owner);
     });
 
     before("initialize reserve", async () => {

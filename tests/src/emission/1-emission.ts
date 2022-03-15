@@ -1,4 +1,4 @@
-import { BN, Program } from "@project-serum/anchor";
+import { Program } from "@project-serum/anchor";
 import { BorrowLending } from "../../../target/types/borrow_lending";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { Reserve } from "../reserve";
@@ -8,12 +8,10 @@ import { expect } from "chai";
 import { CaptureStdoutAndStderr } from "../helpers";
 import { EmissionStrategy } from "../emission";
 import { sleep } from "@project-serum/common";
+import { globalContainer } from "../globalContainer";
 
-export function test(
-  program: Program<BorrowLending>,
-  owner: Keypair,
-  shmemProgramId: PublicKey
-) {
+export function test(owner: Keypair) {
+  const program: Program<BorrowLending> = globalContainer.blp;
   describe("emission strategy", () => {
     let market: LendingMarket,
       reserve: Reserve,
@@ -22,7 +20,7 @@ export function test(
       liqWallet: PublicKey;
 
     before("initialize lending market", async () => {
-      market = await LendingMarket.init(program, owner, shmemProgramId);
+      market = await LendingMarket.init(program, owner);
     });
 
     before("initialize reserve", async () => {

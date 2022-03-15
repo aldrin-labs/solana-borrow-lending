@@ -6,12 +6,10 @@ import { LendingMarket } from "../lending-market";
 import { expect } from "chai";
 import { Obligation } from "../obligation";
 import { ONE_WAD, u192ToBN } from "../helpers";
+import { globalContainer } from "../globalContainer";
 
-export function test(
-  program: Program<BorrowLending>,
-  owner: Keypair,
-  shmemProgramId: PublicKey
-) {
+export function test(owner: Keypair) {
+  const program: Program<BorrowLending> = globalContainer.blp;
   describe("take_reserve_cap_snapshot", () => {
     let market: LendingMarket,
       reserve: Reserve,
@@ -21,7 +19,7 @@ export function test(
     const initialReserveLiquidity = 9_000;
 
     before("initialize lending market", async () => {
-      market = await LendingMarket.init(program, owner, shmemProgramId);
+      market = await LendingMarket.init(program, owner);
     });
 
     before("initialize reserve", async () => {

@@ -6,12 +6,10 @@ import { CaptureStdoutAndStderr, u192ToBN } from "../helpers";
 import { LendingMarket } from "../lending-market";
 import { Obligation } from "../obligation";
 import { Reserve } from "../reserve";
+import { globalContainer } from "../globalContainer";
 
-export function test(
-  program: Program<BorrowLending>,
-  owner: Keypair,
-  shmemProgramId: PublicKey
-) {
+export function test(owner: Keypair) {
+  const program: Program<BorrowLending> = globalContainer.blp;
   describe("deposit_obligation_collateral", () => {
     let sourceCollateralWalletAmount = 30;
     let market: LendingMarket,
@@ -20,7 +18,7 @@ export function test(
       sourceCollateralWallet: PublicKey;
 
     before("initialize lending market", async () => {
-      market = await LendingMarket.init(program, owner, shmemProgramId);
+      market = await LendingMarket.init(program, owner);
     });
 
     before("initialize reserve", async () => {
@@ -55,11 +53,7 @@ export function test(
     });
 
     it("fails if obligation and reserve market mismatch", async () => {
-      const differentMarket = await LendingMarket.init(
-        program,
-        owner,
-        shmemProgramId
-      );
+      const differentMarket = await LendingMarket.init(program, owner);
       const differentMarketObligation = await differentMarket.addObligation();
 
       const stdCapture = new CaptureStdoutAndStderr();

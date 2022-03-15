@@ -4,8 +4,10 @@ import { Keypair } from "@solana/web3.js";
 import { expect } from "chai";
 import { CaptureStdoutAndStderr } from "../helpers";
 import { LendingMarket } from "../lending-market";
+import { globalContainer } from "../globalContainer";
 
-export function test(program: Program<BorrowLending>) {
+export function test() {
+  const program: Program<BorrowLending> = globalContainer.blp;
   describe("set_lending_market_owner", () => {
     const oracle = Keypair.generate();
     const owner = Keypair.generate();

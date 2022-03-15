@@ -12,12 +12,10 @@ import {
   waitForCommit,
 } from "../helpers";
 import { DEFAULT_SRM_PRICE, ONE_LIQ_TO_COL_INITIAL_PRICE } from "../consts";
+import { globalContainer } from "../globalContainer";
 
-export function test(
-  program: Program<BorrowLending>,
-  owner: Keypair,
-  shmemProgramId: PublicKey
-) {
+export function test(owner: Keypair) {
+  const program: Program<BorrowLending> = globalContainer.blp;
   describe("liquidate_obligation", () => {
     const liquidator = Keypair.generate();
 
@@ -43,7 +41,7 @@ export function test(
       sourceCollateralWallet: PublicKey;
 
     before("initialize lending market", async () => {
-      market = await LendingMarket.init(program, owner, shmemProgramId);
+      market = await LendingMarket.init(program, owner);
     });
 
     before("initialize reserves", async () => {
@@ -297,11 +295,7 @@ export function test(
     });
 
     it("fails if repay reserve's market doesn't match obligation", async () => {
-      const differentMarket = await LendingMarket.init(
-        program,
-        owner,
-        shmemProgramId
-      );
+      const differentMarket = await LendingMarket.init(program, owner);
       const differentReserve = await differentMarket.addReserve(10);
       await differentReserve.refreshOraclePrice(20);
       obligation.reservesToRefresh.add(differentReserve);
@@ -323,11 +317,7 @@ export function test(
     });
 
     it("fails if withdraw reserve's market doesn't match obligation", async () => {
-      const differentMarket = await LendingMarket.init(
-        program,
-        owner,
-        shmemProgramId
-      );
+      const differentMarket = await LendingMarket.init(program, owner);
       const differentReserve = await differentMarket.addReserve(10);
       await differentReserve.refreshOraclePrice(20);
       obligation.reservesToRefresh.add(differentReserve);

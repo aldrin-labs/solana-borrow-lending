@@ -1,6 +1,7 @@
 import { PublicKey, Transaction, Keypair, Connection } from "@solana/web3.js";
 import { numberToU64 } from "./helpers";
 import { readFileSync } from "fs";
+import { globalContainer } from "./globalContainer";
 
 export type OracleMarket = "srm" | "doge";
 
@@ -16,7 +17,7 @@ export const oraclePriceBinByteLen = (market?: OracleMarket) =>
 
 export async function uploadOracleProduct(
   connection: Connection,
-  shmemProgramId: PublicKey,
+  shmemProgramId: PublicKey = globalContainer.shmem,
   payer: Keypair,
   productAccount: PublicKey,
   priceAccount: PublicKey,
@@ -37,7 +38,7 @@ export async function uploadOracleProduct(
 
 export async function uploadOraclePrice(
   connection: Connection,
-  shmemProgramId: PublicKey,
+  shmemProgramId: PublicKey = globalContainer.shmem,
   payer: Keypair,
   priceAccount: PublicKey,
   slot: number,
@@ -55,7 +56,7 @@ export async function uploadOraclePrice(
 
 export async function setOraclePriceSlot(
   connection: Connection,
-  shmemProgramId: PublicKey,
+  shmemProgramId: PublicKey = globalContainer.shmem,
   payer: Keypair,
   priceAccount: PublicKey,
   slot: number
@@ -72,7 +73,7 @@ export async function setOraclePriceSlot(
 
 export async function setOraclePrice(
   connection: Connection,
-  shmemProgramId: PublicKey,
+  shmemProgramId: PublicKey = globalContainer.shmem,
   payer: Keypair,
   priceAccount: PublicKey,
   price: number
@@ -92,7 +93,7 @@ export async function setOraclePrice(
 
 async function shmemOverwrite(
   connection: Connection,
-  shmemProgramId: PublicKey,
+  shmemProgramId: PublicKey = globalContainer.shmem,
   payer: Keypair,
   account: PublicKey,
   data: Buffer
@@ -126,7 +127,7 @@ async function shmemOverwrite(
 
 async function shmemSet(
   connection: Connection,
-  shmemProgramId: PublicKey,
+  shmemProgramId: PublicKey = globalContainer.shmem,
   payer: Keypair,
   account: PublicKey,
   offset: number,

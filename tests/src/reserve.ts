@@ -39,6 +39,7 @@ import {
   ONE_LIQ_TO_COL_INITIAL_PRICE,
 } from "./consts";
 import { AmmPool } from "./amm-pool";
+import { globalContainer } from "./globalContainer";
 
 interface ReserveOracle {
   simplePyth?: {
@@ -86,8 +87,8 @@ export class ReserveBuilder {
    */
   public static async new(
     market: LendingMarket,
-    oracleProgram: PublicKey,
     owner: Keypair,
+    oracleProgram: PublicKey = globalContainer.shmem,
     oracleMarket: OracleMarket = "srm",
     ammPool?: AmmPool
   ) {

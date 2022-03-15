@@ -13,6 +13,8 @@ import {
 } from "@solana/web3.js";
 import * as anchor from "@project-serum/anchor";
 import { Program, Provider } from "@project-serum/anchor";
+import { globalContainer } from "./globalContainer";
+import { StableCoin } from "../../target/types/stable_coin";
 import { BorrowLending } from "../../target/types/borrow_lending";
 import { AMM_TARGET_SO_BIN_PATH, SHMEM_SO_BIN_PATH } from "./consts";
 import ammIdl from "../../bin/amm/idl/mm_farming_pool_product_only.json";
@@ -55,17 +57,21 @@ describe("borrow-lending", function () {
   anchor.setProvider(provider);
 
   const blp = anchor.workspace.BorrowLending as Program<BorrowLending>;
+  const scp = anchor.workspace.StableCoin as Program<StableCoin>;
   // TODO: no types yet, old anchor version
   // if your test suite needs amm, don't forget to add it to `needsAmm` list in
   // this file
   const amm = anchor.workspace.MmFarmingPoolProductOnly as Program<any>;
 
   const shmemKeypair = Keypair.generate();
+  globalContainer.shmem = shmemKeypair.publicKey;
   const payer = Keypair.generate();
   const ammPoolAuthority = Keypair.generate();
+  globalContainer.ammAuthority = ammPoolAuthority;
 
   console.table({
     blp: blp.programId.toBase58(),
+    scp: scp.programId.toBase58(),
     amm: amm.programId.toBase58(),
     payer: payer.publicKey.toBase58(),
     shmem: shmemKeypair.publicKey.toBase58(),
@@ -99,43 +105,25 @@ describe("borrow-lending", function () {
     );
   });
 
-  testInitLendingMarket(blp);
-  testSetLendingMarketOwner(blp);
-  testInitReserve(blp, payer, shmemKeypair.publicKey);
-  testRefreshReserve(blp, payer, shmemKeypair.publicKey);
-  testDepositReserveLiquidity(blp, payer, shmemKeypair.publicKey);
-  testRedeemReserveCollateral(blp, payer, shmemKeypair.publicKey);
-  testInitObligation(blp, payer, shmemKeypair.publicKey);
-  testRefreshObligation(blp, payer, shmemKeypair.publicKey);
-  testDepositObligationCollateral(blp, payer, shmemKeypair.publicKey);
-  testWithdrawObligationCollateral(blp, payer, shmemKeypair.publicKey);
-  testBorrowObligationLiquidity(blp, payer, shmemKeypair.publicKey);
-  testRepayObligationLiquidity(blp, payer, shmemKeypair.publicKey);
-  testLiquidateObligation(blp, payer, shmemKeypair.publicKey);
-  testFlashLoan(blp, payer, shmemKeypair.publicKey);
-  testLeveragedPositionOnAldrin(
-    blp,
-    amm,
-    payer,
-    ammPoolAuthority,
-    shmemKeypair.publicKey
-  );
-  testTakeReserveCapSnapshot(blp, payer, shmemKeypair.publicKey);
-  testEmissionStrategy(blp, payer, shmemKeypair.publicKey);
-  testVaultPositionOnAldrin(
-    blp,
-    amm,
-    payer,
-    ammPoolAuthority,
-    shmemKeypair.publicKey
-  );
-  testReserveAldrinUnstableLpToken(
-    blp,
-    amm,
-    payer,
-    ammPoolAuthority,
-    shmemKeypair.publicKey
-  );
+  testInitLendingMarket();
+  testSetLendingMarketOwner();
+  testInitReserve(payer);
+  testRefreshReserve(payer);
+  testDepositReserveLiquidity(payer);
+  testRedeemReserveCollateral(payer);
+  testInitObligation(payer);
+  testRefreshObligation(payer);
+  testDepositObligationCollateral(payer);
+  testWithdrawObligationCollateral(payer);
+  testBorrowObligationLiquidity(payer);
+  testRepayObligationLiquidity(payer);
+  testLiquidateObligation(payer);
+  testFlashLoan(payer);
+  testLeveragedPositionOnAldrin(payer);
+  testTakeReserveCapSnapshot(payer);
+  testEmissionStrategy(payer);
+  testVaultPositionOnAldrin(payer);
+  testReserveAldrinUnstableLpToken(payer);
 
   // get a list of top level suites which will run
   const onlySuites: string[] = this.suites

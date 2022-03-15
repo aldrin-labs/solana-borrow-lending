@@ -14,12 +14,10 @@ import { expect } from "chai";
 import { CaptureStdoutAndStderr } from "../helpers";
 import { FLASHLOAN_TARGET_SO_BIN_PATH } from "../consts";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { globalContainer } from "../globalContainer";
 
-export function test(
-  program: Program<BorrowLending>,
-  owner: Keypair,
-  shmemProgramId: PublicKey
-) {
+export function test(owner: Keypair) {
+  const program: Program<BorrowLending> = globalContainer.blp;
   describe("flash_loan", () => {
     const flashLoanTargetProgram = Keypair.generate();
     let market: LendingMarket, reserve: Reserve, borrowerLiqWallet: PublicKey;
@@ -36,7 +34,7 @@ export function test(
     });
 
     before("initialize lending market", async () => {
-      market = await LendingMarket.init(program, owner, shmemProgramId);
+      market = await LendingMarket.init(program, owner);
       await market.toggleFlashLoans(); // by default disabled
     });
 

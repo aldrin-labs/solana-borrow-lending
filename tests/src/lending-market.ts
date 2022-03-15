@@ -6,6 +6,7 @@ import { Obligation } from "./obligation";
 import { OracleMarket } from "./pyth";
 import { numberToU192 } from "./helpers";
 import { AmmPool } from "./amm-pool";
+import { globalContainer } from "./globalContainer";
 
 export class LendingMarket {
   public get id(): PublicKey {
@@ -17,10 +18,10 @@ export class LendingMarket {
   }
 
   private constructor(
-    public program: Program<BorrowLending>,
+    public program: Program<BorrowLending> = globalContainer.blp,
     public owner: Keypair,
     public account: Keypair,
-    public oracleProgram: PublicKey,
+    public oracleProgram: PublicKey = globalContainer.shmem,
     public currency: "usd" | PublicKey = "usd",
     public pda: PublicKey,
     public bumpSeed: number
@@ -33,9 +34,9 @@ export class LendingMarket {
   // to a BLp because it doesn't affect anything and it's a bother to pass
   // the AMM's public key.
   public static async init(
-    program: Program<BorrowLending>,
+    program: Program<BorrowLending> = globalContainer.blp,
     owner: Keypair,
-    oracle: PublicKey,
+    oracle: PublicKey = globalContainer.shmem,
     amm: PublicKey = program.programId,
     currency: "usd" | PublicKey = "usd"
   ): Promise<LendingMarket> {
@@ -111,8 +112,8 @@ export class LendingMarket {
   ): Promise<Reserve> {
     const builder = await ReserveBuilder.new(
       this,
-      this.oracleProgram,
       this.owner,
+      this.oracleProgram,
       oracleMarket
     );
 
@@ -128,8 +129,8 @@ export class LendingMarket {
   ): Promise<Reserve> {
     const builder = await ReserveBuilder.new(
       this,
-      this.oracleProgram,
       this.owner,
+      this.oracleProgram,
       oracleMarket,
       ammPool
     );

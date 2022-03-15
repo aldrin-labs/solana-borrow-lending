@@ -6,17 +6,15 @@ import { CaptureStdoutAndStderr, u192ToBN } from "../helpers";
 import { readFile } from "fs/promises";
 import { LendingMarket } from "../lending-market";
 import { Obligation } from "../obligation";
+import { globalContainer } from "../globalContainer";
 
-export function test(
-  program: Program<BorrowLending>,
-  owner: Keypair,
-  shmemProgramId: PublicKey
-) {
+export function test(owner: Keypair) {
+  const program: Program<BorrowLending> = globalContainer.blp;
   describe("init_obligation", () => {
     let market: LendingMarket;
 
     before("initialize lending market", async () => {
-      market = await LendingMarket.init(program, owner, shmemProgramId);
+      market = await LendingMarket.init(program, owner);
     });
 
     it("loads obligation from sample bin 2", async () => {

@@ -7,12 +7,10 @@ import { Obligation } from "../obligation";
 import { Reserve } from "../reserve";
 import { CaptureStdoutAndStderr, ONE_WAD, u192ToBN } from "../helpers";
 import { ONE_LIQ_TO_COL_INITIAL_PRICE } from "../consts";
+import { globalContainer } from "../globalContainer";
 
-export function test(
-  program: Program<BorrowLending>,
-  owner: Keypair,
-  shmemProgramId: PublicKey
-) {
+export function test(owner: Keypair) {
+  const program: Program<BorrowLending> = globalContainer.blp;
   describe("withdraw_obligation_collateral", () => {
     const initialSourceCollateralWalletAmount = 10;
     const initialReserveLiqAmount = 200;
@@ -22,7 +20,7 @@ export function test(
       destinationCollateralWallet: PublicKey;
 
     before("initialize lending market", async () => {
-      market = await LendingMarket.init(program, owner, shmemProgramId);
+      market = await LendingMarket.init(program, owner);
     });
 
     beforeEach("initialize reserve", async () => {
@@ -122,11 +120,7 @@ export function test(
     });
 
     it("fails if reserve's market doesn't match obligation's market", async () => {
-      const differentMarket = await LendingMarket.init(
-        program,
-        owner,
-        shmemProgramId
-      );
+      const differentMarket = await LendingMarket.init(program, owner);
       const differentObligation = await differentMarket.addObligation();
       differentObligation.reservesToRefresh.add(reserve);
 

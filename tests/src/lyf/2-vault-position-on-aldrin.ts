@@ -1,19 +1,13 @@
-import { Program } from "@project-serum/anchor";
-import { BorrowLending } from "../../../target/types/borrow_lending";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { Reserve } from "../reserve";
 import { LendingMarket } from "../lending-market";
 import { expect } from "chai";
 import { CaptureStdoutAndStderr } from "../helpers";
 import { AmmFarm, AmmPool } from "../amm-pool";
+import { globalContainer } from "../globalContainer";
 
-export function test(
-  blp: Program<BorrowLending>,
-  amm: Program<any>,
-  owner: Keypair,
-  poolAuthority: Keypair,
-  shmemProgramId: PublicKey
-) {
+export function test(owner: Keypair) {
+  const { blp, amm, ammAuthority } = globalContainer;
   describe("vault position on aldrin", () => {
     const lpWalletTokensAmount = 100;
     const callerWallet = Keypair.generate();
@@ -28,12 +22,7 @@ export function test(
       dogeWallet: PublicKey;
 
     before("initialize lending market", async () => {
-      market = await LendingMarket.init(
-        blp,
-        owner,
-        shmemProgramId,
-        amm.programId
-      );
+      market = await LendingMarket.init(blp, owner, undefined, amm.programId);
     });
 
     before("initialize reserves", async () => {
@@ -59,7 +48,7 @@ export function test(
       ammPool = await AmmPool.init(
         amm,
         market,
-        poolAuthority,
+        ammAuthority,
         reserveSrm,
         reserveDoge
       );

@@ -12,12 +12,10 @@ import {
   waitForCommit,
 } from "../helpers";
 import { ONE_LIQ_TO_COL_INITIAL_PRICE } from "../consts";
+import { globalContainer } from "../globalContainer";
 
-export function test(
-  program: Program<BorrowLending>,
-  owner: Keypair,
-  shmemProgramId: PublicKey
-) {
+export function test(owner: Keypair) {
+  const program: Program<BorrowLending> = globalContainer.blp;
   describe("repay_obligation_liquidity", () => {
     // this liquidity is borrowed for each test case
     const borrowedLiquidity = 100;
@@ -33,7 +31,7 @@ export function test(
       borrowerDogeLiquidityWallet: PublicKey;
 
     before("initialize lending market", async () => {
-      market = await LendingMarket.init(program, owner, shmemProgramId);
+      market = await LendingMarket.init(program, owner);
     });
 
     before("initialize reserves", async () => {
@@ -181,11 +179,7 @@ export function test(
     });
 
     it("fails if reserve's and obligation's market mismatch", async () => {
-      const differentMarket = await LendingMarket.init(
-        program,
-        owner,
-        shmemProgramId
-      );
+      const differentMarket = await LendingMarket.init(program, owner);
       const differentReserve = await differentMarket.addReserve(
         500,
         undefined,

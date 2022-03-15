@@ -1,11 +1,6 @@
 import { Program } from "@project-serum/anchor";
 import { BorrowLending } from "../../../target/types/borrow_lending";
-import {
-  PublicKey,
-  Keypair,
-  BPF_LOADER_PROGRAM_ID,
-  BpfLoader,
-} from "@solana/web3.js";
+import { Keypair, BPF_LOADER_PROGRAM_ID, BpfLoader } from "@solana/web3.js";
 import { expect } from "chai";
 import { readFile } from "fs/promises";
 import {
@@ -15,10 +10,7 @@ import {
   u192ToBN,
   waitForCommit,
 } from "../helpers";
-import {
-  oracleProductBinByteLen,
-  setOraclePriceSlot,
-} from "../pyth";
+import { oracleProductBinByteLen, setOraclePriceSlot } from "../pyth";
 import { LendingMarket } from "../lending-market";
 import { Reserve, ReserveBuilder } from "../reserve";
 import {
@@ -26,12 +18,10 @@ import {
   ONE_LIQ_TO_COL_INITIAL_PRICE,
   SHMEM_SO_BIN_PATH,
 } from "../consts";
+import { globalContainer } from "../globalContainer";
 
-export function test(
-  program: Program<BorrowLending>,
-  owner: Keypair,
-  shmemProgramId: PublicKey
-) {
+export function test(owner: Keypair) {
+  const program: Program<BorrowLending> = globalContainer.blp;
   describe("init_reserve", () => {
     let market: LendingMarket;
     const anotherShmemProgram = Keypair.generate();
@@ -48,7 +38,7 @@ export function test(
     });
 
     before("initialize lending market", async () => {
-      market = await LendingMarket.init(program, owner, shmemProgramId);
+      market = await LendingMarket.init(program, owner);
     });
 
     it("must init with at least some liquidity", async () => {
@@ -79,7 +69,7 @@ export function test(
     it("fails if oracle product's price doesn't match price account", async () => {
       const someReserve = await market.addReserve(10);
 
-      const builder = await ReserveBuilder.new(market, shmemProgramId, owner);
+      const builder = await ReserveBuilder.new(market, owner);
       builder.accounts.oraclePrice = someReserve.accounts.oraclePrice;
 
       const stdCapture = new CaptureStdoutAndStderr();
@@ -96,7 +86,7 @@ export function test(
       const differentMarket = await LendingMarket.init(
         program,
         owner,
-        shmemProgramId,
+        undefined,
         undefined,
         Keypair.generate().publicKey
       );
@@ -110,15 +100,11 @@ export function test(
 
       const liquidityAmount = 10;
 
-      const builder = await ReserveBuilder.new(
-        market,
-        shmemProgramId,
-        market.owner
-      );
+      const builder = await ReserveBuilder.new(market, market.owner);
 
       await setOraclePriceSlot(
         market.connection,
-        shmemProgramId,
+        undefined,
         owner,
         builder.accounts.oraclePrice.publicKey,
         0 // put it into the past
@@ -131,7 +117,7 @@ export function test(
     });
 
     it("fails if oracle product owner does not match oracle price owner", async () => {
-      const builder = await ReserveBuilder.new(market, shmemProgramId, owner);
+      const builder = await ReserveBuilder.new(market, owner);
 
       const anotherOracleProduct = Keypair.generate();
       builder.accounts.oracleProduct = anotherOracleProduct;

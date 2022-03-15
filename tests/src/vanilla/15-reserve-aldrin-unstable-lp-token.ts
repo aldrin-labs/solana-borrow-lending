@@ -20,14 +20,10 @@ import {
 import { AmmPool } from "../amm-pool";
 import { ONE_LIQ_TO_COL_INITIAL_PRICE, SHMEM_SO_BIN_PATH } from "../consts";
 import { oracleProductBinByteLen } from "../pyth";
+import { globalContainer } from "../globalContainer";
 
-export function test(
-  blp: Program<BorrowLending>,
-  amm: Program<any>,
-  owner: Keypair,
-  poolAuthority: Keypair,
-  shmemProgramId: PublicKey
-) {
+export function test(owner: Keypair) {
+  const { amm, blp, ammAuthority } = globalContainer;
   describe("reserve of Aldrin's AMM unstable LP token", () => {
     const funder = Keypair.generate();
     const anotherShmemProgram = Keypair.generate();
@@ -36,9 +32,7 @@ export function test(
       reserveSrm: Reserve,
       reserveDoge: Reserve,
       ammPool: AmmPool,
-      funderLpWallet: PublicKey,
-      srmWallet: PublicKey,
-      dogeWallet: PublicKey;
+      funderLpWallet: PublicKey;
 
     before("deploys another shmem to simulate different oracle", async () => {
       const programBin = await readFile(SHMEM_SO_BIN_PATH);
@@ -52,12 +46,7 @@ export function test(
     });
 
     before("initialize lending market", async () => {
-      market = await LendingMarket.init(
-        blp,
-        owner,
-        shmemProgramId,
-        amm.programId
-      );
+      market = await LendingMarket.init(blp, owner, undefined, amm.programId);
     });
 
     before("initialize standard reserves", async () => {
@@ -68,22 +57,11 @@ export function test(
       await reserveSrm.refreshOraclePrice(999);
     });
 
-    before("airdrop liquidity to owner", async () => {
-      srmWallet = await reserveSrm.createLiquidityWallet(
-        owner.publicKey,
-        110_000
-      );
-      dogeWallet = await reserveDoge.createLiquidityWallet(
-        owner.publicKey,
-        110_000
-      );
-    });
-
     before("initialize liquidity pool", async () => {
       ammPool = await AmmPool.init(
         amm,
         market,
-        poolAuthority,
+        ammAuthority,
         reserveSrm,
         reserveDoge
       );
@@ -131,7 +109,7 @@ export function test(
         10
       );
 
-      const builder = await ReserveBuilder.new(market, shmemProgramId, owner);
+      const builder = await ReserveBuilder.new(market, owner);
       builder.accounts.oraclePrice = someReserve.accounts.oraclePrice;
 
       const stdCapture = new CaptureStdoutAndStderr();
@@ -149,7 +127,7 @@ export function test(
       const differentMarket = await LendingMarket.init(
         blp,
         owner,
-        shmemProgramId,
+        undefined,
         amm.programId,
         Keypair.generate().publicKey
       );
@@ -160,7 +138,7 @@ export function test(
     });
 
     it("fails if oracle product owner does not match oracle price owner", async () => {
-      const builder = await ReserveBuilder.new(market, shmemProgramId, owner);
+      const builder = await ReserveBuilder.new(market, owner);
 
       const anotherOracleProduct = Keypair.generate();
       builder.accounts.oracleProduct = anotherOracleProduct;
