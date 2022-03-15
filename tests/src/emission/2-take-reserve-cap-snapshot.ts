@@ -1,11 +1,11 @@
 import { Program } from "@project-serum/anchor";
 import { Keypair, PublicKey } from "@solana/web3.js";
-import { BorrowLending } from "../../target/types/borrow_lending";
-import { Reserve } from "./reserve";
-import { LendingMarket } from "./lending-market";
+import { BorrowLending } from "../../../target/types/borrow_lending";
+import { Reserve } from "../reserve";
+import { LendingMarket } from "../lending-market";
 import { expect } from "chai";
-import { Obligation } from "./obligation";
-import { ONE_WAD, u192ToBN } from "./helpers";
+import { Obligation } from "../obligation";
+import { ONE_WAD, u192ToBN } from "../helpers";
 
 export function test(
   program: Program<BorrowLending>,

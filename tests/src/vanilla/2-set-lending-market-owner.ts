@@ -1,9 +1,9 @@
 import { Program } from "@project-serum/anchor";
-import { BorrowLending } from "../../target/types/borrow_lending";
+import { BorrowLending } from "../../../target/types/borrow_lending";
 import { Keypair } from "@solana/web3.js";
 import { expect } from "chai";
-import { CaptureStdoutAndStderr } from "./helpers";
-import { LendingMarket } from "./lending-market";
+import { CaptureStdoutAndStderr } from "../helpers";
+import { LendingMarket } from "../lending-market";
 
 export function test(program: Program<BorrowLending>) {
   describe("set_lending_market_owner", () => {

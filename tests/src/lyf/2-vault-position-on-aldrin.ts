@@ -1,11 +1,11 @@
 import { Program } from "@project-serum/anchor";
-import { BorrowLending } from "../../target/types/borrow_lending";
+import { BorrowLending } from "../../../target/types/borrow_lending";
 import { Keypair, PublicKey } from "@solana/web3.js";
-import { Reserve } from "./reserve";
-import { LendingMarket } from "./lending-market";
+import { Reserve } from "../reserve";
+import { LendingMarket } from "../lending-market";
 import { expect } from "chai";
-import { CaptureStdoutAndStderr } from "./helpers";
-import { AmmFarm, AmmPool } from "./amm-pool";
+import { CaptureStdoutAndStderr } from "../helpers";
+import { AmmFarm, AmmPool } from "../amm-pool";
 
 export function test(
   blp: Program<BorrowLending>,

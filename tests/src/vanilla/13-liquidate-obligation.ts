@@ -1,17 +1,17 @@
 import { Program, BN } from "@project-serum/anchor";
-import { BorrowLending } from "../../target/types/borrow_lending";
+import { BorrowLending } from "../../../target/types/borrow_lending";
 import { Keypair, PublicKey } from "@solana/web3.js";
-import { Reserve } from "./reserve";
-import { Obligation } from "./obligation";
-import { LendingMarket } from "./lending-market";
+import { Reserve } from "../reserve";
+import { Obligation } from "../obligation";
+import { LendingMarket } from "../lending-market";
 import { expect } from "chai";
 import {
   CaptureStdoutAndStderr,
   ONE_WAD,
   u192ToBN,
   waitForCommit,
-} from "./helpers";
-import { DEFAULT_SRM_PRICE, ONE_LIQ_TO_COL_INITIAL_PRICE } from "./consts";
+} from "../helpers";
+import { DEFAULT_SRM_PRICE, ONE_LIQ_TO_COL_INITIAL_PRICE } from "../consts";
 
 export function test(
   program: Program<BorrowLending>,

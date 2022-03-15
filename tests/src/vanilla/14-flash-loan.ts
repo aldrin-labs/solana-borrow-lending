@@ -6,13 +6,13 @@ import {
   BpfLoader,
   SYSVAR_CLOCK_PUBKEY,
 } from "@solana/web3.js";
-import { BorrowLending } from "../../target/types/borrow_lending";
-import { Reserve } from "./reserve";
-import { LendingMarket } from "./lending-market";
+import { BorrowLending } from "../../../target/types/borrow_lending";
+import { Reserve } from "../reserve";
+import { LendingMarket } from "../lending-market";
 import { readFile } from "fs/promises";
 import { expect } from "chai";
-import { CaptureStdoutAndStderr } from "./helpers";
-import { FLASHLOAN_TARGET_SO_BIN_PATH } from "./consts";
+import { CaptureStdoutAndStderr } from "../helpers";
+import { FLASHLOAN_TARGET_SO_BIN_PATH } from "../consts";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 export function test(

@@ -1,5 +1,5 @@
 import { Program } from "@project-serum/anchor";
-import { BorrowLending } from "../../target/types/borrow_lending";
+import { BorrowLending } from "../../../target/types/borrow_lending";
 import {
   PublicKey,
   Keypair,
@@ -14,21 +14,18 @@ import {
   ONE_WAD,
   u192ToBN,
   waitForCommit,
-} from "./helpers";
+} from "../helpers";
 import {
-  oraclePriceBin,
-  oraclePriceBinByteLen,
   oracleProductBinByteLen,
   setOraclePriceSlot,
-  uploadOraclePrice,
-} from "./pyth";
-import { LendingMarket } from "./lending-market";
-import { Reserve, ReserveBuilder } from "./reserve";
+} from "../pyth";
+import { LendingMarket } from "../lending-market";
+import { Reserve, ReserveBuilder } from "../reserve";
 import {
   LIQ_MINTED_TO_RESEVE_SOURCE_WALLET,
   ONE_LIQ_TO_COL_INITIAL_PRICE,
   SHMEM_SO_BIN_PATH,
-} from "./consts";
+} from "../consts";
 
 export function test(
   program: Program<BorrowLending>,

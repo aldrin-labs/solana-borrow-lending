@@ -1,11 +1,11 @@
 import { Program } from "@project-serum/anchor";
-import { BorrowLending } from "../../target/types/borrow_lending";
+import { BorrowLending } from "../../../target/types/borrow_lending";
 import { PublicKey, Keypair } from "@solana/web3.js";
 import { expect } from "chai";
-import { CaptureStdoutAndStderr, waitForCommit } from "./helpers";
-import { ONE_LIQ_TO_COL_INITIAL_PRICE } from "./consts";
-import { LendingMarket } from "./lending-market";
-import { DepositReserveLiquidityAccounts, Reserve } from "./reserve";
+import { CaptureStdoutAndStderr, waitForCommit } from "../helpers";
+import { ONE_LIQ_TO_COL_INITIAL_PRICE } from "../consts";
+import { LendingMarket } from "../lending-market";
+import { DepositReserveLiquidityAccounts, Reserve } from "../reserve";
 
 export function test(
   program: Program<BorrowLending>,

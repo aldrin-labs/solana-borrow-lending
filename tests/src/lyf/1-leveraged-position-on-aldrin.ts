@@ -1,18 +1,18 @@
 import { Program, BN } from "@project-serum/anchor";
 import { Keypair, PublicKey } from "@solana/web3.js";
-import { BorrowLending } from "../../target/types/borrow_lending";
-import { Reserve } from "./reserve";
-import { LendingMarket } from "./lending-market";
+import { BorrowLending } from "../../../target/types/borrow_lending";
+import { Reserve } from "../reserve";
+import { LendingMarket } from "../lending-market";
 import { expect } from "chai";
 import {
   CaptureStdoutAndStderr,
   ONE_WAD,
   u192ToBN,
   waitForCommit,
-} from "./helpers";
-import { Obligation } from "./obligation";
-import { AmmFarm, AmmPool } from "./amm-pool";
-import { DEFAULT_SRM_PRICE } from "./consts";
+} from "../helpers";
+import { Obligation } from "../obligation";
+import { AmmFarm, AmmPool } from "../amm-pool";
+import { DEFAULT_SRM_PRICE } from "../consts";
 
 export function test(
   blp: Program<BorrowLending>,

@@ -1,8 +1,8 @@
 import { Program } from "@project-serum/anchor";
-import { BorrowLending } from "../../target/types/borrow_lending";
+import { BorrowLending } from "../../../target/types/borrow_lending";
 import { Keypair } from "@solana/web3.js";
 import { expect } from "chai";
-import { LendingMarket } from "./lending-market";
+import { LendingMarket } from "../lending-market";
 
 export function test(program: Program<BorrowLending>) {
   describe("init_lending_market", () => {

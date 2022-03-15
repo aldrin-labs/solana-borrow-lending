@@ -1,12 +1,12 @@
 import { BN, Program } from "@project-serum/anchor";
-import { BorrowLending } from "../../target/types/borrow_lending";
+import { BorrowLending } from "../../../target/types/borrow_lending";
 import { Keypair, PublicKey } from "@solana/web3.js";
-import { Reserve } from "./reserve";
-import { Obligation } from "./obligation";
-import { LendingMarket } from "./lending-market";
+import { Reserve } from "../reserve";
+import { Obligation } from "../obligation";
+import { LendingMarket } from "../lending-market";
 import { expect } from "chai";
-import { CaptureStdoutAndStderr } from "./helpers";
-import { EmissionStrategy } from "./emission";
+import { CaptureStdoutAndStderr } from "../helpers";
+import { EmissionStrategy } from "../emission";
 import { sleep } from "@project-serum/common";
 
 export function test(

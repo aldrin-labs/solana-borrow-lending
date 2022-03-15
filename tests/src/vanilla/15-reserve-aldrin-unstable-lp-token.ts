@@ -1,5 +1,5 @@
 import { Program } from "@project-serum/anchor";
-import { BorrowLending } from "../../target/types/borrow_lending";
+import { BorrowLending } from "../../../target/types/borrow_lending";
 import {
   BpfLoader,
   BPF_LOADER_PROGRAM_ID,
@@ -7,8 +7,8 @@ import {
   PublicKey,
 } from "@solana/web3.js";
 import { readFile } from "fs/promises";
-import { Reserve, ReserveBuilder } from "./reserve";
-import { LendingMarket } from "./lending-market";
+import { Reserve, ReserveBuilder } from "../reserve";
+import { LendingMarket } from "../lending-market";
 import { expect } from "chai";
 import {
   CaptureStdoutAndStderr,
@@ -16,10 +16,10 @@ import {
   ONE_WAD,
   u192ToBN,
   waitForCommit,
-} from "./helpers";
-import { AmmPool } from "./amm-pool";
-import { ONE_LIQ_TO_COL_INITIAL_PRICE, SHMEM_SO_BIN_PATH } from "./consts";
-import { oracleProductBinByteLen } from "./pyth";
+} from "../helpers";
+import { AmmPool } from "../amm-pool";
+import { ONE_LIQ_TO_COL_INITIAL_PRICE, SHMEM_SO_BIN_PATH } from "../consts";
+import { oracleProductBinByteLen } from "../pyth";
 
 export function test(
   blp: Program<BorrowLending>,

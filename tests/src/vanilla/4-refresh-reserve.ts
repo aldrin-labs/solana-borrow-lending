@@ -1,10 +1,10 @@
-import { Program, Provider } from "@project-serum/anchor";
-import { BorrowLending } from "../../target/types/borrow_lending";
+import { Program } from "@project-serum/anchor";
+import { BorrowLending } from "../../../target/types/borrow_lending";
 import { PublicKey, Keypair } from "@solana/web3.js";
 import { expect } from "chai";
-import { CaptureStdoutAndStderr, u192ToBN, waitForCommit } from "./helpers";
-import { LendingMarket } from "./lending-market";
-import { Reserve } from "./reserve";
+import { CaptureStdoutAndStderr, u192ToBN, waitForCommit } from "../helpers";
+import { LendingMarket } from "../lending-market";
+import { Reserve } from "../reserve";
 
 export function test(
   program: Program<BorrowLending>,
