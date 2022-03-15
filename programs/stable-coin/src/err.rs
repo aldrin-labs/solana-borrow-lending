@@ -22,6 +22,8 @@ pub enum ErrorCode {
         "The admin must increase mint allowance for this type of collateral"
     )]
     MintAllowanceTooSmall,
+    #[msg("Component's mint doesn't match reserve's liquidity nor collateral")]
+    ComponentReserveMismatch,
 }
 
 impl PartialEq for Error {

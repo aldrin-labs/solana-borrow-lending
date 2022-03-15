@@ -4,6 +4,7 @@ use crate::prelude::*;
 /// users can borrow the stable coin. That is, users deposit their component
 /// token mint and are minted stable coin.
 #[account]
+#[derive(Default)]
 pub struct Component {
     /// Which stable coin root state does this component connect to.
     pub stable_coin: Pubkey,
@@ -80,7 +81,52 @@ impl Component {
                 reserve.collateral.mint,
                 self.mint
             );
-            todo!()
+            Err(ErrorCode::ComponentReserveMismatch.into())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_calculates_market_price_for_collateral_mint() {
+        //
+    }
+
+    #[test]
+    fn it_returns_market_price_for_liquidity_mint() {
+        let mint = Pubkey::new_unique();
+
+        let component = Component {
+            mint,
+            ..Default::default()
+        };
+
+        let reserve = borrow_lending::models::Reserve {
+            liquidity: borrow_lending::models::ReserveLiquidity {
+                mint,
+                market_price: Decimal::one().into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        assert_eq!(component.market_price(&reserve), Ok(Decimal::one()));
+    }
+
+    #[test]
+    fn it_fails_if_neither_collateral_nor_liquidity_mint_match() {
+        let component = Component {
+            mint: Pubkey::new_unique(),
+            ..Default::default()
+        };
+
+        let reserve = borrow_lending::models::Reserve {
+            ..Default::default()
+        };
+
+        assert!(component.market_price(&reserve).is_err(),);
     }
 }
