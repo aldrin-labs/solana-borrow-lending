@@ -13,7 +13,7 @@ pub struct Receipt {
     /// they can update the existing receipt by increasing this amount.
     pub collateral_amount: u64,
     /// How much MIM does the user have to repay, this includes borrow fee and
-    /// APY interest.
+    /// APR interest.
     pub borrowed_amount: SDecimal,
     /// Stable coin interest is APR. We track how much interest has been
     /// payed so far with this value which is increased during repay and
@@ -47,10 +47,9 @@ impl Receipt {
         market_price: Decimal,
         max_collateral_ratio: Decimal,
     ) -> Result<bool> {
-        let price = self.collateral_market_value(market_price)?;
         let owed = self.owed_amount()?;
 
-        price
+        self.collateral_market_value(market_price)?
             .try_mul(max_collateral_ratio)
             .map_err(From::from)
             .map(|max_loan_price| owed <= max_loan_price)
@@ -96,6 +95,7 @@ impl Receipt {
         if self.is_healthy(market_price, config.max_collateral_ratio.into())? {
             Ok(())
         } else {
+            msg!("Cannot borrow {} stable coin tokens", amount);
             Err(ErrorCode::BorrowTooLarge.into())
         }
     }
@@ -116,23 +116,24 @@ impl Receipt {
         self.accrue_interest(slot, config.interest.into())?;
 
         let owed = self.owed_amount()?;
-        let borrowed = self.borrowed_amount.to_dec();
+        let interest = self.interest_amount.to_dec();
 
-        if max_amount_to_repay <= borrowed {
-            // 1. max amount is enough to just repay some/all of borrowed
-            //      amount, but no interest
-            self.borrowed_amount =
-                borrowed.try_sub(max_amount_to_repay)?.into();
+        if max_amount_to_repay <= interest {
+            // 1. max amount is enough to just repay some/all of interest
+            //      amount, but no borrow
+            self.interest_amount =
+                interest.try_sub(max_amount_to_repay)?.into();
             Ok(max_amount_to_repay)
         } else if max_amount_to_repay < owed {
-            // 2. max amount is enough to repay all of borrowed amount and
-            //      some of interest
-            let remove_from_interest = max_amount_to_repay.try_sub(borrowed)?;
-            self.borrowed_amount = Decimal::zero().into();
-            self.interest_amount = self
-                .interest_amount
+            // 2. max amount is enough to repay all of interest amount and
+            //      some of borrowed
+            let remove_from_borrowed_amount =
+                max_amount_to_repay.try_sub(interest)?;
+            self.interest_amount = Decimal::zero().into();
+            self.borrowed_amount = self
+                .borrowed_amount
                 .to_dec()
-                .try_sub(remove_from_interest)?
+                .try_sub(remove_from_borrowed_amount)?
                 .into();
             Ok(max_amount_to_repay)
         } else {
@@ -187,7 +188,10 @@ impl Receipt {
         slot: u64,
         interest_rate: Decimal,
     ) -> ProgramResult {
-        if slot <= self.last_interest_accrual_slot {
+        if self.last_interest_accrual_slot == 0 {
+            self.last_interest_accrual_slot = slot;
+            return Ok(())
+        } else if slot <= self.last_interest_accrual_slot {
             return Ok(());
         }
 
@@ -336,8 +340,8 @@ mod tests {
 
         let mut receipt = Receipt {
             collateral_amount: 100,
-            interest_amount: Decimal::from(10u64).into(),
-            borrowed_amount: Decimal::from(90u64).into(),
+            interest_amount: Decimal::from(90u64).into(),
+            borrowed_amount: Decimal::from(10u64).into(),
             last_interest_accrual_slot,
             ..Default::default()
         };
@@ -346,15 +350,15 @@ mod tests {
             receipt.repay(&config, last_interest_accrual_slot, 75u64.into()),
             Ok(75u64.into())
         );
-        assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(10));
-        assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(15));
+        assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(15));
+        assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(10));
 
         assert_eq!(
             receipt.repay(&config, last_interest_accrual_slot, 20u64.into()),
             Ok(20u64.into())
         );
-        assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(5));
-        assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(0));
+        assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(5));
+        assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(0));
 
         assert_eq!(
             receipt.repay(&config, last_interest_accrual_slot, u64::MAX.into()),
@@ -455,11 +459,11 @@ mod tests {
             )
         );
         assert_eq!(receipt.collateral_amount, 0);
+        assert_eq!(receipt.interest_amount.to_dec(), Decimal::zero());
         assert_eq!(
             receipt.borrowed_amount.to_dec(),
-            Decimal::from(90u64 - 18u64)
+            Decimal::from(90u64 - 8)
         );
-        assert_eq!(receipt.interest_amount.to_dec(), Decimal::from(10u64));
     }
 
     proptest! {
