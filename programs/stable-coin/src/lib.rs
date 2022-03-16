@@ -31,6 +31,10 @@ pub mod stable_coin {
         endpoints::update_component_config::handle(ctx, config)
     }
 
+    pub fn init_receipt(ctx: Context<InitReceipt>) -> ProgramResult {
+        endpoints::init_receipt::handle(ctx)
+    }
+
     pub fn deposit_collateral(
         ctx: Context<DepositCollateral>,
         amount: u64,
@@ -44,10 +48,6 @@ pub mod stable_coin {
         amount: u64,
     ) -> ProgramResult {
         endpoints::withdraw_collateral::handle(ctx, component_bump_seed, amount)
-    }
-
-    pub fn init_receipt(ctx: Context<InitReceipt>) -> ProgramResult {
-        endpoints::init_receipt::handle(ctx)
     }
 
     pub fn borrow_stable_coin(
