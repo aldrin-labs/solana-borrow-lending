@@ -190,7 +190,7 @@ impl Receipt {
     ) -> ProgramResult {
         if self.last_interest_accrual_slot == 0 {
             self.last_interest_accrual_slot = slot;
-            return Ok(())
+            return Ok(());
         } else if slot <= self.last_interest_accrual_slot {
             return Ok(());
         }
@@ -460,10 +460,7 @@ mod tests {
         );
         assert_eq!(receipt.collateral_amount, 0);
         assert_eq!(receipt.interest_amount.to_dec(), Decimal::zero());
-        assert_eq!(
-            receipt.borrowed_amount.to_dec(),
-            Decimal::from(90u64 - 8)
-        );
+        assert_eq!(receipt.borrowed_amount.to_dec(), Decimal::from(90u64 - 8));
     }
 
     proptest! {
