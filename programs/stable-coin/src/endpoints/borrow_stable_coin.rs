@@ -8,6 +8,13 @@ use anchor_spl::token::{self, Mint, Token};
 #[instruction(stable_coin_bump_seed: u8)]
 pub struct BorrowStableCoin<'info> {
     pub borrower: Signer<'info>,
+    #[account(
+        constraint = stable_coin.key() == component.stable_coin
+            @ err::stable_coin_mismatch(),
+        constraint = stable_coin.mint == stable_coin_mint.key()
+            @ err::stable_coin_mint_mismatch(),
+    )]
+    pub stable_coin: Box<Account<'info, StableCoin>>,
     /// We need to mutate mint allowance in config.
     #[account(mut)]
     pub component: Account<'info, Component>,
