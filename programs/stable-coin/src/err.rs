@@ -24,6 +24,8 @@ pub enum ErrorCode {
     MintAllowanceTooSmall,
     #[msg("Component's mint doesn't match reserve's liquidity nor collateral")]
     ComponentReserveMismatch,
+    #[msg("Receipt is not beyond max collateral ration threshold")]
+    CannotLiquidateHealthyReceipt,
 }
 
 impl PartialEq for Error {

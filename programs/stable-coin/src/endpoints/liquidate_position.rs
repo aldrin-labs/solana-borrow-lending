@@ -20,7 +20,11 @@ pub struct LiquidatePosition<'info> {
     #[account(mut)]
     pub stable_coin_mint: AccountInfo<'info>,
     /// We need to mutate mint allowance in config.
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = freeze_wallet.key() == component.freeze_wallet
+            @ err::acc("Freeze wallet doesn't match component's configuration"),
+    )]
     pub component: Box<Account<'info, Component>>,
     /// Authorizes transfer from freeze wallet.
     #[account(

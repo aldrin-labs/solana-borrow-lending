@@ -154,6 +154,11 @@ impl Receipt {
         slot: u64,
         market_price: Decimal,
     ) -> Result<Liquidate> {
+        if self.is_healthy(market_price, config.max_collateral_ratio.into())? {
+            msg!("Cannot liquidate healthy receipt");
+            return Err(ErrorCode::CannotLiquidateHealthyReceipt.into());
+        }
+
         let discounted_market_price = market_price
             .try_sub(market_price.try_mul(config.liquidation_fee.to_dec())?)?;
 
