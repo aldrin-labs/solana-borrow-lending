@@ -55,6 +55,14 @@ pub fn handle(
         )?
         .try_ceil_u64()?;
 
+    if amount_to_burn > max_amount_to_repay {
+        msg!(
+            "An unexpected rounding issue occurred, amount to burn can never \
+            be more than max amount to repay"
+        );
+        return Err(ErrorCode::MathOverflow.into());
+    }
+
     // A surprising behavior here is that the allowance is increased
     // by the borrow fee and interest here, whereas its not decreased by these
     // amounts when borrowing. That is not a big deal and it'd be annoying
