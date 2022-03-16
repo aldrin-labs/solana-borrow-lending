@@ -4,9 +4,10 @@
 //! burned is also subtracted from the user's receipt.
 
 use crate::prelude::*;
+use anchor_spl::token::{self, Token};
 
 #[derive(Accounts)]
-#[instruction(stable_coin_bump_seed: u8, component_bump_seed: u8)]
+#[instruction(component_bump_seed: u8)]
 pub struct LiquidatePosition<'info> {
     pub liquidator: Signer<'info>,
     #[account(
@@ -18,12 +19,6 @@ pub struct LiquidatePosition<'info> {
     pub stable_coin: Box<Account<'info, StableCoin>>,
     #[account(mut)]
     pub stable_coin_mint: AccountInfo<'info>,
-    /// Necessary to authorize burning of existing stable coin tokens.
-    #[account(
-        seeds = [component.stable_coin.as_ref()],
-        bump = stable_coin_bump_seed,
-    )]
-    pub stable_coin_pda: AccountInfo<'info>,
     /// We need to mutate mint allowance in config.
     #[account(mut)]
     pub component: Box<Account<'info, Component>>,
@@ -33,6 +28,13 @@ pub struct LiquidatePosition<'info> {
         bump = component_bump_seed,
     )]
     pub component_pda: AccountInfo<'info>,
+    #[account(
+        constraint = reserve.key() == component.blp_reserve
+            @ err::reserve_mismatch(),
+        constraint = !reserve.is_stale(&clock)
+            @ borrow_lending::err::reserve_stale(),
+    )]
+    pub reserve: Box<Account<'info, borrow_lending::models::Reserve>>,
     /// Gives user's collateral away to liquidator at a discount price.
     #[account(mut)]
     pub freeze_wallet: AccountInfo<'info>,
@@ -49,12 +51,68 @@ pub struct LiquidatePosition<'info> {
     /// one.
     #[account(mut)]
     pub liquidator_collateral_wallet: AccountInfo<'info>,
+    pub token_program: Program<'info, Token>,
+    pub clock: Sysvar<'info, Clock>,
 }
 
-pub fn handle(ctx: Context<LiquidatePosition>) -> ProgramResult {
-    let _accounts = ctx.accounts;
+pub fn handle(
+    ctx: Context<LiquidatePosition>,
+    component_bump_seed: u8,
+) -> ProgramResult {
+    let accounts = ctx.accounts;
 
-    //
+    let token_market_price =
+        accounts.component.market_price(&accounts.reserve)?;
+    let Liquidate {
+        stable_coin_tokens_to_burn,
+        eligible_collateral_tokens,
+    } = accounts.receipt.liquidate(
+        &accounts.component.config,
+        accounts.clock.slot,
+        token_market_price,
+    )?;
+
+    token::burn(
+        accounts.as_burn_stable_coin_context(),
+        stable_coin_tokens_to_burn,
+    )?;
+
+    let pda_seeds = &[
+        &accounts.component.key().to_bytes()[..],
+        &[component_bump_seed],
+    ];
+    token::transfer(
+        accounts
+            .as_claim_discounted_collateral_context()
+            .with_signer(&[&pda_seeds[..]]),
+        eligible_collateral_tokens,
+    )?;
 
     Ok(())
+}
+
+impl<'info> LiquidatePosition<'info> {
+    pub fn as_burn_stable_coin_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, token::Burn<'info>> {
+        let cpi_accounts = token::Burn {
+            mint: self.stable_coin_mint.to_account_info(),
+            to: self.liquidator_stable_coin_wallet.to_account_info(),
+            authority: self.liquidator.to_account_info(),
+        };
+        let cpi_program = self.token_program.to_account_info();
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+
+    pub fn as_claim_discounted_collateral_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
+        let cpi_accounts = token::Transfer {
+            from: self.freeze_wallet.clone(),
+            to: self.liquidator_collateral_wallet.clone(),
+            authority: self.component_pda.clone(),
+        };
+        let cpi_program = self.token_program.to_account_info();
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
 }

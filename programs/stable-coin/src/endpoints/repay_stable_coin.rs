@@ -46,11 +46,14 @@ pub fn handle(
         return Err(ErrorCode::InvalidAmount.into());
     }
 
-    let amount_to_burn = accounts.receipt.repay(
-        &accounts.component.config,
-        accounts.clock.slot,
-        max_amount_to_repay,
-    )?;
+    let amount_to_burn = accounts
+        .receipt
+        .repay(
+            &accounts.component.config,
+            accounts.clock.slot,
+            max_amount_to_repay.into(),
+        )?
+        .try_ceil_u64()?;
 
     // A surprising behavior here is that the allowance is increased
     // by the borrow fee and interest here, whereas its not decreased by these

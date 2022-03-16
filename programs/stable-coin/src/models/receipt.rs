@@ -33,6 +33,12 @@ pub struct Receipt {
     pub last_interest_accrual_slot: u64,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Liquidate {
+    pub stable_coin_tokens_to_burn: u64,
+    pub eligible_collateral_tokens: u64,
+}
+
 impl Receipt {
     /// Market price of a single token and how much of the loan must be
     /// over-collateralized. Max collateral ratio is in interval (0; 1].
@@ -41,7 +47,7 @@ impl Receipt {
         market_price: Decimal,
         max_collateral_ratio: Decimal,
     ) -> Result<bool> {
-        let price = self.collateral_price(market_price)?;
+        let price = self.collateral_market_value(market_price)?;
         let owed = self.owed_amount()?;
 
         price
@@ -57,7 +63,10 @@ impl Receipt {
             .map_err(From::from)
     }
 
-    pub fn collateral_price(&self, market_price: Decimal) -> Result<Decimal> {
+    pub fn collateral_market_value(
+        &self,
+        market_price: Decimal,
+    ) -> Result<Decimal> {
         market_price
             .try_mul(self.collateral_amount)
             .map_err(From::from)
@@ -102,25 +111,23 @@ impl Receipt {
         &mut self,
         config: &ComponentConfig,
         slot: u64,
-        max_amount_to_repay: u64,
-    ) -> Result<u64> {
+        max_amount_to_repay: Decimal,
+    ) -> Result<Decimal> {
         self.accrue_interest(slot, config.interest.into())?;
 
         let owed = self.owed_amount()?;
-        let max_amount_to_repay_dec = Decimal::from(max_amount_to_repay);
         let borrowed = self.borrowed_amount.to_dec();
 
-        if max_amount_to_repay_dec <= borrowed {
+        if max_amount_to_repay <= borrowed {
             // 1. max amount is enough to just repay some/all of borrowed
             //      amount, but no interest
             self.borrowed_amount =
-                borrowed.try_sub(max_amount_to_repay.into())?.into();
+                borrowed.try_sub(max_amount_to_repay)?.into();
             Ok(max_amount_to_repay)
-        } else if max_amount_to_repay_dec < owed {
+        } else if max_amount_to_repay < owed {
             // 2. max amount is enough to repay all of borrowed amount and
             //      some of interest
-            let remove_from_interest =
-                max_amount_to_repay_dec.try_sub(borrowed)?;
+            let remove_from_interest = max_amount_to_repay.try_sub(borrowed)?;
             self.borrowed_amount = Decimal::zero().into();
             self.interest_amount = self
                 .interest_amount
@@ -132,8 +139,47 @@ impl Receipt {
             // 3. max a mount is enough to repay everything
             self.borrowed_amount = Decimal::zero().into();
             self.interest_amount = Decimal::zero().into();
-            Ok(owed.try_ceil_u64()?)
+            Ok(owed)
         }
+    }
+
+    /// Repays user's loan by calculating how many stable coin tokens to burn
+    /// (and removing that amount from the receipt) and calculates how much
+    /// collateral (at a discounted price) should be given in return (and
+    /// deducts the collateral from the receipt.)
+    pub fn liquidate(
+        &mut self,
+        config: &ComponentConfig,
+        slot: u64,
+        market_price: Decimal,
+    ) -> Result<Liquidate> {
+        let discounted_market_price = market_price
+            .try_sub(market_price.try_mul(config.liquidation_fee.to_dec())?)?;
+
+        // repay the loan with at most value of the collateral in stable coin
+        // (remember that 1 stable coin's market price = Decimal::one())
+        let stable_coin_tokens_liquidated = self.repay(
+            config,
+            slot,
+            Decimal::from(self.collateral_amount)
+                .try_mul(discounted_market_price)?,
+        )?;
+
+        // give the liquidator the tokens at a discounted price
+        let eligible_collateral_tokens = stable_coin_tokens_liquidated
+            .try_div(discounted_market_price)?
+            .try_floor_u64()?;
+        // and takes those tokens from the user
+        self.collateral_amount = self
+            .collateral_amount
+            .checked_sub(eligible_collateral_tokens)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        Ok(Liquidate {
+            stable_coin_tokens_to_burn: stable_coin_tokens_liquidated
+                .try_ceil_u64()?,
+            eligible_collateral_tokens,
+        })
     }
 
     pub fn accrue_interest(
@@ -297,21 +343,21 @@ mod tests {
         };
 
         assert_eq!(
-            receipt.repay(&config, last_interest_accrual_slot, 75),
+            receipt.repay(&config, last_interest_accrual_slot, 75u64.into()),
             Ok(75)
         );
         assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(10));
         assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(15));
 
         assert_eq!(
-            receipt.repay(&config, last_interest_accrual_slot, 20),
+            receipt.repay(&config, last_interest_accrual_slot, 20u64.into()),
             Ok(20)
         );
         assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(5));
         assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(0));
 
         assert_eq!(
-            receipt.repay(&config, last_interest_accrual_slot, u64::MAX),
+            receipt.repay(&config, last_interest_accrual_slot, u64::MAX.into()),
             Ok(5)
         );
         assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(0));
@@ -324,7 +370,7 @@ mod tests {
                 &config,
                 last_interest_accrual_slot
                     + borrow_lending::prelude::consts::SLOTS_PER_YEAR,
-                1_000
+                1_000u64.into()
             ),
             Ok(
                 100 // borrowed amount set before the call

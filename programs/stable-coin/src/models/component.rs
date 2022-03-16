@@ -124,8 +124,10 @@ impl ComponentConfig {
         }
 
         let liquidation_fee = self.liquidation_fee.to_dec();
-        if liquidation_fee.try_floor_u64()? != 0 {
-            msg!("Liquidation fee must be in range [0; 1)");
+        if liquidation_fee == Decimal::zero()
+            || liquidation_fee.try_floor_u64()? != 0
+        {
+            msg!("Liquidation fee must be in range (0; 1)");
             return Err(ErrorCode::InvalidConfig.into());
         }
 
@@ -139,12 +141,99 @@ mod tests {
 
     #[test]
     fn it_validates_config() {
-        //
+        let valid_config = ComponentConfig {
+            interest: Decimal::from_percent(50u64).into(),
+            max_collateral_ratio: Decimal::from_percent(50u64).into(),
+            borrow_fee: Decimal::from_percent(50u64).into(),
+            liquidation_fee: Decimal::from_percent(50u64).into(),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            Ok(valid_config),
+            InputComponentConfig { conf: valid_config }.validate()
+        );
+
+        assert!(ComponentConfig {
+            interest: Decimal::from(0u64).into(),
+            ..valid_config
+        }
+        .validate()
+        .is_ok());
+        assert!(ComponentConfig {
+            interest: Decimal::from(100u64).into(),
+            ..valid_config
+        }
+        .validate()
+        .is_err());
+
+        assert!(ComponentConfig {
+            max_collateral_ratio: Decimal::from(101u64).into(),
+            ..valid_config
+        }
+        .validate()
+        .is_err());
+        assert!(ComponentConfig {
+            max_collateral_ratio: Decimal::from(0u64).into(),
+            ..valid_config
+        }
+        .validate()
+        .is_err());
+
+        assert!(ComponentConfig {
+            borrow_fee: Decimal::from(101u64).into(),
+            ..valid_config
+        }
+        .validate()
+        .is_err());
+        assert!(ComponentConfig {
+            borrow_fee: Decimal::from(0u64).into(),
+            ..valid_config
+        }
+        .validate()
+        .is_ok());
+
+        assert!(ComponentConfig {
+            liquidation_fee: Decimal::from(101u64).into(),
+            ..valid_config
+        }
+        .validate()
+        .is_err());
+        assert!(ComponentConfig {
+            liquidation_fee: Decimal::from(0u64).into(),
+            ..valid_config
+        }
+        .validate()
+        .is_err());
     }
 
     #[test]
     fn it_calculates_market_price_for_collateral_mint() {
-        //
+        let mint = Pubkey::new_unique();
+
+        let component = Component {
+            mint,
+            ..Default::default()
+        };
+
+        let reserve = borrow_lending::models::Reserve {
+            liquidity: borrow_lending::models::ReserveLiquidity {
+                market_price: Decimal::from(5u64).into(),
+                available_amount: 20,
+                ..Default::default()
+            },
+            collateral: borrow_lending::models::ReserveCollateral {
+                mint_total_supply: 10,
+                mint,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        assert_eq!(
+            component.market_price(&reserve),
+            Ok(Decimal::from(20u64 * 5 / 10))
+        );
     }
 
     #[test]
