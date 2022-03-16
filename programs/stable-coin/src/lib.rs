@@ -26,7 +26,7 @@ pub mod stable_coin {
 
     pub fn update_component_config(
         ctx: Context<UpdateComponentConfig>,
-        config: ComponentConfig,
+        config: InputComponentConfig,
     ) -> ProgramResult {
         endpoints::update_component_config::handle(ctx, config)
     }
