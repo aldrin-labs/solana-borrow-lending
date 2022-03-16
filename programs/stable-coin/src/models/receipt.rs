@@ -344,21 +344,21 @@ mod tests {
 
         assert_eq!(
             receipt.repay(&config, last_interest_accrual_slot, 75u64.into()),
-            Ok(75)
+            Ok(75u64.into())
         );
         assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(10));
         assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(15));
 
         assert_eq!(
             receipt.repay(&config, last_interest_accrual_slot, 20u64.into()),
-            Ok(20)
+            Ok(20u64.into())
         );
         assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(5));
         assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(0));
 
         assert_eq!(
             receipt.repay(&config, last_interest_accrual_slot, u64::MAX.into()),
-            Ok(5)
+            Ok(5u64.into())
         );
         assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(0));
         assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(0));
@@ -366,20 +366,100 @@ mod tests {
         receipt.borrowed_amount = Decimal::from(100u64).into();
         receipt.interest_amount = Decimal::from(1u64).into();
         assert_eq!(
-            receipt.repay(
-                &config,
-                last_interest_accrual_slot
-                    + borrow_lending::prelude::consts::SLOTS_PER_YEAR,
-                1_000u64.into()
-            ),
-            Ok(
-                100 // borrowed amount set before the call
+            receipt
+                .repay(
+                    &config,
+                    last_interest_accrual_slot
+                        + borrow_lending::prelude::consts::SLOTS_PER_YEAR,
+                    1_000u64.into()
+                )
+                .unwrap()
+                .try_round_u64()
+                .unwrap(),
+            100u64 // borrowed amount set before the call
                 + 100 / 2 // interest is 50%
                 + 1 // interest set before the call
-            )
         );
         assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(0));
         assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(0));
+    }
+
+    #[test]
+    fn it_liquidates_position_where_collateral_is_worth_more() {
+        let last_interest_accrual_slot = 100;
+
+        let config = ComponentConfig {
+            interest: Decimal::from_percent(50u64).into(),
+            liquidation_fee: Decimal::from_percent(10u64).into(),
+            ..Default::default()
+        };
+
+        let mut receipt = Receipt {
+            collateral_amount: 100,
+            interest_amount: Decimal::from(10u64).into(),
+            borrowed_amount: Decimal::from(90u64).into(),
+            last_interest_accrual_slot,
+            ..Default::default()
+        };
+
+        let market_price = Decimal::from(2u64);
+
+        assert_eq!(
+            Ok(Liquidate {
+                // interest + borrowed
+                stable_coin_tokens_to_burn: 100,
+                // (interest + borrow) / market_price * fee
+                eligible_collateral_tokens: 55,
+            }),
+            receipt.liquidate(
+                &config,
+                last_interest_accrual_slot,
+                market_price
+            )
+        );
+        assert_eq!(receipt.collateral_amount, 45);
+        assert_eq!(receipt.borrowed_amount.to_dec(), Decimal::zero());
+        assert_eq!(receipt.interest_amount.to_dec(), Decimal::zero());
+    }
+
+    #[test]
+    fn it_liquidates_position_where_collateral_is_worth_less() {
+        let last_interest_accrual_slot = 100;
+
+        let config = ComponentConfig {
+            liquidation_fee: Decimal::from_percent(10u64).into(),
+            ..Default::default()
+        };
+
+        let mut receipt = Receipt {
+            collateral_amount: 10,
+            interest_amount: Decimal::from(10u64).into(),
+            borrowed_amount: Decimal::from(90u64).into(),
+            last_interest_accrual_slot,
+            ..Default::default()
+        };
+
+        let market_price = Decimal::from(2u64);
+
+        assert_eq!(
+            Ok(Liquidate {
+                // collateral amount * fee
+                stable_coin_tokens_to_burn: 18,
+                // collateral amount
+                eligible_collateral_tokens: 10,
+            }),
+            receipt.liquidate(
+                &config,
+                last_interest_accrual_slot,
+                market_price
+            )
+        );
+        assert_eq!(receipt.collateral_amount, 0);
+        assert_eq!(
+            receipt.borrowed_amount.to_dec(),
+            Decimal::from(90u64 - 18u64)
+        );
+        assert_eq!(receipt.interest_amount.to_dec(), Decimal::from(10u64));
     }
 
     proptest! {
