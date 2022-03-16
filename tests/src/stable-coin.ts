@@ -4,10 +4,13 @@ import { StableCoin } from "../../target/types/stable_coin";
 import { globalContainer } from "./globalContainer";
 
 export class StableCoinAccount {
-  public static async init(
-    scp: Program<StableCoin> = globalContainer.scp,
-    owner: PublicKey
-  ): Promise<StableCoin> {
-    //
-  }
+  // public static async init(
+  // owner: PublicKey
+  // ): Promise<StableCoin> {
+  // globalContainer.scp.rpc.initStableCoin({
+  //   accounts: {
+  //     admin:,
+  //   },
+  // })
+  // }
 }

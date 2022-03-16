@@ -16,7 +16,7 @@ pub struct Component {
     /// Where we store the tokens deposited as collateral. From here they're
     /// withdrawn on repay or liquidation.
     pub freeze_wallet: Pubkey,
-    pub config: ComponentConfiguration,
+    pub config: ComponentConfig,
 }
 
 #[derive(
@@ -29,9 +29,9 @@ pub struct Component {
     PartialEq,
     Eq,
 )]
-pub struct ComponentConfiguration {
+pub struct ComponentConfig {
     /// Maximum amount of stable coin borrowed against the given amount of
-    /// collateral is scaled down by this ratio. It must be in (0; 100].
+    /// collateral is scaled down by this ratio. It must be in (0; 1].
     pub max_collateral_ratio: SDecimal,
     /// APR interest
     pub interest: SDecimal,
@@ -47,6 +47,21 @@ pub struct ComponentConfiguration {
     /// disable any further minting. When a user repays their loan and
     /// withdraws their collateral, this gets increased.
     pub mint_allowance: u64,
+}
+
+/// Unvalidated config wrapper type. Use [`InputComponentConfig::validate`] to
+/// access the inner value.
+#[derive(AnchorSerialize, AnchorDeserialize, Debug)]
+pub struct InputComponentConfig {
+    conf: ComponentConfig,
+}
+
+impl InputComponentConfig {
+    pub fn validate(self) -> Result<ComponentConfig> {
+        let Self { conf } = self;
+        conf.validate()?;
+        Ok(conf)
+    }
 }
 
 impl Component {
@@ -86,9 +101,46 @@ impl Component {
     }
 }
 
+impl ComponentConfig {
+    fn validate(&self) -> ProgramResult {
+        let interest = self.interest.to_dec();
+        if interest.try_floor_u64()? != 0 {
+            msg!("Interest must be in range [0; 1)");
+            return Err(ErrorCode::InvalidConfig.into());
+        }
+
+        let max_collateral_ratio = self.max_collateral_ratio.to_dec();
+        if max_collateral_ratio == Decimal::zero()
+            || max_collateral_ratio.try_ceil_u64()? != 1
+        {
+            msg!("Max collateral ratio must be in range (0; 1]");
+            return Err(ErrorCode::InvalidConfig.into());
+        }
+
+        let borrow_fee = self.borrow_fee.to_dec();
+        if borrow_fee.try_floor_u64()? != 0 {
+            msg!("Borrow fee must be in range [0; 1)");
+            return Err(ErrorCode::InvalidConfig.into());
+        }
+
+        let liquidation_fee = self.liquidation_fee.to_dec();
+        if liquidation_fee.try_floor_u64()? != 0 {
+            msg!("Liquidation fee must be in range [0; 1)");
+            return Err(ErrorCode::InvalidConfig.into());
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn it_validates_config() {
+        //
+    }
 
     #[test]
     fn it_calculates_market_price_for_collateral_mint() {

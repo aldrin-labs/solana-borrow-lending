@@ -19,14 +19,14 @@ pub mod stable_coin {
     pub fn init_component(
         ctx: Context<InitComponent>,
         component_bump_seed: u8,
-        config: ComponentConfiguration,
+        config: InputComponentConfig,
     ) -> ProgramResult {
         endpoints::init_component::handle(ctx, component_bump_seed, config)
     }
 
     pub fn update_component_config(
         ctx: Context<UpdateComponentConfig>,
-        config: ComponentConfiguration,
+        config: ComponentConfig,
     ) -> ProgramResult {
         endpoints::update_component_config::handle(ctx, config)
     }

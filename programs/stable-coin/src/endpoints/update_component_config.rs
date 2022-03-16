@@ -23,7 +23,7 @@ pub struct UpdateComponentConfig<'info> {
 
 pub fn handle(
     ctx: Context<UpdateComponentConfig>,
-    config: ComponentConfiguration,
+    config: ComponentConfig,
 ) -> ProgramResult {
     ctx.accounts.component.config = config;
 

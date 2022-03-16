@@ -47,12 +47,12 @@ pub struct InitComponent<'info> {
 pub fn handle(
     ctx: Context<InitComponent>,
     _component_bump_seed: u8,
-    config: ComponentConfiguration,
+    config: InputComponentConfig,
 ) -> ProgramResult {
     let accounts = ctx.accounts;
 
     accounts.component.blp_reserve = accounts.blp_reserve.key();
-    accounts.component.config = config;
+    accounts.component.config = config.validate()?;
     accounts.component.freeze_wallet = accounts.freeze_wallet.key();
     accounts.component.mint = accounts.mint.key();
     accounts.component.stable_coin = accounts.stable_coin.key();

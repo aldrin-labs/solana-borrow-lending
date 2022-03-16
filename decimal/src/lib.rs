@@ -266,6 +266,7 @@ mod test {
             Decimal::from_percent(200u64),
             Decimal::one().try_mul(2).unwrap()
         );
+        assert_eq!(Decimal::from_percent(90u64).try_floor_u64(), Ok(0));
     }
 
     #[test]

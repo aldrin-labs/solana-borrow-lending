@@ -69,7 +69,7 @@ impl Receipt {
     /// The stable coin market price is 1.00
     pub fn borrow(
         &mut self,
-        config: &ComponentConfiguration,
+        config: &ComponentConfig,
         slot: u64,
         amount: u64,
         market_price: Decimal,
@@ -100,7 +100,7 @@ impl Receipt {
     /// from user's wallet.
     pub fn repay(
         &mut self,
-        config: &ComponentConfiguration,
+        config: &ComponentConfig,
         slot: u64,
         max_amount_to_repay: u64,
     ) -> Result<u64> {
@@ -203,7 +203,7 @@ mod tests {
     fn it_borrows() {
         let last_interest_accrual_slot = 100;
 
-        let config = ComponentConfiguration {
+        let config = ComponentConfig {
             interest: Decimal::from_percent(50u64).into(),
             borrow_fee: Decimal::from_percent(10u64).into(),
             max_collateral_ratio: Decimal::from_percent(90u64).into(),
@@ -282,7 +282,7 @@ mod tests {
     fn it_repays() {
         let last_interest_accrual_slot = 100;
 
-        let config = ComponentConfiguration {
+        let config = ComponentConfig {
             interest: Decimal::from_percent(50u64).into(),
             max_collateral_ratio: Decimal::from_percent(90u64).into(),
             ..Default::default()
