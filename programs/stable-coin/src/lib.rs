@@ -68,4 +68,11 @@ pub mod stable_coin {
     ) -> ProgramResult {
         endpoints::repay_stable_coin::handle(ctx, max_amount_to_repay)
     }
+
+    pub fn liquidate_position(
+        ctx: Context<LiquidatePosition>,
+        component_bump_seed: u8,
+    ) -> ProgramResult {
+        endpoints::liquidate_position::handle(ctx, component_bump_seed)
+    }
 }

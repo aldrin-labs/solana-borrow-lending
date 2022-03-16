@@ -58,16 +58,21 @@ describe("borrow-lending", function () {
 
   const blp = anchor.workspace.BorrowLending as Program<BorrowLending>;
   const scp = anchor.workspace.StableCoin as Program<StableCoin>;
+
   // TODO: no types yet, old anchor version
   // if your test suite needs amm, don't forget to add it to `needsAmm` list in
   // this file
   const amm = anchor.workspace.MmFarmingPoolProductOnly as Program<any>;
 
   const shmemKeypair = Keypair.generate();
-  globalContainer.shmem = shmemKeypair.publicKey;
   const payer = Keypair.generate();
   const ammPoolAuthority = Keypair.generate();
+
+  globalContainer.amm = amm;
   globalContainer.ammAuthority = ammPoolAuthority;
+  globalContainer.blp = blp;
+  globalContainer.scp = scp;
+  globalContainer.shmem = shmemKeypair.publicKey;
 
   console.table({
     blp: blp.programId.toBase58(),

@@ -37,7 +37,7 @@ export class LendingMarket {
     program: Program<BorrowLending> = globalContainer.blp,
     owner: Keypair,
     oracle: PublicKey = globalContainer.shmem,
-    amm: PublicKey = program.programId,
+    amm: PublicKey = globalContainer.amm.programId,
     currency: "usd" | PublicKey = "usd"
   ): Promise<LendingMarket> {
     const marketAccount = Keypair.generate();

@@ -7,23 +7,19 @@ import { globalContainer } from "../globalContainer";
 
 export function test() {
   const program: Program<BorrowLending> = globalContainer.blp;
+
   describe("init_lending_market", () => {
     it("with USD", async () => {
       const owner = Keypair.generate();
       const oracle = Keypair.generate();
 
-      const market = await LendingMarket.init(
-        program,
-        owner,
-        oracle.publicKey,
-        program.programId
-      );
+      const market = await LendingMarket.init(program, owner, oracle.publicKey);
 
       const marketInfo = await market.fetch();
       expect(marketInfo.currency).to.deep.eq({ usd: {} });
       expect(marketInfo.owner).to.deep.eq(owner.publicKey);
       expect(marketInfo.adminBot).to.deep.eq(owner.publicKey);
-      expect(marketInfo.aldrinAmm).to.deep.eq(program.programId);
+      expect(marketInfo.aldrinAmm).to.deep.eq(globalContainer.amm.programId);
     });
 
     it("with pubkey", async () => {
@@ -35,7 +31,7 @@ export function test() {
         program,
         owner,
         oracle.publicKey,
-        program.programId,
+        undefined,
         currency.publicKey
       );
 
@@ -45,7 +41,7 @@ export function test() {
       });
       expect(marketInfo.owner).to.deep.eq(owner.publicKey);
       expect(marketInfo.adminBot).to.deep.eq(owner.publicKey);
-      expect(marketInfo.aldrinAmm).to.deep.eq(program.programId);
+      expect(marketInfo.aldrinAmm).to.deep.eq(globalContainer.amm.programId);
     });
   });
 }
