@@ -69,8 +69,9 @@ pub fn handle(
 ) -> ProgramResult {
     let accounts = ctx.accounts;
 
-    let token_market_price =
-        accounts.component.market_price(&accounts.reserve)?;
+    let token_market_price = accounts
+        .component
+        .smallest_unit_market_price(&accounts.reserve)?;
     let Liquidate {
         stable_coin_tokens_to_burn,
         liquidator_collateral_tokens,

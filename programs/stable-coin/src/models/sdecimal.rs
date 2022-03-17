@@ -117,4 +117,18 @@ mod tests {
         };
         assert_eq!(dec.to_dec().to_string(), "0.001000000000000000");
     }
+
+    #[test]
+    fn it_represents_percents() {
+        assert_eq!(
+            SDecimal::from(Decimal::from_percent(90u64)),
+            SDecimal {
+                u192: [900000000000000000, 0, 0],
+            }
+        );
+        assert_eq!(
+            SDecimal::from(Decimal::from_percent(90u64)).u192[0].to_le_bytes(),
+            [0, 0, 218, 73, 59, 113, 125, 12]
+        );
+    }
 }

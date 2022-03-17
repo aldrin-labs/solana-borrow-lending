@@ -78,12 +78,22 @@ impl Component {
     /// or the collateral token mint, in which case we need to first get an
     /// exchange ration from 1 collateral token to X liquidity tokens and then
     /// multiply by the liquidity market price.
-    pub fn market_price(
+    ///
+    /// # Important
+    /// The output market price is scaled down by decimals. If the mint is SOL,
+    /// the output of this function returns USD price for 1 lamport.
+    ///
+    /// TODO: consider returning a wrapper MarketPrice type to avoid bugs
+    pub fn smallest_unit_market_price(
         &self,
         reserve: &borrow_lending::models::Reserve,
     ) -> Result<Decimal> {
+        let decimals = 10u64
+            .checked_pow(self.decimals as u32)
+            .ok_or(ErrorCode::MathOverflow)?;
+
         if reserve.liquidity.mint == self.mint {
-            Ok(reserve.liquidity.market_price.into())
+            Ok(reserve.liquidity.market_price.to_dec().try_div(decimals)?)
         } else if reserve.collateral.mint == self.mint {
             let liquidity_amount = reserve
                 .collateral_exchange_rate()
@@ -94,7 +104,8 @@ impl Component {
                 })
                 .map_err(Error::from)?;
             liquidity_amount
-                .try_mul(reserve.liquidity.market_price.to_dec())
+                .try_mul(reserve.liquidity.market_price.to_dec())?
+                .try_div(decimals)
                 .map_err(From::from)
         } else {
             msg!(
@@ -245,7 +256,7 @@ mod tests {
         };
 
         assert_eq!(
-            component.market_price(&reserve),
+            component.smallest_unit_market_price(&reserve),
             Ok(Decimal::from(20u64 * 5 / 10))
         );
     }
@@ -268,7 +279,10 @@ mod tests {
             ..Default::default()
         };
 
-        assert_eq!(component.market_price(&reserve), Ok(Decimal::one()));
+        assert_eq!(
+            component.smallest_unit_market_price(&reserve),
+            Ok(Decimal::one())
+        );
     }
 
     #[test]
@@ -282,6 +296,6 @@ mod tests {
             ..Default::default()
         };
 
-        assert!(component.market_price(&reserve).is_err(),);
+        assert!(component.smallest_unit_market_price(&reserve).is_err(),);
     }
 }

@@ -2,7 +2,7 @@ import { BN } from "@project-serum/anchor";
 import { Token } from "@solana/spl-token";
 import { Keypair, PublicKey, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 import { globalContainer } from "./globalContainer";
-import { numberToU192 } from "./helpers";
+import { numberToU192, numberToU64 } from "./helpers";
 import { Reserve } from "./reserve";
 import { USP } from "./stable-coin";
 
@@ -73,12 +73,12 @@ export class Component {
   public static defaultConfig() {
     return {
       conf: {
-        maxCollateralRatio: { u192: numberToU192(0.9) },
+        maxCollateralRatio: { u192: numberToU192(0.5) },
         interest: { u192: numberToU192(0.1) },
         borrowFee: { u192: numberToU192(0.02) },
-        liquidationBonus: { u192: numberToU192(0.05) },
+        liquidationBonus: { u192: numberToU192(0.02) },
         platformLiquidationFee: { u192: numberToU192(0.1) },
-        mintAllowance: new BN(1_000_000),
+        mintAllowance: new BN(1_000_000_000_000),
       },
     };
   }

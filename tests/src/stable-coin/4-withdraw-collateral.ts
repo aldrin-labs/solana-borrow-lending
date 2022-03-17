@@ -1,19 +1,19 @@
-import { Keypair } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import { expect } from "chai";
 import { Component } from "../component";
-import { u192ToBN } from "../helpers";
 import { LendingMarket } from "../lending-market";
 import { Receipt } from "../receipt";
 import { Reserve } from "../reserve";
 import { USP } from "../stable-coin";
 
 export function test(owner: Keypair) {
-  describe("deposit_collateral", () => {
+  describe("withdraw_collateral", () => {
     let usp: USP,
       market: LendingMarket,
       receipt: Receipt,
       reserve: Reserve,
-      component: Component;
+      component: Component,
+      collateralWallet: PublicKey;
 
     before("inits usp", async () => {
       usp = await USP.init(owner);
@@ -39,20 +39,27 @@ export function test(owner: Keypair) {
       receipt = await Receipt.init(component);
     });
 
-    it("deposits collateral into receipt", async () => {
-      const collateralWallet = await reserve.createLiquidityWallet(
+    beforeEach("airdrops liquidity", async () => {
+      collateralWallet = await reserve.createLiquidityWallet(
         receipt.borrower.publicKey,
         100
       );
+    });
 
+    beforeEach("deposits collateral", async () => {
       await receipt.deposit(collateralWallet, 50);
+    });
 
+    it("withdraws part of collateral", async () => {
+      await receipt.withdraw(collateralWallet, 25);
       const receiptInfo = await receipt.fetch();
-      expect(receiptInfo.borrower).to.deep.eq(receipt.borrower.publicKey);
-      expect(receiptInfo.component).to.deep.eq(component.id);
-      expect(receiptInfo.collateralAmount.toNumber()).to.eq(50);
-      expect(u192ToBN(receiptInfo.interestAmount).toNumber()).to.eq(0);
-      expect(u192ToBN(receiptInfo.borrowedAmount).toNumber()).to.eq(0);
+      expect(receiptInfo.collateralAmount.toNumber()).to.eq(25);
+    });
+
+    it("withdraws all collateral", async () => {
+      await receipt.withdraw(collateralWallet, 10_000_000);
+      const receiptInfo = await receipt.fetch();
+      expect(receiptInfo.collateralAmount.toNumber()).to.eq(0);
     });
   });
 }

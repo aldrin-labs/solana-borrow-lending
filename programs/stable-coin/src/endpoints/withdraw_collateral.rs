@@ -72,8 +72,9 @@ pub fn handle(
     // in the line above we decreased the collateral amount, so now we're
     // basically asking "suppose user had 'amount' collateral less, would their
     // position still be healthy?" and if the answer is no we throw an error
-    let token_market_price =
-        accounts.component.market_price(&accounts.reserve)?;
+    let token_market_price = accounts
+        .component
+        .smallest_unit_market_price(&accounts.reserve)?;
     if !accounts.receipt.is_healthy(
         token_market_price,
         accounts.component.config.max_collateral_ratio.into(),

@@ -311,4 +311,15 @@ mod test {
         assert_eq!(ceil_u128(10), ceil_u192(10));
         assert_eq!(ceil_u128(1_000), ceil_u192(1_000));
     }
+
+    #[test]
+    fn it_represents_percents() {
+        let dec = Decimal::one()
+            .try_div(Decimal::from(10u64))
+            .unwrap()
+            .try_mul(Decimal::from(9u64))
+            .unwrap();
+        assert_eq!(dec.to_string(), "0.900000000000000000");
+        assert_eq!(Decimal::from_percent(90u64), dec);
+    }
 }

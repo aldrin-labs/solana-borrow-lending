@@ -12,7 +12,8 @@ export class USP {
     public owner: Keypair,
     public pda: PublicKey,
     public bumpSeed: number,
-    public mint: Token
+    public mint: Token,
+    public stableCoinVault: PublicKey
   ) {
     //
   }
@@ -30,10 +31,21 @@ export class USP {
     const mint = await Token.createMint(
       scp.provider.connection,
       owner,
-      stableCoinPda,
+      owner.publicKey,
       null,
-      8,
+      6,
       TOKEN_PROGRAM_ID
+    );
+    // we mint some tokens so that we can airdrop in tests if needed
+    const stableCoinVault = await mint.createAccount(owner.publicKey);
+    await mint.mintTo(stableCoinVault, owner, [], 100_000_000_000);
+    // and set the authority to the PDA
+    await mint.setAuthority(
+      mint.publicKey,
+      stableCoinPda,
+      "MintTokens",
+      owner,
+      []
     );
     await waitForCommit();
 
@@ -56,7 +68,8 @@ export class USP {
       owner,
       stableCoinPda,
       stableCoinBumpSeed,
-      mint
+      mint,
+      stableCoinVault
     );
   }
 
@@ -66,5 +79,15 @@ export class USP {
 
   public async fetch() {
     return this.scp.account.stableCoin.fetch(this.id);
+  }
+
+  public async airdrop(dest: PublicKey, amount: number) {
+    await this.mint.transfer(
+      this.stableCoinVault,
+      dest,
+      this.owner,
+      [],
+      amount
+    );
   }
 }

@@ -1,4 +1,4 @@
-import { Keypair } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import { expect } from "chai";
 import { Component } from "../component";
 import { u192ToBN } from "../helpers";
@@ -8,12 +8,14 @@ import { Reserve } from "../reserve";
 import { USP } from "../stable-coin";
 
 export function test(owner: Keypair) {
-  describe("deposit_collateral", () => {
+  describe("borrow_stable_coin", () => {
     let usp: USP,
       market: LendingMarket,
       receipt: Receipt,
       reserve: Reserve,
-      component: Component;
+      component: Component,
+      collateralWallet: PublicKey,
+      uspWallet: PublicKey;
 
     before("inits usp", async () => {
       usp = await USP.init(owner);
@@ -39,20 +41,35 @@ export function test(owner: Keypair) {
       receipt = await Receipt.init(component);
     });
 
-    it("deposits collateral into receipt", async () => {
-      const collateralWallet = await reserve.createLiquidityWallet(
+    beforeEach("airdrops liquidity", async () => {
+      collateralWallet = await reserve.createLiquidityWallet(
         receipt.borrower.publicKey,
         100
       );
+    });
 
+    beforeEach("creates borrower's stable coin wallet", async () => {
+      uspWallet = await usp.mint.createAccount(receipt.borrower.publicKey);
+    });
+
+    beforeEach("deposits collateral", async () => {
       await receipt.deposit(collateralWallet, 50);
+    });
+
+    it("borrows stable coin", async () => {
+      const borrowAmount = 5;
+      await receipt.borrow(uspWallet, borrowAmount);
 
       const receiptInfo = await receipt.fetch();
-      expect(receiptInfo.borrower).to.deep.eq(receipt.borrower.publicKey);
-      expect(receiptInfo.component).to.deep.eq(component.id);
-      expect(receiptInfo.collateralAmount.toNumber()).to.eq(50);
-      expect(u192ToBN(receiptInfo.interestAmount).toNumber()).to.eq(0);
-      expect(u192ToBN(receiptInfo.borrowedAmount).toNumber()).to.eq(0);
+      expect(
+        receiptInfo.lastInterestAccrualSlot.toNumber()
+      ).to.be.approximately(await usp.scp.provider.connection.getSlot(), 3);
+      expect(u192ToBN(receiptInfo.borrowedAmount).toString()).to.eq(
+        "5100000000000000000"
+      );
+
+      const uspWalletInfo = await usp.mint.getAccountInfo(uspWallet);
+      expect(uspWalletInfo.amount.toNumber()).to.eq(borrowAmount);
     });
   });
 }

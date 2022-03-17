@@ -58,8 +58,10 @@ pub fn handle(
 ) -> ProgramResult {
     let accounts = ctx.accounts;
 
+    let config = config.validate()?;
+
     accounts.component.blp_reserve = accounts.blp_reserve.key();
-    accounts.component.config = config.validate()?;
+    accounts.component.config = config;
     accounts.component.freeze_wallet = accounts.freeze_wallet.key();
     accounts.component.mint = accounts.mint.key();
     accounts.component.decimals = accounts.mint.decimals;

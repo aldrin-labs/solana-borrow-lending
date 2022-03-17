@@ -11,9 +11,16 @@ pub struct Receipt {
     /// How much of the collateral token has been deposited. A user can create
     /// a new receipt every time they borrow against the same component, or
     /// they can update the existing receipt by increasing this amount.
+    ///
+    /// This amount represents in the lowest decimal place representation, ie
+    /// it'd be lamports in case of SOL.
     pub collateral_amount: u64,
     /// How much MIM does the user have to repay, this includes borrow fee and
     /// APR interest.
+    ///
+    /// This amount represents the lowest decimal place of the stable coin. If
+    /// the user owes 10 USP and we have 4 decimal places, this value would be
+    /// 10k.
     pub borrowed_amount: SDecimal,
     /// Stable coin interest is APR. We track how much interest has been
     /// payed so far with this value which is increased during repay and
@@ -22,7 +29,7 @@ pub struct Receipt {
     /// with this type of collateral.
     ///
     /// This amount affects whether we mark receipt as unhealthy. It is repayed
-    /// after all borrowed amount is repayed.
+    /// after all borrowed amount is repayed. Same as the borrowed amount.
     pub interest_amount: SDecimal,
     /// Every time a user interacts with receipt, we first calculate interest.
     /// Since the interest is a simple formulate, we can just take the
@@ -43,19 +50,28 @@ pub struct Liquidate {
 impl Receipt {
     /// Market price of a single token and how much of the loan must be
     /// over-collateralized. Max collateral ratio is in interval (0; 1].
+    ///
+    /// # Important
+    /// The provided market must already be adjusted by mint decimals, ie. if
+    /// it's SOL, the market price must be for lamports.
     pub fn is_healthy(
         &self,
         market_price: Decimal,
         max_collateral_ratio: Decimal,
     ) -> Result<bool> {
-        let owed = self.owed_amount()?;
+        let owed = self
+            .owed_amount()?
+            // get it from the smallest decimal place to 1 stable coin token
+            .try_mul(smallest_stable_coin_unit_market_price())?;
 
-        self.collateral_market_value(market_price)?
-            .try_mul(max_collateral_ratio)
-            .map_err(From::from)
-            .map(|max_loan_price| owed <= max_loan_price)
+        let max_loan_price = self
+            .collateral_market_value(market_price)?
+            .try_mul(max_collateral_ratio)?;
+
+        Ok(owed <= max_loan_price)
     }
 
+    // TODO: consider returning a custom wrapper type to avoid bugs
     pub fn owed_amount(&self) -> Result<Decimal> {
         self.borrowed_amount
             .to_dec()
@@ -63,6 +79,9 @@ impl Receipt {
             .map_err(From::from)
     }
 
+    /// # Important
+    /// The provided market must already be adjusted by mint decimals, ie. if
+    /// it's SOL, the market price must be in lamports.
     pub fn collateral_market_value(
         &self,
         market_price: Decimal,
@@ -75,7 +94,9 @@ impl Receipt {
     /// Tries to borrow given amount of stable coin. Fails if the borrow value
     /// would grow over a limit given by the max collateral ratio.
     ///
-    /// The stable coin market price is 1.00
+    /// # Important
+    /// The provided market must already be adjusted by mint decimals, ie. if
+    /// it's SOL, the market price must be in lamports.
     pub fn borrow(
         &mut self,
         config: &ComponentConfig,
@@ -149,6 +170,10 @@ impl Receipt {
     /// (and removing that amount from the receipt) and calculates how much
     /// collateral (at a discounted price) should be given in return (and
     /// deducts the collateral from the receipt.)
+    ///
+    /// # Important
+    /// The provided market must already be adjusted by mint decimals, ie. if
+    /// it's SOL, the market price must be in lamports.
     pub fn liquidate(
         &mut self,
         config: &ComponentConfig,
@@ -156,7 +181,13 @@ impl Receipt {
         market_price: Decimal,
     ) -> Result<Liquidate> {
         if self.is_healthy(market_price, config.max_collateral_ratio.into())? {
-            msg!("Cannot liquidate healthy receipt");
+            msg!(
+                "Cannot liquidate healthy receipt, \
+                owed amount is {} UAC and collateral is {} UAC",
+                self.owed_amount()?
+                    .try_mul(smallest_stable_coin_unit_market_price())?,
+                self.collateral_market_value(market_price)?
+            );
             return Err(ErrorCode::CannotLiquidateHealthyReceipt.into());
         }
 
@@ -165,18 +196,27 @@ impl Receipt {
         )?;
 
         // repay the loan with at most value of the collateral in stable coin
-        // (remember that 1 stable coin's market price = Decimal::one())
+        //
+        // while 1 stable coin's market price = Decimal::one(), we work with the
+        // smallest denomination which is given by the number of decimal places
+        let max_repay_uac = Decimal::from(self.collateral_amount)
+            .try_mul(discounted_market_price)?;
         let stable_coin_tokens_liquidated = self.repay(
             config,
             slot,
-            Decimal::from(self.collateral_amount)
-                .try_mul(discounted_market_price)?,
+            // we must scale it because repay works with the smallest unit,
+            // which is given by the decimal places
+            max_repay_uac.try_div(smallest_stable_coin_unit_market_price())?,
         )?;
 
         // give the liquidator the tokens at a discounted price
         let eligible_collateral_tokens = stable_coin_tokens_liquidated
+            // must be scaled down because the repay function returns the
+            // smallest denomination, while we work with UAC here
+            .try_mul(smallest_stable_coin_unit_market_price())?
             .try_div(discounted_market_price)?
-            .try_floor_u64()?;
+            .try_floor_u64()?
+            .max(1);
         // but some of those will go to the admin
         let platform_cut = Decimal::from(eligible_collateral_tokens)
             .try_mul(
@@ -185,7 +225,7 @@ impl Receipt {
                     .to_dec()
                     .try_mul(config.liquidation_bonus.to_dec())?,
             )?
-            .try_ceil_u64()?;
+            .try_round_u64()?;
 
         // and takes those tokens from the user
         self.collateral_amount = self
@@ -243,12 +283,23 @@ mod tests {
     fn it_calculates_whether_receipt_is_healthy() {
         let receipt = Receipt {
             collateral_amount: 2,
-            borrowed_amount: Decimal::from(2u64).into(),
-            interest_amount: Decimal::from(1u64).into(),
+            borrowed_amount: Decimal::from(2u64)
+                .try_div(smallest_stable_coin_unit_market_price())
+                .unwrap()
+                .into(),
+            interest_amount: Decimal::from(1u64)
+                .try_div(smallest_stable_coin_unit_market_price())
+                .unwrap()
+                .into(),
             ..Default::default()
         };
 
-        assert_eq!(receipt.owed_amount(), Ok(3u64.into()));
+        assert_eq!(
+            receipt.owed_amount(),
+            Ok(Decimal::from(3u64)
+                .try_div(smallest_stable_coin_unit_market_price())
+                .unwrap())
+        );
 
         // (5 * 2) * 0.9 > 3
         assert_eq!(
@@ -337,11 +388,18 @@ mod tests {
         );
 
         // cannot borrow if unhealthy
+        let mut receipt = Receipt {
+            collateral_amount: 100,
+            interest_amount: Decimal::zero().into(),
+            borrowed_amount: Decimal::zero().into(),
+            last_interest_accrual_slot,
+            ..Default::default()
+        };
         assert_eq!(
             receipt.borrow(
                 &config,
                 receipt.last_interest_accrual_slot,
-                50,
+                150_000000,
                 Decimal::from(1u64),
             ),
             Err(ErrorCode::BorrowTooLarge.into())
@@ -421,8 +479,8 @@ mod tests {
 
         let mut receipt = Receipt {
             collateral_amount: 100,
-            interest_amount: Decimal::from(10u64).into(),
-            borrowed_amount: Decimal::from(90u64).into(),
+            interest_amount: Decimal::from(10_000000u64).into(),
+            borrowed_amount: Decimal::from(90_000000u64).into(),
             last_interest_accrual_slot,
             ..Default::default()
         };
@@ -432,7 +490,7 @@ mod tests {
         assert_eq!(
             Ok(Liquidate {
                 // interest + borrowed
-                stable_coin_tokens_to_burn: 100,
+                stable_coin_tokens_to_burn: 100_000000,
                 // (interest + borrow) / market_price * fee
                 liquidator_collateral_tokens: 52,
                 platform_collateral_tokens: 3,
@@ -460,8 +518,8 @@ mod tests {
 
         let mut receipt = Receipt {
             collateral_amount: 10,
-            interest_amount: Decimal::from(10u64).into(),
-            borrowed_amount: Decimal::from(90u64).into(),
+            interest_amount: Decimal::from(10_000000u64).into(),
+            borrowed_amount: Decimal::from(90_000000u64).into(),
             last_interest_accrual_slot,
             ..Default::default()
         };
@@ -471,7 +529,7 @@ mod tests {
         assert_eq!(
             Ok(Liquidate {
                 // collateral amount * fee
-                stable_coin_tokens_to_burn: 18,
+                stable_coin_tokens_to_burn: 18_000000,
                 // collateral amount
                 liquidator_collateral_tokens: 9,
                 platform_collateral_tokens: 1,
@@ -484,7 +542,10 @@ mod tests {
         );
         assert_eq!(receipt.collateral_amount, 0);
         assert_eq!(receipt.interest_amount.to_dec(), Decimal::zero());
-        assert_eq!(receipt.borrowed_amount.to_dec(), Decimal::from(90u64 - 8));
+        assert_eq!(
+            receipt.borrowed_amount.to_dec(),
+            Decimal::from(90_000000u64 - 8_000000)
+        );
     }
 
     proptest! {

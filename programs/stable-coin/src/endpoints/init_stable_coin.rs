@@ -17,6 +17,11 @@ pub struct InitStableCoin<'info> {
         constraint = mint.freeze_authority.is_none()
             || mint.freeze_authority == Some(stable_coin_pda.key()).into()
             @ err::acc("Mint freeze authority must be either empty or pda"),
+        constraint = mint.decimals as u32 == consts::STABLE_COIN_DECIMALS
+            @ err::acc(format!(
+                "Stable coin mint must have exactly {} decimal places",
+                consts::STABLE_COIN_DECIMALS
+            )),
     )]
     pub mint: Box<Account<'info, Mint>>,
     /// The account holding state and configuration.
@@ -36,7 +41,6 @@ pub fn handle(
     let accounts = ctx.accounts;
 
     accounts.stable_coin.mint = accounts.mint.key();
-    accounts.stable_coin.decimals = accounts.mint.decimals;
     accounts.stable_coin.admin = accounts.admin.key();
 
     Ok(())

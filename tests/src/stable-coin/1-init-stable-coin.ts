@@ -13,7 +13,6 @@ export function test(owner: Keypair) {
       const usp = await USP.init(owner);
       const uspInfo = await usp.fetch();
 
-      expect(uspInfo.decimals).to.eq(8);
       expect(uspInfo.admin).to.deep.eq(owner.publicKey);
       expect(uspInfo.mint).to.deep.eq(usp.mint.publicKey);
     });

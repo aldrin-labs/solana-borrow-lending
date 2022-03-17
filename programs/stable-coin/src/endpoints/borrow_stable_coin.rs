@@ -78,9 +78,10 @@ pub fn handle(
     // we've just checked that this doesn't underflow
     accounts.component.config.mint_allowance -= amount;
 
-    let token_market_price =
-        accounts.component.market_price(&accounts.reserve)?;
-    // this fails if there isn't enough collateral to cover the borow
+    let token_market_price = accounts
+        .component
+        .smallest_unit_market_price(&accounts.reserve)?;
+    // this fails if there isn't enough collateral to cover the borrow
     accounts.receipt.borrow(
         &accounts.component.config,
         accounts.clock.slot,

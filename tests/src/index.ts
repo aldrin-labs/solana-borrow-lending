@@ -41,6 +41,10 @@ import { test as testReserveAldrinUnstableLpToken } from "./vanilla/15-reserve-a
 import { test as testInitStableCoin } from "./stable-coin/1-init-stable-coin";
 import { test as testInitComponent } from "./stable-coin/2-init-component";
 import { test as testDepositCollateral } from "./stable-coin/3-deposit-collateral";
+import { test as testWithdrawCollateral } from "./stable-coin/4-withdraw-collateral";
+import { test as testBorrowStableCoin } from "./stable-coin/5-borrow-stable-coin";
+import { test as testRepayStableCoin } from "./stable-coin/6-repay-stable-coin";
+import { test as testLiquidatePosition } from "./stable-coin/7-liquidate-position";
 
 describe("borrow-lending", function () {
   const ammKeypair = Keypair.generate();
@@ -135,6 +139,10 @@ describe("borrow-lending", function () {
   testInitStableCoin(payer);
   testInitComponent(payer);
   testDepositCollateral(payer);
+  testWithdrawCollateral(payer);
+  testBorrowStableCoin(payer);
+  testRepayStableCoin(payer);
+  testLiquidatePosition(payer);
 
   // get a list of top level suites which will run
   const onlySuites: string[] = this.suites
