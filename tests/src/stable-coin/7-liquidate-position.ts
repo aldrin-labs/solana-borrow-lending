@@ -14,7 +14,7 @@ import { Reserve } from "../reserve";
 import { USP } from "../stable-coin";
 
 export function test(owner: Keypair) {
-  describe.only("liquidate_position", () => {
+  describe("liquidate_position", () => {
     const liquidator = Keypair.generate();
     // the price after we lower collateral value
     const dippedSrmPrice = DEFAULT_SRM_PRICE / 1.1;
