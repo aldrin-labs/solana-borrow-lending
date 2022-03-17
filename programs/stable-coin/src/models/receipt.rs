@@ -36,7 +36,8 @@ pub struct Receipt {
 #[derive(Debug, PartialEq)]
 pub struct Liquidate {
     pub stable_coin_tokens_to_burn: u64,
-    pub eligible_collateral_tokens: u64,
+    pub liquidator_collateral_tokens: u64,
+    pub platform_collateral_tokens: u64,
 }
 
 impl Receipt {
@@ -159,8 +160,9 @@ impl Receipt {
             return Err(ErrorCode::CannotLiquidateHealthyReceipt.into());
         }
 
-        let discounted_market_price = market_price
-            .try_sub(market_price.try_mul(config.liquidation_fee.to_dec())?)?;
+        let discounted_market_price = market_price.try_sub(
+            market_price.try_mul(config.liquidation_bonus.to_dec())?,
+        )?;
 
         // repay the loan with at most value of the collateral in stable coin
         // (remember that 1 stable coin's market price = Decimal::one())
@@ -175,6 +177,16 @@ impl Receipt {
         let eligible_collateral_tokens = stable_coin_tokens_liquidated
             .try_div(discounted_market_price)?
             .try_floor_u64()?;
+        // but some of those will go to the admin
+        let platform_cut = Decimal::from(eligible_collateral_tokens)
+            .try_mul(
+                config
+                    .platform_liquidation_fee
+                    .to_dec()
+                    .try_mul(config.liquidation_bonus.to_dec())?,
+            )?
+            .try_ceil_u64()?;
+
         // and takes those tokens from the user
         self.collateral_amount = self
             .collateral_amount
@@ -184,7 +196,10 @@ impl Receipt {
         Ok(Liquidate {
             stable_coin_tokens_to_burn: stable_coin_tokens_liquidated
                 .try_ceil_u64()?,
-            eligible_collateral_tokens,
+            liquidator_collateral_tokens: eligible_collateral_tokens
+                .checked_sub(platform_cut)
+                .ok_or(ErrorCode::MathOverflow)?,
+            platform_collateral_tokens: platform_cut,
         })
     }
 
@@ -399,7 +414,8 @@ mod tests {
 
         let config = ComponentConfig {
             interest: Decimal::from_percent(50u64).into(),
-            liquidation_fee: Decimal::from_percent(10u64).into(),
+            liquidation_bonus: Decimal::from_percent(10u64).into(),
+            platform_liquidation_fee: Decimal::from_percent(50u64).into(),
             ..Default::default()
         };
 
@@ -418,7 +434,8 @@ mod tests {
                 // interest + borrowed
                 stable_coin_tokens_to_burn: 100,
                 // (interest + borrow) / market_price * fee
-                eligible_collateral_tokens: 55,
+                liquidator_collateral_tokens: 52,
+                platform_collateral_tokens: 3,
             }),
             receipt.liquidate(
                 &config,
@@ -436,7 +453,8 @@ mod tests {
         let last_interest_accrual_slot = 100;
 
         let config = ComponentConfig {
-            liquidation_fee: Decimal::from_percent(10u64).into(),
+            liquidation_bonus: Decimal::from_percent(10u64).into(),
+            platform_liquidation_fee: Decimal::from_percent(50u64).into(),
             ..Default::default()
         };
 
@@ -455,7 +473,8 @@ mod tests {
                 // collateral amount * fee
                 stable_coin_tokens_to_burn: 18,
                 // collateral amount
-                eligible_collateral_tokens: 10,
+                liquidator_collateral_tokens: 9,
+                platform_collateral_tokens: 1,
             }),
             receipt.liquidate(
                 &config,

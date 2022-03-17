@@ -11,7 +11,7 @@ pub struct DepositCollateral<'info> {
     #[account(
         mut,
         constraint = freeze_wallet.key() == component.freeze_wallet
-            @ err::acc("Freeze wallet doesn't match component's configuration"),
+            @ err::freeze_wallet_mismatch(),
     )]
     pub component: Account<'info, Component>,
     /// Freezes user's collateral tokens.

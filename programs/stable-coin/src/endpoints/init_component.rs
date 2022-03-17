@@ -36,6 +36,13 @@ pub struct InitComponent<'info> {
             @ err::acc("Freeze wallet owner must be a PDA"),
     )]
     pub freeze_wallet: Account<'info, TokenAccount>,
+    #[account(
+        constraint = fee_wallet.mint == mint.key()
+            @ err::acc("Fee wallet mint must match component mint"),
+        constraint = fee_wallet.close_authority.is_none()
+            @ err::acc("Fee wallet mustn't have a close authority"),
+    )]
+    pub fee_wallet: Account<'info, TokenAccount>,
     /// The owner of wallets associated with this component.
     #[account(
         seeds = [component.to_account_info().key.as_ref()],
@@ -55,6 +62,7 @@ pub fn handle(
     accounts.component.config = config.validate()?;
     accounts.component.freeze_wallet = accounts.freeze_wallet.key();
     accounts.component.mint = accounts.mint.key();
+    accounts.component.fee_wallet = accounts.fee_wallet.key();
     accounts.component.stable_coin = accounts.stable_coin.key();
 
     Ok(())

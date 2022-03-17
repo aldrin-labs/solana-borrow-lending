@@ -79,3 +79,11 @@ pub fn acc(msg: impl AsRef<str>) -> ProgramError {
 pub fn reserve_mismatch() -> ProgramError {
     acc("Reserve account does not match component's config")
 }
+
+pub fn freeze_wallet_mismatch() -> ProgramError {
+    acc("Freeze wallet doesn't match component's configuration")
+}
+
+pub fn fee_wallet_mismatch() -> ProgramError {
+    acc("Fee wallet doesn't match component's configuration")
+}

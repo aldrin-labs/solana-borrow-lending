@@ -23,7 +23,9 @@ pub struct LiquidatePosition<'info> {
     #[account(
         mut,
         constraint = freeze_wallet.key() == component.freeze_wallet
-            @ err::acc("Freeze wallet doesn't match component's configuration"),
+            @ err::freeze_wallet_mismatch(),
+        constraint = fee_wallet.key() == component.fee_wallet
+            @ err::fee_wallet_mismatch(),
     )]
     pub component: Box<Account<'info, Component>>,
     /// Authorizes transfer from freeze wallet.
@@ -42,6 +44,8 @@ pub struct LiquidatePosition<'info> {
     /// Gives user's collateral away to liquidator at a discount price.
     #[account(mut)]
     pub freeze_wallet: AccountInfo<'info>,
+    #[account(mut)]
+    pub fee_wallet: AccountInfo<'info>,
     #[account(
         mut,
         constraint = receipt.component == component.key()
@@ -69,7 +73,8 @@ pub fn handle(
         accounts.component.market_price(&accounts.reserve)?;
     let Liquidate {
         stable_coin_tokens_to_burn,
-        eligible_collateral_tokens,
+        liquidator_collateral_tokens,
+        platform_collateral_tokens,
     } = accounts.receipt.liquidate(
         &accounts.component.config,
         accounts.clock.slot,
@@ -81,6 +86,7 @@ pub fn handle(
         stable_coin_tokens_to_burn,
     )?;
 
+    // pay liquidator
     let pda_seeds = &[
         &accounts.component.key().to_bytes()[..],
         &[component_bump_seed],
@@ -89,7 +95,19 @@ pub fn handle(
         accounts
             .as_claim_discounted_collateral_context()
             .with_signer(&[&pda_seeds[..]]),
-        eligible_collateral_tokens,
+        liquidator_collateral_tokens,
+    )?;
+
+    // pay fee to stable coin's admin
+    let pda_seeds = &[
+        &accounts.component.key().to_bytes()[..],
+        &[component_bump_seed],
+    ];
+    token::transfer(
+        accounts
+            .as_claim_discounted_collateral_context()
+            .with_signer(&[&pda_seeds[..]]),
+        platform_collateral_tokens,
     )?;
 
     Ok(())
@@ -114,6 +132,18 @@ impl<'info> LiquidatePosition<'info> {
         let cpi_accounts = token::Transfer {
             from: self.freeze_wallet.clone(),
             to: self.liquidator_collateral_wallet.clone(),
+            authority: self.component_pda.clone(),
+        };
+        let cpi_program = self.token_program.to_account_info();
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+
+    pub fn as_pay_liquidation_fee_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
+        let cpi_accounts = token::Transfer {
+            from: self.freeze_wallet.clone(),
+            to: self.fee_wallet.clone(),
             authority: self.component_pda.clone(),
         };
         let cpi_program = self.token_program.to_account_info();

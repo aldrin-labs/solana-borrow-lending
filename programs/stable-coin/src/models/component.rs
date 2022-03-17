@@ -16,6 +16,8 @@ pub struct Component {
     /// Where we store the tokens deposited as collateral. From here they're
     /// withdrawn on repay or liquidation.
     pub freeze_wallet: Pubkey,
+    /// Liquidation fees etc are sent here.
+    pub fee_wallet: Pubkey,
     pub config: ComponentConfig,
 }
 
@@ -39,7 +41,11 @@ pub struct ComponentConfig {
     /// coin they want.
     pub borrow_fee: SDecimal,
     /// Percentage bonus on borrower's collateral that the liquidators get.
-    pub liquidation_fee: SDecimal,
+    pub liquidation_bonus: SDecimal,
+    /// Percentage of how much do we take in fees from the liquidator's
+    /// discounted collateral. E.g. if the liquidator earns $10 thanks to the
+    /// discount, and this value is 50%, we get $5.
+    pub platform_liquidation_fee: SDecimal,
     /// How many more stable coin tokens can be minted with the collateral of
     /// this component.
     ///
@@ -123,11 +129,17 @@ impl ComponentConfig {
             return Err(ErrorCode::InvalidConfig.into());
         }
 
-        let liquidation_fee = self.liquidation_fee.to_dec();
-        if liquidation_fee == Decimal::zero()
-            || liquidation_fee.try_floor_u64()? != 0
+        let liquidation_bonus = self.liquidation_bonus.to_dec();
+        if liquidation_bonus == Decimal::zero()
+            || liquidation_bonus.try_floor_u64()? != 0
         {
             msg!("Liquidation fee must be in range (0; 1)");
+            return Err(ErrorCode::InvalidConfig.into());
+        }
+
+        let platform_liquidation_fee = self.platform_liquidation_fee.to_dec();
+        if platform_liquidation_fee.try_floor_u64()? != 0 {
+            msg!("Liquidation fee must be in range [0; 1)");
             return Err(ErrorCode::InvalidConfig.into());
         }
 
@@ -145,7 +157,7 @@ mod tests {
             interest: Decimal::from_percent(50u64).into(),
             max_collateral_ratio: Decimal::from_percent(50u64).into(),
             borrow_fee: Decimal::from_percent(50u64).into(),
-            liquidation_fee: Decimal::from_percent(50u64).into(),
+            liquidation_bonus: Decimal::from_percent(50u64).into(),
             ..Default::default()
         };
 
@@ -194,13 +206,13 @@ mod tests {
         .is_ok());
 
         assert!(ComponentConfig {
-            liquidation_fee: Decimal::from(101u64).into(),
+            liquidation_bonus: Decimal::from(101u64).into(),
             ..valid_config
         }
         .validate()
         .is_err());
         assert!(ComponentConfig {
-            liquidation_fee: Decimal::from(0u64).into(),
+            liquidation_bonus: Decimal::from(0u64).into(),
             ..valid_config
         }
         .validate()
