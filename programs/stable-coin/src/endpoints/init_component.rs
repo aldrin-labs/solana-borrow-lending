@@ -62,6 +62,7 @@ pub fn handle(
     accounts.component.config = config.validate()?;
     accounts.component.freeze_wallet = accounts.freeze_wallet.key();
     accounts.component.mint = accounts.mint.key();
+    accounts.component.decimals = accounts.mint.decimals;
     accounts.component.fee_wallet = accounts.fee_wallet.key();
     accounts.component.stable_coin = accounts.stable_coin.key();
 

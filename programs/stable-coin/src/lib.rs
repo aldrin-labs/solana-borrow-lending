@@ -1,7 +1,7 @@
 pub mod endpoints;
 pub mod err;
 pub mod models;
-mod prelude;
+pub mod prelude;
 
 use endpoints::*;
 use prelude::*;
@@ -12,8 +12,11 @@ declare_id!("9oiokTQXJSgbzLcmvsGXMvw8SM2a6vRTnthYhRycnP18");
 pub mod stable_coin {
     use super::*;
 
-    pub fn init_stable_coin(ctx: Context<InitStableCoin>) -> ProgramResult {
-        endpoints::init_stable_coin::handle(ctx)
+    pub fn init_stable_coin(
+        ctx: Context<InitStableCoin>,
+        stable_coin_bump_seed: u8,
+    ) -> ProgramResult {
+        endpoints::init_stable_coin::handle(ctx, stable_coin_bump_seed)
     }
 
     pub fn init_component(

@@ -10,6 +10,8 @@ pub struct Component {
     pub stable_coin: Pubkey,
     /// The mint of the token used as collateral.
     pub mint: Pubkey,
+    /// Collateral mint decimals
+    pub decimals: u8,
     /// The pubkey of the borrow lending program's reserve. We use this to get
     /// the current USD price (assuming the UAC is USD).
     pub blp_reserve: Pubkey,

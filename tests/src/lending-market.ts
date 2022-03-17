@@ -54,7 +54,7 @@ export class LendingMarket {
           adminBot: owner.publicKey,
           aldrinAmm: amm,
         },
-        instructions: [
+        preInstructions: [
           await program.account.lendingMarket.createInstruction(marketAccount),
         ],
         signers: [owner, marketAccount],

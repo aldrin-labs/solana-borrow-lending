@@ -38,6 +38,9 @@ import { test as testTakeReserveCapSnapshot } from "./emission/2-take-reserve-ca
 import { test as testEmissionStrategy } from "./emission/1-emission";
 import { test as testVaultPositionOnAldrin } from "./lyf/2-vault-position-on-aldrin";
 import { test as testReserveAldrinUnstableLpToken } from "./vanilla/15-reserve-aldrin-unstable-lp-token";
+import { test as testInitStableCoin } from "./stable-coin/1-init-stable-coin";
+import { test as testInitComponent } from "./stable-coin/2-init-component";
+import { test as testDepositCollateral } from "./stable-coin/3-deposit-collateral";
 
 describe("borrow-lending", function () {
   const ammKeypair = Keypair.generate();
@@ -129,6 +132,9 @@ describe("borrow-lending", function () {
   testEmissionStrategy(payer);
   testVaultPositionOnAldrin(payer);
   testReserveAldrinUnstableLpToken(payer);
+  testInitStableCoin(payer);
+  testInitComponent(payer);
+  testDepositCollateral(payer);
 
   // get a list of top level suites which will run
   const onlySuites: string[] = this.suites
@@ -152,7 +158,18 @@ describe("borrow-lending", function () {
     ) {
       // AMM is not necessary for all tests, but it takes long time to upload.
       // To speed up iteration, upload it only when necessary.
+      //
+      // However, we default to amm pubkey in tests and often they require
+      // executable constraint. For that reason, we upload shmem which is
+      // much smaller and therefore quick.
       console.log("Skipping AMM deploy");
+      await BpfLoader.load(
+        provider.connection,
+        payer,
+        ammKeypair,
+        await readFile(SHMEM_SO_BIN_PATH),
+        BPF_LOADER_PROGRAM_ID
+      );
       return;
     }
 
