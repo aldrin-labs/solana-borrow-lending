@@ -8,7 +8,7 @@ import { Reserve } from "../reserve";
 import { USP } from "../stable-coin";
 
 export function test(owner: Keypair) {
-  describe.only("deposit_collateral", () => {
+  describe("deposit_collateral", () => {
     let usp: USP, market: LendingMarket, reserve: Reserve, component: Component;
 
     before("inits usp", async () => {
