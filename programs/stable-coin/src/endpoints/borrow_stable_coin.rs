@@ -28,12 +28,6 @@ pub struct BorrowStableCoin<'info> {
     #[account(mut)]
     pub stable_coin_mint: Account<'info, Mint>,
     /// Necessary to authorize minting of new stable coin tokens.
-    ///
-    /// We don't need to check that the stable coin mint is indeed the one
-    /// associated with the component because if a malicious user provided
-    /// different mint with the same PDA as authority, they'd only lose money
-    /// because instead of an actual stable coin tokens, they'd borrow
-    /// worthless ones.
     #[account(
         seeds = [component.stable_coin.as_ref()],
         bump = stable_coin_bump_seed,
@@ -95,7 +89,7 @@ pub fn handle(
     ];
     token::mint_to(
         accounts
-            .as_mint_collateral_for_liquidity_context()
+            .as_stable_coin_context()
             .with_signer(&[&pda_seeds[..]]),
         amount,
     )?;
@@ -104,7 +98,7 @@ pub fn handle(
 }
 
 impl<'info> BorrowStableCoin<'info> {
-    pub fn as_mint_collateral_for_liquidity_context(
+    pub fn as_stable_coin_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::MintTo<'info>> {
         let cpi_accounts = token::MintTo {
