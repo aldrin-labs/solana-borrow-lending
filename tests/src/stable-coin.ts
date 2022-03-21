@@ -55,6 +55,7 @@ export class USP {
         stableCoin: uspAccount.publicKey,
         stableCoinPda,
         mint: mint.publicKey,
+        aldrinAmm: globalContainer.amm.programId,
       },
       preInstructions: [
         await scp.account.stableCoin.createInstruction(uspAccount),

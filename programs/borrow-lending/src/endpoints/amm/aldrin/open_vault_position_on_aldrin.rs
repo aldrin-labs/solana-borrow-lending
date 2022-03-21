@@ -1,6 +1,6 @@
-use super::StakeCpi;
 use crate::prelude::*;
 use anchor_spl::token::Token;
+use cpis::aldrin::StakeCpi;
 
 /// Contains caller pubkey, reserve pubkey and bump seed.
 pub const VAULT_POSITION_PDA_SEEDS_LEN: usize = 3;
@@ -82,8 +82,8 @@ impl<'info> From<&&mut OpenVaultPositionOnAldrin<'info>> for StakeCpi<'info> {
             farming_state: a.farming_state.to_account_info(),
             farming_ticket: a.farming_ticket.to_account_info(),
             lp_token_freeze_vault: a.lp_token_freeze_vault.to_account_info(),
-            borrower_lp_wallet: a.caller_lp_wallet.to_account_info(),
-            borrower: a.caller.to_account_info(),
+            user_lp_wallet: a.caller_lp_wallet.to_account_info(),
+            user: a.caller.to_account_info(),
             market_obligation_pda: a.farming_ticket_owner_pda.to_account_info(),
             token_program: a.token_program.to_account_info(),
             clock: a.clock.to_account_info(),

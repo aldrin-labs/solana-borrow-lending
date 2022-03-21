@@ -120,4 +120,16 @@ mod tests {
         let leverage = Leverage { percent: 250 };
         assert_eq!(&leverage.to_le_bytes(), &[250, 0, 0, 0, 0, 0, 0, 0])
     }
+
+    #[test]
+    fn it_scales_down_decimal_when_multiplied_by_percent() {
+        let compound_fee = PercentageInt::new(10);
+        let farmed_market_price = Decimal::from(150u64);
+
+        let uac_fee = farmed_market_price
+            .try_mul(Decimal::from_percent(compound_fee))
+            .unwrap();
+
+        assert_eq!(uac_fee, Decimal::from(15u64));
+    }
 }
