@@ -328,14 +328,14 @@ impl Swap {
     }
 }
 
-pub struct CreateBasket {
-    pub creation_size: u64,
-    pub base_token_used_max: u64,
-    pub quote_token_used_max: u64,
+struct CreateBasket {
+    creation_size: u64,
+    base_token_used_max: u64,
+    quote_token_used_max: u64,
 }
 
 impl CreateBasket {
-    pub fn instruction_data(&self) -> Vec<u8> {
+    fn instruction_data(&self) -> Vec<u8> {
         let prefix = [47, 105, 155, 148, 15, 169, 202, 211];
 
         let mut data =
@@ -350,12 +350,12 @@ impl CreateBasket {
     }
 }
 
-pub struct StartFarming {
-    pub pool_token_amount: u64,
+struct StartFarming {
+    pool_token_amount: u64,
 }
 
 impl StartFarming {
-    pub fn instruction_data(&self) -> Vec<u8> {
+    fn instruction_data(&self) -> Vec<u8> {
         let prefix = [150, 205, 185, 109, 97, 202, 68, 110];
 
         let mut data =
@@ -371,21 +371,21 @@ impl StartFarming {
 struct EndFarming;
 
 impl EndFarming {
-    pub fn instruction_data(&self) -> Vec<u8> {
+    fn instruction_data(&self) -> Vec<u8> {
         let prefix = [49, 90, 68, 217, 222, 198, 89, 21];
 
         prefix.to_vec()
     }
 }
 
-pub struct RedeemBasket {
-    pub redemption_size: u64,
-    pub base_token_returned_min: u64,
-    pub quote_token_returned_min: u64,
+struct RedeemBasket {
+    redemption_size: u64,
+    base_token_returned_min: u64,
+    quote_token_returned_min: u64,
 }
 
 impl RedeemBasket {
-    pub fn instruction_data(&self) -> Vec<u8> {
+    fn instruction_data(&self) -> Vec<u8> {
         let prefix = [37, 133, 222, 57, 189, 160, 151, 41];
 
         let mut data =
@@ -400,10 +400,10 @@ impl RedeemBasket {
     }
 }
 
-pub struct WithdrawFarmed;
+struct WithdrawFarmed;
 
 impl WithdrawFarmed {
-    pub fn instruction_data() -> Vec<u8> {
+    fn instruction_data() -> Vec<u8> {
         let prefix = [175, 95, 99, 74, 63, 66, 237, 61];
 
         let mut data =
