@@ -25,13 +25,6 @@ pub struct LeverageOnAldrinAmm<'info> {
             @ err::freeze_wallet_mismatch(),
     )]
     pub component: Box<Account<'info, Component>>,
-    #[account(
-        constraint = reserve.key() == component.blp_reserve
-            @ err::reserve_mismatch(),
-        constraint = !reserve.is_stale(&clock)
-            @ borrow_lending::err::reserve_stale(),
-    )]
-    pub reserve: Box<Account<'info, borrow_lending::models::Reserve>>,
     /// The swapped collateral is eventually transferred here
     #[account(mut)]
     pub freeze_wallet: AccountInfo<'info>,
@@ -47,30 +40,48 @@ pub struct LeverageOnAldrinAmm<'info> {
     )]
     pub receipt: Account<'info, Receipt>,
     /// Stable coin is minted here, but then swapped so in the end there're no
-    /// extra tokens remaining
+    /// extra tokens remaining (i.e. same amount as in the beginning)
     #[account(mut)]
     pub borrower_stable_coin_wallet: AccountInfo<'info>,
-    /// Collateral is swapped for stable coin into this wallet, but then it's
+    /// Collateral is swapped for intermediary into this wallet, but then it's
     /// transferred to freeze wallet so there're no extra tokens remaining
+    /// (i.e. same amount as in the beginning)
     #[account(mut)]
     pub borrower_collateral_wallet: Account<'info, TokenAccount>,
+    /// Intermediary token (e.g. USDC) is swapped for collateral wallet, so in
+    /// the end there's no extra tokens remaining (i.e. same amount as in the
+    /// beginning)
+    #[account(mut)]
+    pub borrower_intermediary_wallet: Account<'info, TokenAccount>,
     // -------------- AMM Accounts ----------------
     #[account(
-            executable,
-            constraint = stable_coin.aldrin_amm == amm_program.key()
-                @ err::aldrin_amm_program_mismatch(),
-        )]
+        executable,
+        constraint = stable_coin.aldrin_amm == amm_program.key()
+            @ err::aldrin_amm_program_mismatch(),
+    )]
     pub amm_program: AccountInfo<'info>,
-    pub pool: AccountInfo<'info>,
-    pub pool_signer: AccountInfo<'info>,
+    /// This is pool which gets us from stable coin token to intermediary token
+    pub pool_1: AccountInfo<'info>,
+    pub pool_signer_1: AccountInfo<'info>,
     #[account(mut)]
-    pub pool_mint: AccountInfo<'info>,
+    pub pool_mint_1: AccountInfo<'info>,
     #[account(mut)]
-    pub base_token_vault: Box<Account<'info, TokenAccount>>,
+    pub base_token_vault_1: Box<Account<'info, TokenAccount>>,
     #[account(mut)]
-    pub quote_token_vault: Box<Account<'info, TokenAccount>>,
+    pub quote_token_vault_1: AccountInfo<'info>,
     #[account(mut)]
-    pub fee_pool_wallet: AccountInfo<'info>,
+    pub fee_pool_wallet_1: AccountInfo<'info>,
+    /// This is pool which gets us from intermediary token to collateral token
+    pub pool_2: AccountInfo<'info>,
+    pub pool_signer_2: AccountInfo<'info>,
+    #[account(mut)]
+    pub pool_mint_2: AccountInfo<'info>,
+    #[account(mut)]
+    pub base_token_vault_2: Box<Account<'info, TokenAccount>>,
+    #[account(mut)]
+    pub quote_token_vault_2: AccountInfo<'info>,
+    #[account(mut)]
+    pub fee_pool_wallet_2: AccountInfo<'info>,
     // -------------- Other ----------------
     pub token_program: Program<'info, Token>,
     pub clock: Sysvar<'info, Clock>,
@@ -81,9 +92,14 @@ pub fn handle(
     stable_coin_bump_seed: u8,
     collateral_ratio: SDecimal,
     initial_amount: u64,
-    min_swap_return: u64,
+    min_intermediary_swap_return: u64,
+    min_collateral_swap_return: u64,
 ) -> ProgramResult {
     let accounts = ctx.accounts;
+
+    //
+    // 1.
+    //
 
     let max_collateral_ratio =
         accounts.component.config.max_collateral_ratio.to_dec();
@@ -126,9 +142,6 @@ pub fn handle(
         .try_add(borrow_fee)?
         .into();
 
-    let initial_borrower_collateral =
-        accounts.borrower_collateral_wallet.amount;
-
     let pda_seeds = &[
         &accounts.component.stable_coin.to_bytes()[..],
         &[stable_coin_bump_seed],
@@ -140,56 +153,61 @@ pub fn handle(
         stable_coin_amount_to_mint,
     )?;
 
-    // if the collateral token is base, then we want Bid because that swaps
-    // quote into base
-    let side = if accounts.base_token_vault.mint
-        == accounts.borrower_collateral_wallet.mint
-    {
-        borrow_lending::models::aldrin_amm::Side::Bid
-    } else {
-        borrow_lending::models::aldrin_amm::Side::Ask
-    };
-    SwapCpi::from(&accounts).swap(
+    let initial_borrower_collateral =
+        accounts.borrower_collateral_wallet.amount;
+    let initial_borrower_intermediary =
+        accounts.borrower_intermediary_wallet.amount;
+
+    //
+    // 2.
+    //
+
+    accounts.swap_stable_coin_to_intermediary(
         stable_coin_amount_to_mint,
-        min_swap_return,
-        side.is_ask(),
+        min_intermediary_swap_return,
     )?;
 
-    // read collateral amount in freeze wallet after the swaps
+    //
+    // 3.
+    //
+
+    accounts.borrower_intermediary_wallet.reload()?;
+    let final_borrower_intermediary =
+        accounts.borrower_intermediary_wallet.amount;
+    let intermediary_gained = final_borrower_intermediary
+        .checked_sub(initial_borrower_intermediary)
+        .ok_or(ErrorCode::MathOverflow)?;
+    accounts.swap_intermediary_to_collateral(
+        intermediary_gained,
+        min_collateral_swap_return,
+    )?;
+
+    //
+    // 4.
+    //
+
     accounts.borrower_collateral_wallet.reload()?;
     let final_borrower_collateral = accounts.borrower_collateral_wallet.amount;
-    // how much collateral was added to the freeze wallet
     let collateral_gained = final_borrower_collateral
         .checked_sub(initial_borrower_collateral)
         .ok_or(ErrorCode::MathOverflow)?;
-    // add this amount to the receipt
     accounts.receipt.collateral_amount = accounts
         .receipt
         .collateral_amount
         .checked_add(collateral_gained)
         .ok_or(ErrorCode::MathOverflow)?;
-    // and finally transfer it to freeze wallet
     token::transfer(
         accounts.as_swapped_collateral_to_freeze_wallet_context(),
         collateral_gained,
     )?;
 
-    let token_market_price = accounts
-        .component
-        .smallest_unit_market_price(&accounts.reserve)?;
-    // This shouldn't be necessary because the max collateral ratio
-    // prevents the user from borrowing more than they can, and the funds never
-    // end up in their wallet.
-    // It's a nice sanity check tho and can prevent future bugs.
-    if accounts.receipt.is_healthy(
-        token_market_price,
-        accounts.component.config.max_collateral_ratio.into(),
-    )? {
-        Ok(())
-    } else {
-        msg!("Cannot leverage because position would become unhealthy");
-        Err(ErrorCode::BorrowTooLarge.into())
-    }
+    // we don't need to check that the position is healthy, because we checked
+    // that the collateral ratio is less than maximum, and the user doesn't
+    // actually owe any funds
+    //
+    // so they won't be able to withdraw unless the position is healthy, and if
+    // it's not healthy then they get liquidated
+    Ok(())
 }
 
 impl<'info> LeverageOnAldrinAmm<'info> {
@@ -218,30 +236,86 @@ impl<'info> LeverageOnAldrinAmm<'info> {
     }
 }
 
-impl<'info> From<&&mut LeverageOnAldrinAmm<'info>> for SwapCpi<'info> {
-    fn from(a: &&mut LeverageOnAldrinAmm<'info>) -> Self {
-        let stable_coin_wallet =
-            a.borrower_stable_coin_wallet.to_account_info();
-        let col_wallet = a.borrower_collateral_wallet.to_account_info();
-        let (user_base_wallet, user_quote_wallet) =
-            if a.base_token_vault.mint == a.borrower_collateral_wallet.mint {
-                (col_wallet, stable_coin_wallet)
-            } else {
-                (stable_coin_wallet, col_wallet)
-            };
+impl<'info> LeverageOnAldrinAmm<'info> {
+    fn swap_stable_coin_to_intermediary(
+        &self,
+        amount_to_swap: u64,
+        min_swap_return: u64,
+    ) -> ProgramResult {
+        let side = if self.base_token_vault_1.mint
+            == self.borrower_intermediary_wallet.mint
+        {
+            borrow_lending::models::aldrin_amm::Side::Bid
+        } else {
+            borrow_lending::models::aldrin_amm::Side::Ask
+        };
 
-        Self {
-            amm_program: *a.amm_program.key,
-            pool: a.pool.to_account_info(),
-            pool_signer: a.pool_signer.to_account_info(),
-            pool_mint: a.pool_mint.to_account_info(),
-            fee_pool_wallet: a.fee_pool_wallet.to_account_info(),
-            base_token_vault: a.base_token_vault.to_account_info(),
-            quote_token_vault: a.quote_token_vault.to_account_info(),
+        let stable_coin_wallet =
+            self.borrower_stable_coin_wallet.to_account_info();
+        let intermediary_wallet =
+            self.borrower_intermediary_wallet.to_account_info();
+        let (user_base_wallet, user_quote_wallet) = if side.is_ask() {
+            (stable_coin_wallet, intermediary_wallet)
+        } else {
+            (intermediary_wallet, stable_coin_wallet)
+        };
+
+        SwapCpi {
+            amm_program: *self.amm_program.key,
+            pool: self.pool_1.to_account_info(),
+            pool_signer: self.pool_signer_1.to_account_info(),
+            pool_mint: self.pool_mint_1.to_account_info(),
+            fee_pool_wallet: self.fee_pool_wallet_1.to_account_info(),
+            base_token_vault: self.base_token_vault_1.to_account_info(),
+            quote_token_vault: self.quote_token_vault_1.to_account_info(),
             user_base_wallet: user_base_wallet,
             user_quote_wallet: user_quote_wallet,
-            user: a.borrower.to_account_info(),
-            token_program: a.token_program.to_account_info(),
+            user: self.borrower.to_account_info(),
+            token_program: self.token_program.to_account_info(),
         }
+        .swap(amount_to_swap, min_swap_return, side.is_ask())?;
+
+        Ok(())
+    }
+
+    fn swap_intermediary_to_collateral(
+        &self,
+        amount_to_swap: u64,
+        min_swap_return: u64,
+    ) -> ProgramResult {
+        let side = if self.base_token_vault_2.mint
+            == self.borrower_collateral_wallet.mint
+        {
+            borrow_lending::models::aldrin_amm::Side::Bid
+        } else {
+            borrow_lending::models::aldrin_amm::Side::Ask
+        };
+
+        let intermediary_wallet =
+            self.borrower_intermediary_wallet.to_account_info();
+        let collateral_wallet =
+            self.borrower_collateral_wallet.to_account_info();
+        let (user_base_wallet, user_quote_wallet) = if side.is_ask() {
+            (intermediary_wallet, collateral_wallet)
+        } else {
+            (collateral_wallet, intermediary_wallet)
+        };
+
+        SwapCpi {
+            amm_program: *self.amm_program.key,
+            pool: self.pool_2.to_account_info(),
+            pool_signer: self.pool_signer_2.to_account_info(),
+            pool_mint: self.pool_mint_2.to_account_info(),
+            fee_pool_wallet: self.fee_pool_wallet_2.to_account_info(),
+            base_token_vault: self.base_token_vault_2.to_account_info(),
+            quote_token_vault: self.quote_token_vault_2.to_account_info(),
+            user_base_wallet: user_base_wallet,
+            user_quote_wallet: user_quote_wallet,
+            user: self.borrower.to_account_info(),
+            token_program: self.token_program.to_account_info(),
+        }
+        .swap(amount_to_swap, min_swap_return, side.is_ask())?;
+
+        Ok(())
     }
 }
