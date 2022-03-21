@@ -104,9 +104,9 @@ impl Receipt {
     ) -> Result<Decimal> {
         Ok(self
             .collateral_market_value(market_price)?
+            .try_mul(max_collateral_ratio)?
             .try_sub(self.owed_amount()?)
-            .unwrap_or(Decimal::zero())
-            .try_mul(max_collateral_ratio)?)
+            .unwrap_or(Decimal::zero()))
     }
 
     /// Tries to borrow given amount of stable coin. Fails if the borrow value
@@ -124,13 +124,13 @@ impl Receipt {
     ) -> ProgramResult {
         self.accrue_interest(slot, config.interest.into())?;
 
+        // users don't pay interest on the borrow fee
         let borrow_fee = config.borrow_fee.to_dec().try_mul(amount)?;
-        self.borrowed_amount = self
-            .borrowed_amount
-            .to_dec()
-            .try_add(amount.into())?
-            .try_add(borrow_fee)?
-            .into();
+        self.interest_amount =
+            self.interest_amount.to_dec().try_add(borrow_fee)?.into();
+
+        self.borrowed_amount =
+            self.borrowed_amount.to_dec().try_add(amount.into())?.into();
 
         if self.is_healthy(market_price, config.max_collateral_ratio.into())? {
             Ok(())

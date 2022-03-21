@@ -106,7 +106,7 @@ pub fn handle(
     ];
     token::transfer(
         accounts
-            .as_claim_discounted_collateral_context()
+            .as_pay_liquidation_fee_context()
             .with_signer(&[&pda_seeds[..]]),
         platform_collateral_tokens,
     )?;

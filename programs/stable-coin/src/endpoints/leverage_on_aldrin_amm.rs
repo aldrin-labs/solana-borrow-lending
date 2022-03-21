@@ -30,11 +30,11 @@
 //!
 //! # Example
 //! Reserve:
-//! - mSOL = $100
+//! - mSOL: $100
 //! - Borrow fee: 0.05%
 //! - Liquidation fee: 12.5%
 //! - Interest rate: 1.5%
-//! - MCR : 80%
+//! - MCR: 80%
 //!
 //! Leverage position:
 //! 1. A user puts 2 mSOL as collateral and enables leverage.
@@ -106,16 +106,16 @@ pub struct LeverageOnAldrinAmm<'info> {
     /// extra tokens remaining (i.e. same amount as in the beginning)
     #[account(mut)]
     pub borrower_stable_coin_wallet: AccountInfo<'info>,
-    /// Collateral is swapped for intermediary into this wallet, but then it's
-    /// transferred to freeze wallet so there're no extra tokens remaining
-    /// (i.e. same amount as in the beginning)
-    #[account(mut)]
-    pub borrower_collateral_wallet: Account<'info, TokenAccount>,
     /// Intermediary token (e.g. USDC) is swapped for collateral wallet, so in
     /// the end there's no extra tokens remaining (i.e. same amount as in the
     /// beginning)
     #[account(mut)]
     pub borrower_intermediary_wallet: Account<'info, TokenAccount>,
+    /// Collateral is swapped for intermediary into this wallet, but then it's
+    /// transferred to freeze wallet so there're no extra tokens remaining
+    /// (i.e. same amount as in the beginning)
+    #[account(mut)]
+    pub borrower_collateral_wallet: Account<'info, TokenAccount>,
     // -------------- AMM Accounts ----------------
     #[account(
         executable,
@@ -154,7 +154,7 @@ pub fn handle(
     ctx: Context<LeverageOnAldrinAmm>,
     stable_coin_bump_seed: u8,
     collateral_ratio: SDecimal,
-    initial_amount: u64,
+    initial_stable_coin_amount: u64,
     min_intermediary_swap_return: u64,
     min_collateral_swap_return: u64,
 ) -> ProgramResult {
@@ -178,7 +178,7 @@ pub fn handle(
         accounts.component.config.max_collateral_ratio.to_dec(),
     )?;
     if remaining_borrow_value
-        < Decimal::from(initial_amount)
+        < Decimal::from(initial_stable_coin_amount)
             .try_div(Decimal::from(consts::STABLE_COIN_DECIMALS as u64))?
     {
         return Err(ErrorCode::BorrowTooLarge.into());
@@ -191,12 +191,15 @@ pub fn handle(
         return Err(ErrorCode::CannotGoOverMaxCollateralRatio.into());
     }
 
+    // ref. eq. (1) in STABLE_COIN.md
     let leverage = (Decimal::one()
         .try_sub(collateral_ratio.try_pow(consts::MAX_LEVERAGE_LOOPS)?)?)
     .try_div(Decimal::one().try_sub(collateral_ratio)?)?;
 
+    // we don't need to scale by decimals because the initial_stable_coin_amount
+    // already comes in the smallest unit
     let stable_coin_amount_to_mint: u64 = leverage
-        .try_mul(Decimal::from(initial_amount))?
+        .try_mul(Decimal::from(initial_stable_coin_amount))?
         .try_floor_u64()?;
 
     if stable_coin_amount_to_mint > accounts.component.config.mint_allowance {
@@ -210,15 +213,21 @@ pub fn handle(
     accounts.component.config.mint_allowance -= stable_coin_amount_to_mint;
 
     // add the stable coin amount that's minted and swapped as borrowed amount
-    // and include borrow fee
+    // and add borrow fee to interest (users won't pay interest on borrow fee)
     let borrow_fee = Decimal::from(stable_coin_amount_to_mint)
         .try_mul(accounts.component.config.borrow_fee.to_dec())?;
+    accounts.receipt.interest_amount = accounts
+        .receipt
+        .interest_amount
+        .to_dec()
+        .try_add(borrow_fee)?
+        .into();
+
     accounts.receipt.borrowed_amount = accounts
         .receipt
         .borrowed_amount
         .to_dec()
         .try_add(Decimal::from(stable_coin_amount_to_mint))?
-        .try_add(borrow_fee)?
         .into();
 
     let pda_seeds = &[
