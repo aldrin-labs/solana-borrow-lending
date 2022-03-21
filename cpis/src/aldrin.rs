@@ -378,14 +378,14 @@ impl EndFarming {
     }
 }
 
-struct RedeemBasket {
-    redemption_size: u64,
-    base_token_returned_min: u64,
-    quote_token_returned_min: u64,
+pub struct RedeemBasket {
+    pub redemption_size: u64,
+    pub base_token_returned_min: u64,
+    pub quote_token_returned_min: u64,
 }
 
 impl RedeemBasket {
-    fn instruction_data(&self) -> Vec<u8> {
+    pub fn instruction_data(&self) -> Vec<u8> {
         let prefix = [37, 133, 222, 57, 189, 160, 151, 41];
 
         let mut data =
