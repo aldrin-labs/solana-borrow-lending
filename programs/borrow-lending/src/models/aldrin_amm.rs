@@ -102,6 +102,7 @@ pub fn lp_token_market_price(
     base_market_total
         .try_add(quote_market_total)?
         .try_div(Decimal::from(lp_tokens_supply))
+        .map_err(From::from)
 }
 
 pub fn unstable_lp_token_market_price(
@@ -114,6 +115,7 @@ pub fn unstable_lp_token_market_price(
         .try_div(Decimal::from(lp_tokens_supply))?
         // times two because there are 2 vaults of the same price
         .try_mul(Decimal::from(2u64))
+        .map_err(From::from)
 }
 
 #[cfg(test)]

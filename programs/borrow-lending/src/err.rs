@@ -106,6 +106,12 @@ impl PartialEq for Error {
     }
 }
 
+impl From<decimal::Error> for Error {
+    fn from(_e: decimal::Error) -> Self {
+        ErrorCode::MathOverflow.into()
+    }
+}
+
 pub fn illegal_owner(msg: impl AsRef<str>) -> ProgramError {
     msg!("[IllegalOwner] {}", msg.as_ref());
 

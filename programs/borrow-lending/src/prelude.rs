@@ -8,16 +8,6 @@ pub mod consts {
     use super::PercentageInt;
     use anchor_lang::solana_program::clock::SECONDS_PER_DAY;
 
-    /// Scale of precision.
-    pub const SCALE: usize = 18;
-
-    /// Identity
-    pub const WAD: u64 = 1_000_000_000_000_000_000;
-
-    pub const HALF_WAD: u64 = WAD / 2;
-
-    pub const PERCENT_SCALER: u64 = 10_000_000_000_000_000;
-
     /// Number of slots to consider market prices stale after.
     pub const MARKET_STALE_AFTER_SLOTS_ELAPSED: u64 = 1;
 
@@ -34,7 +24,8 @@ pub mod consts {
     /// A decision to set it to 1:1 was made on borrow lending catch up call on
     /// 20th December 2021.
     pub const INITIAL_COLLATERAL_RATIO: u64 = 1;
-    pub const INITIAL_COLLATERAL_RATE: u64 = INITIAL_COLLATERAL_RATIO * WAD;
+    pub const INITIAL_COLLATERAL_RATE: u64 =
+        INITIAL_COLLATERAL_RATIO * decimal::consts::WAD;
 
     /// A slot should be ~400ms, but most of the time it fluctuates up to 600ms
     /// so on average we get 2 slots a second. One can confirm that average

@@ -510,7 +510,7 @@ mod tests {
             r,
             LiquidationAmounts {
                 settle_amount: Decimal::from(60317460317460317392u128)
-                    .try_div(consts::WAD)
+                    .try_div(decimal::consts::WAD)
                     .unwrap(),
                 repay_amount: 61,
                 withdraw_amount: 80,
@@ -541,7 +541,7 @@ mod tests {
             r,
             LiquidationAmounts {
                 settle_amount: Decimal::from(93750000000000000000u128)
-                    .try_div(consts::WAD)
+                    .try_div(decimal::consts::WAD)
                     .unwrap(),
                 repay_amount: 94,
                 withdraw_amount: 80,
