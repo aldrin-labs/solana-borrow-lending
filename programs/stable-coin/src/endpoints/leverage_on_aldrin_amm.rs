@@ -1,3 +1,49 @@
+//! Instead of user having to borrow stable coin, swap it for collateral,
+//! deposit collateral, borrow stable coin, and so on many times, we offer
+//! leverage logic which performs this in a single step.
+//!
+//! The user tells us how many stable coin tokens to mint. They provide
+//! AMM's pool for an intermediary token and stable coin, e.g. USP/USDC. They
+//! also provide us with pool intermediary token and collateral, e.g. USDC/SOL.
+//!
+//! # Steps
+//! 1. Calculate leverage using formula [ref. eq. (1) in STABLE_COIN.md] and
+//! from that calculate how many stable coin tokens to mint by multiplying the
+//! initial borrow amount of stable coin. The user must have deposited enough
+//! collateral for the initial borrow amount.
+//!
+//!
+//! # Important
+//! Leverage position does not deposit any tokens into the user's wallet but
+//! rather uses them to buy more collateral.
+//!
+//!
+//! # Example
+//! Reserve:
+//! - mSOL = $100
+//! - Borrow fee: 0.05%
+//! - Liquidation fee: 12.5%
+//! - Interest rate: 1.5%
+//! - MCR : 80%
+//!
+//! Leverage position:
+//! 1. A user puts 2 mSOL as collateral and enables leverage.
+//! 2. The UI automatically puts the borrow at the max of 80%
+//! 3. $160 (borrow) is 80% of $200 which is the collateral value.
+//! 4. The max leverage for this would be 4.99x, meaning the max amount of USP
+//! that could be borrowed with max leverage will be 798.4 USP tokens (160 x
+//! 4.99).
+//!
+//! (1 - 0.8^30) / (1 - 0.8) ~= 4.993
+//!
+//! 5. If we change the borrow to 70% then the max leverage will change to
+//! 3.33x, meaning the new borrow will be $140, the expected amount to be
+//! borrowed with leverage will be 466.2 USP (140 x 3.33).
+//!
+//! (1 - 0.7^30) / (1 - 0.7) ~= 3.333
+//!
+//! 6. The formula used to obtain leverage is (1-LTV^30) / (1-LTV).
+
 use crate::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount};
 use cpis::aldrin::SwapCpi;
@@ -25,6 +71,13 @@ pub struct LeverageOnAldrinAmm<'info> {
             @ err::freeze_wallet_mismatch(),
     )]
     pub component: Box<Account<'info, Component>>,
+    #[account(
+        constraint = reserve.key() == component.blp_reserve
+            @ err::reserve_mismatch(),
+        constraint = !reserve.is_stale(&clock)
+            @ borrow_lending::err::reserve_stale(),
+    )]
+    pub reserve: Box<Account<'info, borrow_lending::models::Reserve>>,
     /// The swapped collateral is eventually transferred here
     #[account(mut)]
     pub freeze_wallet: AccountInfo<'info>,
@@ -97,9 +150,29 @@ pub fn handle(
 ) -> ProgramResult {
     let accounts = ctx.accounts;
 
+    accounts.receipt.accrue_interest(
+        accounts.clock.slot,
+        accounts.component.config.interest.to_dec(),
+    )?;
+
     //
     // 1.
     //
+
+    // user must already have deposited collateral
+    let token_market_price = accounts
+        .component
+        .smallest_unit_market_price(&accounts.reserve)?;
+    let remaining_borrow_value = accounts.receipt.remaining_borrow_value(
+        token_market_price,
+        accounts.component.config.max_collateral_ratio.to_dec(),
+    )?;
+    if remaining_borrow_value
+        < Decimal::from(initial_amount)
+            .try_div(Decimal::from(consts::STABLE_COIN_DECIMALS as u64))?
+    {
+        return Err(ErrorCode::BorrowTooLarge.into());
+    }
 
     let max_collateral_ratio =
         accounts.component.config.max_collateral_ratio.to_dec();
@@ -124,11 +197,7 @@ pub fn handle(
         );
         return Err(ErrorCode::MintAllowanceTooSmall.into());
     }
-
-    accounts.receipt.accrue_interest(
-        accounts.clock.slot,
-        accounts.component.config.interest.to_dec(),
-    )?;
+    accounts.component.config.mint_allowance -= stable_coin_amount_to_mint;
 
     // add the stable coin amount that's minted and swapped as borrowed amount
     // and include borrow fee

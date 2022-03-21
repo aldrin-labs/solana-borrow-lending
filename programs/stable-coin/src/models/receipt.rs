@@ -80,8 +80,8 @@ impl Receipt {
     }
 
     /// # Important
-    /// The provided market must already be adjusted by mint decimals, ie. if
-    /// it's SOL, the market price must be in lamports.
+    /// The provided market value must already be adjusted by mint decimals, ie.
+    /// if it's SOL, the market price must be in lamports.
     pub fn collateral_market_value(
         &self,
         market_price: Decimal,
@@ -89,6 +89,24 @@ impl Receipt {
         market_price
             .try_mul(self.collateral_amount)
             .map_err(From::from)
+    }
+
+    /// How much more can be borrowed against collateral. If the receipt is
+    /// unhealthy then this method returns 0.
+    ///
+    /// # Important
+    /// The provided market value must already be adjusted by mint decimals, ie.
+    /// if it's SOL, the market price must be in lamports.
+    pub fn remaining_borrow_value(
+        &self,
+        market_price: Decimal,
+        max_collateral_ratio: Decimal,
+    ) -> Result<Decimal> {
+        Ok(self
+            .collateral_market_value(market_price)?
+            .try_sub(self.owed_amount()?)
+            .unwrap_or(Decimal::zero())
+            .try_mul(max_collateral_ratio)?)
     }
 
     /// Tries to borrow given amount of stable coin. Fails if the borrow value
