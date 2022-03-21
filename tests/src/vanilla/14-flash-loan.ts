@@ -14,7 +14,7 @@ import { expect } from "chai";
 import { CaptureStdoutAndStderr } from "../helpers";
 import { FLASHLOAN_TARGET_SO_BIN_PATH } from "../consts";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { globalContainer } from "../globalContainer";
+import { globalContainer } from "../global-container";
 
 export function test(owner: Keypair) {
   const program: Program<BorrowLending> = globalContainer.blp;

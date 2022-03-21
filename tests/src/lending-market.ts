@@ -6,7 +6,7 @@ import { Obligation } from "./obligation";
 import { OracleMarket } from "./pyth";
 import { numberToU192 } from "./helpers";
 import { AmmPool } from "./amm-pool";
-import { globalContainer } from "./globalContainer";
+import { globalContainer } from "./global-container";
 
 export class LendingMarket {
   public get id(): PublicKey {

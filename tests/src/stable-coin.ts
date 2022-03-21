@@ -2,7 +2,7 @@ import { Program } from "@project-serum/anchor";
 import { Token, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { StableCoin } from "../../target/types/stable_coin";
-import { globalContainer } from "./globalContainer";
+import { globalContainer } from "./global-container";
 import { waitForCommit } from "./helpers";
 
 export class USP {

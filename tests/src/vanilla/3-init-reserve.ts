@@ -18,7 +18,7 @@ import {
   ONE_LIQ_TO_COL_INITIAL_PRICE,
   SHMEM_SO_BIN_PATH,
 } from "../consts";
-import { globalContainer } from "../globalContainer";
+import { globalContainer } from "../global-container";
 
 export function test(owner: Keypair) {
   const program: Program<BorrowLending> = globalContainer.blp;

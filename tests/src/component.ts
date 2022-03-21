@@ -1,7 +1,7 @@
 import { BN } from "@project-serum/anchor";
 import { Token } from "@solana/spl-token";
 import { Keypair, PublicKey, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
-import { globalContainer } from "./globalContainer";
+import { globalContainer } from "./global-container";
 import { numberToU192, numberToU64 } from "./helpers";
 import { Reserve } from "./reserve";
 import { USP } from "./stable-coin";

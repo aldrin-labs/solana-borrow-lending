@@ -4,7 +4,7 @@ import { LendingMarket } from "../lending-market";
 import { expect } from "chai";
 import { CaptureStdoutAndStderr } from "../helpers";
 import { AmmFarm, AmmPool } from "../amm-pool";
-import { globalContainer } from "../globalContainer";
+import { globalContainer } from "../global-container";
 
 export function test(owner: Keypair) {
   const { blp, amm, ammAuthority } = globalContainer;

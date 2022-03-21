@@ -1,7 +1,7 @@
 import { PublicKey, Transaction, Keypair, Connection } from "@solana/web3.js";
 import { numberToU64 } from "./helpers";
 import { readFileSync } from "fs";
-import { globalContainer } from "./globalContainer";
+import { globalContainer } from "./global-container";
 
 export type OracleMarket = "srm" | "doge";
 

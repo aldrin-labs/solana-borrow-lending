@@ -39,7 +39,7 @@ import {
   ONE_LIQ_TO_COL_INITIAL_PRICE,
 } from "./consts";
 import { AmmPool } from "./amm-pool";
-import { globalContainer } from "./globalContainer";
+import { globalContainer } from "./global-container";
 
 interface ReserveOracle {
   simplePyth?: {

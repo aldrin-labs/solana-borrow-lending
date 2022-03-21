@@ -13,7 +13,7 @@ import {
 } from "@solana/web3.js";
 import * as anchor from "@project-serum/anchor";
 import { Program, Provider } from "@project-serum/anchor";
-import { globalContainer } from "./globalContainer";
+import { globalContainer } from "./global-container";
 import { StableCoin } from "../../target/types/stable_coin";
 import { BorrowLending } from "../../target/types/borrow_lending";
 import { AMM_TARGET_SO_BIN_PATH, SHMEM_SO_BIN_PATH } from "./consts";

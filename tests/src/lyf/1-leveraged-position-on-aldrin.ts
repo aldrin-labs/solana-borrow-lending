@@ -12,7 +12,7 @@ import {
 import { Obligation } from "../obligation";
 import { AmmFarm, AmmPool } from "../amm-pool";
 import { DEFAULT_SRM_PRICE } from "../consts";
-import { globalContainer } from "../globalContainer";
+import { globalContainer } from "../global-container";
 
 export function test(owner: Keypair) {
   const { blp, amm, ammAuthority } = globalContainer;

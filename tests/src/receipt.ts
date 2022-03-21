@@ -1,7 +1,7 @@
 import { Keypair, PublicKey, SYSVAR_CLOCK_PUBKEY } from "@solana/web3.js";
 import { Component } from "./component";
 import { BN } from "@project-serum/anchor";
-import { globalContainer } from "./globalContainer";
+import { globalContainer } from "./global-container";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 export class Receipt {
