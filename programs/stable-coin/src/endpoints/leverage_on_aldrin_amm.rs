@@ -10,7 +10,17 @@
 //! 1. Calculate leverage using formula [ref. eq. (1) in STABLE_COIN.md] and
 //! from that calculate how many stable coin tokens to mint by multiplying the
 //! initial borrow amount of stable coin. The user must have deposited enough
-//! collateral for the initial borrow amount.
+//! collateral for the initial borrow amount. The total minted amount is added,
+//! along with a borrow fee, to the user's receipt as borrow amount.
+//!
+//! 2. Swap minted stable coin into an intermediary token. We use an
+//! intermediary token because there won't be pools which would allow us to swap
+//! from stable coin directly to collateral.
+//!
+//! 3. Swap from intermediary token to collateral token.
+//!
+//! 4. Transfer the collateral tokens into freeze wallet and add the amount to
+//! the receipt as collateral.
 //!
 //!
 //! # Important
