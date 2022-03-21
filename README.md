@@ -715,4 +715,4 @@ function u192ToBN(u192: U192 | BN[] | { u192: U192 | BN[] }): BN {
 [aave-risk-params]: https://docs.aave.com/risk/asset-risk/risk-parameters
 [project-code-coverage]: https://crypto_project.gitlab.io/perk/borrow-lending/coverage
 [wiki-significand]: https://en.wikipedia.org/wiki/Significand
-[project-changelog]: https://crypto_project.gitlab.io/perk/borrow-lending/changelog.html
+[project-changelog]: https://crypto_project.gitlab.io/perk/borrow-lending/blp.changelog.html

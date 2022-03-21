@@ -418,6 +418,7 @@ dependencies = [
  "anchor-spl",
  "borsh",
  "bytemuck",
+ "decimal",
  "memoffset",
  "proptest",
  "pyth-client",
@@ -914,6 +915,17 @@ dependencies = [
  "cfg-if 1.0.0",
  "num_cpus",
  "rayon",
+]
+
+[[package]]
+name = "decimal"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "borsh",
+ "serde",
+ "serde_json",
+ "uint",
 ]
 
 [[package]]
@@ -3462,6 +3474,18 @@ dependencies = [
  "num_enum",
  "solana-program",
  "thiserror",
+]
+
+[[package]]
+name = "stable-coin"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "borrow-lending",
+ "decimal",
+ "proptest",
+ "uint",
 ]
 
 [[package]]

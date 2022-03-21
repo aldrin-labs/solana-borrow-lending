@@ -88,12 +88,23 @@ cli:
       --css https://pandoc.org/demo/pandoc.css
       --metadata title="Program borrow-lending"
       -o public/index.html
+    # and stable coin's readme
+    - node /scripts/prepareReadme.js "STABLE_COIN.md" |
+      pandoc -t html --standalone --filter pandoc-katex
+      --css "https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.css"
+      --css https://pandoc.org/demo/pandoc.css
+      --metadata title="Program stable-coin"
+      -o public/scp.html
 
-    # generates public index html file from README
-    - cat CHANGELOG.md |
+    # builds changelogs as static web pages
+    - cat programs/borrow-lending/CHANGELOG.md |
       pandoc -t html --standalone
       --metadata title="Borrow-lending program"
-      -o public/changelog.html
+      -o public/blp.changelog.html
+    - cat programs/stable-coin/CHANGELOG.md |
+      pandoc -t html --standalone
+      --metadata title="Stable coin program"
+      -o public/scp.changelog.html
 
 # This job publishes pages to
 # https://crypto_project.gitlab.io/defi/borrow-lending
