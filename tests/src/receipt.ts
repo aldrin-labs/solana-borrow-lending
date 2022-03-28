@@ -151,7 +151,7 @@ export class Receipt {
     );
   }
 
-  public async leverageOnAldrinAmm(
+  public async LeverageViaAldrinAmm(
     uspIntermediaryPool: AmmPool,
     intermediaryCollateralPool: AmmPool,
     borrowerStableCoinWallet: PublicKey,
@@ -160,7 +160,7 @@ export class Receipt {
     collateralRatio: number,
     initialStableCoinAmount: number
   ) {
-    await this.component.usp.scp.rpc.leverageOnAldrinAmm(
+    await this.component.usp.scp.rpc.LeverageViaAldrinAmm(
       this.component.usp.bumpSeed,
       { u192: numberToU192(collateralRatio) },
       new BN(initialStableCoinAmount),

@@ -45,7 +45,7 @@ import { test as testWithdrawCollateral } from "./stable-coin/4-withdraw-collate
 import { test as testBorrowStableCoin } from "./stable-coin/5-borrow-stable-coin";
 import { test as testRepayStableCoin } from "./stable-coin/6-repay-stable-coin";
 import { test as testLiquidatePosition } from "./stable-coin/7-liquidate-position";
-import { test as testLeverageOnAldrinAmm } from "./stable-coin/8-leverage-on-aldrin-amm";
+import { test as testAldrinAmmLeverage } from "./stable-coin/8-aldrin-amm-leverage";
 
 describe("borrow-lending", function () {
   const ammKeypair = Keypair.generate();
@@ -144,7 +144,7 @@ describe("borrow-lending", function () {
   testBorrowStableCoin(payer);
   testRepayStableCoin(payer);
   testLiquidatePosition(payer);
-  testLeverageOnAldrinAmm(payer);
+  testAldrinAmmLeverage(payer);
 
   // get a list of top level suites which will run
   const onlySuites: string[] = this.suites

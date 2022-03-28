@@ -72,7 +72,7 @@ We have action for following otherwise laborious process:
 
 The process above can be repeated by the user several times, depending on
 what's the maximum collateral ratio for the component. The
-`leverage_on_aldrin_amm` endpoint calculates how much USP would be minted for
+`leverage_via_aldrin_amm` endpoint calculates how much USP would be minted for
 how much collateral, and performs all of the above in a single instruction.
 
 The user gives us collateral ratio at which they want to perform this

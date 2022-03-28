@@ -94,7 +94,7 @@ export function test(owner: Keypair) {
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
-        receipt.leverageOnAldrinAmm(
+        receipt.LeverageViaAldrinAmm(
           uspDogePool,
           dogeSrmPool,
           uspWallet,
@@ -123,7 +123,7 @@ export function test(owner: Keypair) {
       const stdCapture = new CaptureStdoutAndStderr();
 
       await expect(
-        receipt.leverageOnAldrinAmm(
+        receipt.LeverageViaAldrinAmm(
           uspDogePool,
           dogeSrmPool,
           uspWallet,
@@ -138,7 +138,7 @@ export function test(owner: Keypair) {
     });
 
     it("starts leverage", async () => {
-      await receipt.leverageOnAldrinAmm(
+      await receipt.LeverageViaAldrinAmm(
         uspDogePool,
         dogeSrmPool,
         uspWallet,

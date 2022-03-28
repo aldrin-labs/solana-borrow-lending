@@ -82,15 +82,15 @@ pub mod stable_coin {
     /// Starts a new position via Aldrin's AMM. Instead of user having to
     /// repeatably borrow stable coin, swap it into collateral, deposit the
     /// collateral and borrow again, we perform all of it in one step.
-    pub fn leverage_on_aldrin_amm(
-        ctx: Context<LeverageOnAldrinAmm>,
+    pub fn leverage_via_aldrin_amm(
+        ctx: Context<LeverageViaAldrinAmm>,
         stable_coin_bump_seed: u8,
         collateral_ratio: SDecimal,
         initial_stable_coin_amount: u64,
         min_intermediary_swap_return: u64,
         min_collateral_swap_return: u64,
     ) -> ProgramResult {
-        endpoints::leverage_on_aldrin_amm::handle(
+        endpoints::leverage_via_aldrin_amm::handle(
             ctx,
             stable_coin_bump_seed,
             collateral_ratio.to_dec(),

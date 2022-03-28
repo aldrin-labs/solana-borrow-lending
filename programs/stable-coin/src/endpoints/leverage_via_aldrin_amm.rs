@@ -61,7 +61,7 @@ use cpis::aldrin::SwapCpi;
 
 #[derive(Accounts)]
 #[instruction(stable_coin_bump_seed: u8)]
-pub struct LeverageOnAldrinAmm<'info> {
+pub struct LeverageViaAldrinAmm<'info> {
     pub borrower: Signer<'info>,
     #[account(
         constraint = stable_coin.key() == component.stable_coin
@@ -152,7 +152,7 @@ pub struct LeverageOnAldrinAmm<'info> {
 }
 
 pub fn handle(
-    ctx: Context<LeverageOnAldrinAmm>,
+    ctx: Context<LeverageViaAldrinAmm>,
     stable_coin_bump_seed: u8,
     collateral_ratio: Decimal,
     initial_stable_coin_amount: u64,
@@ -303,7 +303,7 @@ pub fn handle(
     Ok(())
 }
 
-impl<'info> LeverageOnAldrinAmm<'info> {
+impl<'info> LeverageViaAldrinAmm<'info> {
     pub fn as_mint_stable_coin_context(
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::MintTo<'info>> {
@@ -329,7 +329,7 @@ impl<'info> LeverageOnAldrinAmm<'info> {
     }
 }
 
-impl<'info> LeverageOnAldrinAmm<'info> {
+impl<'info> LeverageViaAldrinAmm<'info> {
     fn swap_stable_coin_to_intermediary(
         &self,
         amount_to_swap: u64,
