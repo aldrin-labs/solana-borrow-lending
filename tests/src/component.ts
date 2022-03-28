@@ -1,8 +1,8 @@
 import { BN } from "@project-serum/anchor";
 import { Token } from "@solana/spl-token";
-import { Keypair, PublicKey, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import { globalContainer } from "./global-container";
-import { numberToU192, numberToU64 } from "./helpers";
+import { numberToU192 } from "./helpers";
 import { Reserve } from "./reserve";
 import { USP } from "./stable-coin";
 
@@ -14,9 +14,11 @@ export class Component {
     public bumpSeed: number,
     public accounts: {
       freezeWallet: PublicKey;
-      feeWallet: PublicKey;
       mint: Token;
       reserve: Reserve;
+      liquidationFeeWallet: PublicKey;
+      borrowFeeWallet: PublicKey;
+      interestWallet: PublicKey;
     }
   ) {
     //
@@ -38,7 +40,9 @@ export class Component {
       );
 
     const freezeWallet = await mint.createAccount(componentPda);
-    const feeWallet = await mint.createAccount(usp.owner.publicKey);
+    const liquidationFeeWallet = await mint.createAccount(usp.owner.publicKey);
+    const interestWallet = await usp.mint.createAccount(usp.owner.publicKey);
+    const borrowFeeWallet = await usp.mint.createAccount(usp.owner.publicKey);
 
     await scp.rpc.initComponent(
       componentBumpSeed,
@@ -51,7 +55,9 @@ export class Component {
           mint: mint.publicKey,
           blpReserve: reserve.id,
           freezeWallet,
-          feeWallet,
+          liquidationFeeWallet,
+          interestWallet,
+          borrowFeeWallet,
           componentPda,
         },
         preInstructions: [
@@ -66,7 +72,14 @@ export class Component {
       componentAccount.publicKey,
       componentPda,
       componentBumpSeed,
-      { freezeWallet, feeWallet, mint, reserve }
+      {
+        freezeWallet,
+        liquidationFeeWallet,
+        borrowFeeWallet,
+        interestWallet,
+        mint,
+        reserve,
+      }
     );
   }
 

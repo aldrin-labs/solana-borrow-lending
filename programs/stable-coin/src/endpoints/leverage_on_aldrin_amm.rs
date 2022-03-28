@@ -6,8 +6,9 @@
 //! AMM's pool for an intermediary token and stable coin, e.g. USP/USDC. They
 //! also provide us with pool intermediary token and collateral, e.g. USDC/SOL.
 //!
+//!
 //! # Steps
-//! 1. Calculate leverage using formula [ref. eq. (1) in STABLE_COIN.md] and
+//! 1. Calculate leverage [ref. eq. (1) in STABLE_COIN.md] and
 //! from that calculate how many stable coin tokens to mint by multiplying the
 //! initial borrow amount of stable coin. The user must have deposited enough
 //! collateral for the initial borrow amount. The total minted amount is added,
@@ -191,6 +192,7 @@ pub fn handle(
     let max_collateral_ratio =
         accounts.component.config.max_collateral_ratio.to_dec();
     if collateral_ratio > max_collateral_ratio {
+        msg!("Max collateral ratio is {}", max_collateral_ratio);
         return Err(ErrorCode::CannotGoOverMaxCollateralRatio.into());
     }
 

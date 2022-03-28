@@ -1,4 +1,6 @@
-# Stable coin program
+* [Borrow lending program][blp]
+* [Changelog][project-changelog]
+
 
 ## Design
 
@@ -60,9 +62,47 @@ The liquidation acts as a repayment of sorts. At the end, the receipt will
 contain ~2.63 SOL, the liquidator receives 0.153 SOL and the platform (us)
 0.017 SOL (ie. liquidation fee is 10%).
 
-### Equations
+## Leverage
+We have action for following otherwise laborious process:
+1. user deposits collateral
+2. user borrows USP
+3. user swaps USP into USDC
+4. user swaps USDC into collateral
+5. user goes back to step 1.
+
+The process above can be repeated by the user several times, depending on
+what's the maximum collateral ratio for the component. The
+`leverage_on_aldrin_amm` endpoint calculates how much USP would be minted for
+how much collateral, and performs all of the above in a single instruction.
+
+The user gives us collateral ratio at which they want to perform this
+operation, where maximum they can provide is the maximum set in the component's
+config. The closer to the configured maximum, the higher is the risk of
+liquidation for the user. Second argument is the initial amount. The user must
+already have deposited enough collateral to cover the initial amount. The user
+also provides slippage information for both swaps.
+
+## Equations
 Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
 
+
+| Symbol       | Description |
+|---           |--- |
+| $`L`$        | leverage |
+| $`R_u`$      | user selected collateral ratio  |
+
 ⌐
-⊢
+
+The leverage is a number which multiplies the initial user's deposit to find
+the end amount of USP which will be minted, added to user's borrow amount and
+then swapped into collateral.
+```math
+L = \dfrac{1 - R_u^30}{1 - R_u}
+\tag{1}
+```
+
 ⌙
+
+<!-- References -->
+[blp]: https://crypto_project.gitlab.io/perk/borrow-lending/index.html
+[project-changelog]: https://crypto_project.gitlab.io/perk/borrow-lending/scp.changelog.html

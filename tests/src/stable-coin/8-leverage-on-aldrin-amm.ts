@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { AmmPool } from "../amm-pool";
 import { Component } from "../component";
 import { globalContainer } from "../global-container";
-import { CaptureStdoutAndStderr } from "../helpers";
+import { CaptureStdoutAndStderr, u192ToBN } from "../helpers";
 import { LendingMarket } from "../lending-market";
 import { Receipt } from "../receipt";
 import { Reserve } from "../reserve";
@@ -107,6 +107,7 @@ export function test(owner: Keypair) {
 
       expect(stdCapture.restore()).to.contain("Cannot borrow more than");
     });
+
     it("fails if component doesn't match stable coin");
     it("fails if stable coin mint doesn't match component");
     it("fails if PDA doesn't match component or bump seed");
@@ -116,8 +117,25 @@ export function test(owner: Keypair) {
     it("fails if receipt doesn't match borrower");
     it("fails if receipt doesn't match component");
     it("fails if amm mismatches stable coin's component");
-    it("fails if collateral ration is higher than max col. ratio");
     it("fails if mint allowance is not enough");
+
+    it("fails if collateral ration is higher than max col. ratio", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
+      await expect(
+        receipt.leverageOnAldrinAmm(
+          uspDogePool,
+          dogeSrmPool,
+          uspWallet,
+          srmWallet,
+          dogeWallet,
+          1,
+          1_000
+        )
+      ).to.be.rejected;
+
+      expect(stdCapture.restore()).to.contain("Max collateral ratio is");
+    });
 
     it("starts leverage", async () => {
       await receipt.leverageOnAldrinAmm(
@@ -128,6 +146,19 @@ export function test(owner: Keypair) {
         dogeWallet,
         0.5,
         1_000
+      );
+
+      const receiptInfo = await receipt.fetch();
+      expect(receiptInfo.collateralAmount.toNumber()).to.eq(2013);
+      expect(
+        receiptInfo.lastInterestAccrualSlot.toNumber()
+      ).to.be.approximately(await usp.scp.provider.connection.getSlot(), 3);
+      expect(u192ToBN(receiptInfo.interestAmount).toNumber()).to.eq(0);
+      expect(u192ToBN(receiptInfo.borrowedAmount).toString()).to.eq(
+        "1999000000000000000000"
+      );
+      expect(u192ToBN(receiptInfo.borrowFeeAmount).toString()).to.eq(
+        "39980000000000000000"
       );
     });
   });

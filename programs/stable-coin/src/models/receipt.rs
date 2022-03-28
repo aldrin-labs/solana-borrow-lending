@@ -499,21 +499,33 @@ mod tests {
 
         assert_eq!(
             receipt.repay(&config, last_interest_accrual_slot, 75u64.into()),
-            Ok(75u64.into())
+            Ok(RepaidShares {
+                repaid_borrow_fee: 0,
+                repaid_interest: 75,
+                repaid_borrow: 0,
+            })
         );
         assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(15));
         assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(10));
 
         assert_eq!(
             receipt.repay(&config, last_interest_accrual_slot, 20u64.into()),
-            Ok(20u64.into())
+            Ok(RepaidShares {
+                repaid_borrow_fee: 0,
+                repaid_interest: 15,
+                repaid_borrow: 5,
+            })
         );
         assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(5));
         assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(0));
 
         assert_eq!(
             receipt.repay(&config, last_interest_accrual_slot, u64::MAX.into()),
-            Ok(5u64.into())
+            Ok(RepaidShares {
+                repaid_borrow_fee: 0,
+                repaid_interest: 0,
+                repaid_borrow: 5,
+            })
         );
         assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(0));
         assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(0));
@@ -521,22 +533,49 @@ mod tests {
         receipt.borrowed_amount = Decimal::from(100u64).into();
         receipt.interest_amount = Decimal::from(1u64).into();
         assert_eq!(
-            receipt
-                .repay(
-                    &config,
-                    last_interest_accrual_slot
-                        + borrow_lending::prelude::consts::SLOTS_PER_YEAR,
-                    1_000u64.into()
-                )
-                .unwrap()
-                .try_round_u64()
-                .unwrap(),
-            100u64 // borrowed amount set before the call
-                + 100 / 2 // interest is 50%
-                + 1 // interest set before the call
+            receipt.repay(
+                &config,
+                last_interest_accrual_slot
+                    + borrow_lending::prelude::consts::SLOTS_PER_YEAR,
+                1_000u64.into()
+            ),
+            Ok(RepaidShares {
+                repaid_borrow_fee: 0,
+                repaid_interest: 51,
+                repaid_borrow: 100,
+            })
         );
         assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(0));
         assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(0));
+    }
+
+    #[test]
+    fn it_repays_borrow_fee() {
+        let last_interest_accrual_slot = 100;
+
+        let config = ComponentConfig {
+            interest: Decimal::from_percent(50u64).into(),
+            max_collateral_ratio: Decimal::from_percent(90u64).into(),
+            ..Default::default()
+        };
+
+        let mut receipt = Receipt {
+            collateral_amount: 100,
+            interest_amount: Decimal::from(90u64).into(),
+            borrowed_amount: Decimal::from(5u64).into(),
+            borrow_fee_amount: Decimal::from(5u64).into(),
+            last_interest_accrual_slot,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            receipt.repay(&config, last_interest_accrual_slot, 1_000u64.into()),
+            Ok(RepaidShares {
+                repaid_borrow_fee: 5,
+                repaid_interest: 90,
+                repaid_borrow: 5,
+            })
+        );
     }
 
     #[test]
@@ -563,7 +602,11 @@ mod tests {
         assert_eq!(
             Ok(Liquidate {
                 // interest + borrowed
-                stable_coin_tokens_to_burn: 100_000000,
+                repaid_shares: RepaidShares {
+                    repaid_borrow_fee: 0,
+                    repaid_interest: 10_000000,
+                    repaid_borrow: 90_000000,
+                },
                 // (interest + borrow) / market_price * fee
                 liquidator_collateral_tokens: 52,
                 platform_collateral_tokens: 3,
@@ -602,7 +645,11 @@ mod tests {
         assert_eq!(
             Ok(Liquidate {
                 // collateral amount * fee
-                stable_coin_tokens_to_burn: 18_000000,
+                repaid_shares: RepaidShares {
+                    repaid_borrow_fee: 0,
+                    repaid_interest: 10_000000,
+                    repaid_borrow: 8_000000,
+                },
                 // collateral amount
                 liquidator_collateral_tokens: 9,
                 platform_collateral_tokens: 1,

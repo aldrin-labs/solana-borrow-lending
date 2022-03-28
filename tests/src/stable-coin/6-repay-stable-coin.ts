@@ -75,7 +75,9 @@ export function test(owner: Keypair) {
       ).to.be.approximately(await usp.scp.provider.connection.getSlot(), 3);
 
       const uspWalletInfo = await usp.mint.getAccountInfo(uspWallet);
-      expect(uspWalletInfo.amount.toNumber()).to.eq(borrowAmount - repayAmount);
+      expect(uspWalletInfo.amount.toNumber()).to.eq(
+        borrowAmount - repayAmount - 2 // cost of ceiling the calculations (borrow fee, interest & borrow amount)
+      );
     });
 
     it("repays all of the loan", async () => {
@@ -96,7 +98,7 @@ export function test(owner: Keypair) {
         airdropAmount + // we airdropped to cover fees
           borrowAmount - // first we borrowed
           borrowAmount - // then we repayed the same amount
-          1 // borrow fee + interest
+          2 // borrow fee + interest
       );
     });
   });

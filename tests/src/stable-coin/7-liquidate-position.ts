@@ -2,12 +2,7 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 import { expect } from "chai";
 import { Component } from "../component";
 import { DEFAULT_SRM_PRICE } from "../consts";
-import {
-  CaptureStdoutAndStderr,
-  ONE_WAD,
-  u192ToBN,
-  waitForCommit,
-} from "../helpers";
+import { CaptureStdoutAndStderr, u192ToBN, waitForCommit } from "../helpers";
 import { LendingMarket } from "../lending-market";
 import { Receipt } from "../receipt";
 import { Reserve } from "../reserve";

@@ -47,6 +47,10 @@ pub struct RepayStableCoin<'info> {
     pub clock: Sysvar<'info, Clock>,
 }
 
+/// The max amount to repay might be ceiled up by 3 tokens, one for interest,
+/// one for borrow fee and one for borrow amount. Since the amount is
+/// represented in a millionth of UAC, which is USD, it's not critical to rename
+/// this variable.
 pub fn handle(
     ctx: Context<RepayStableCoin>,
     max_amount_to_repay: u64,

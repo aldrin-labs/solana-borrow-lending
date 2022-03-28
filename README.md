@@ -1,6 +1,7 @@
 * [Code coverage][project-code-coverage]
 * [Rust docs][project-rust-docs]
 * [Changelog][project-changelog]
+* [USP docs][usp]
 * Solana v1.7.17
 * Anchor v0.21.0
 
@@ -716,3 +717,4 @@ function u192ToBN(u192: U192 | BN[] | { u192: U192 | BN[] }): BN {
 [project-code-coverage]: https://crypto_project.gitlab.io/perk/borrow-lending/coverage
 [wiki-significand]: https://en.wikipedia.org/wiki/Significand
 [project-changelog]: https://crypto_project.gitlab.io/perk/borrow-lending/blp.changelog.html
+[usp]: https://crypto_project.gitlab.io/perk/borrow-lending/scp.html
