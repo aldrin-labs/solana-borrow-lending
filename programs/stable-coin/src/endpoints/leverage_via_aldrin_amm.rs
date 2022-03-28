@@ -8,7 +8,7 @@
 //!
 //!
 //! # Steps
-//! 1. Calculate leverage [ref. eq. (1) in STABLE_COIN.md] and
+//! 1. Calculate leverage [ref. eq. (13)] and
 //! from that calculate how many stable coin tokens to mint by multiplying the
 //! initial borrow amount of stable coin. The user must have deposited enough
 //! collateral for the initial borrow amount. The total minted amount is added,
@@ -196,7 +196,7 @@ pub fn handle(
         return Err(ErrorCode::CannotGoOverMaxCollateralRatio.into());
     }
 
-    // ref. eq. (1) in STABLE_COIN.md
+    // ref. eq. (13)
     let leverage = (Decimal::one()
         .try_sub(collateral_ratio.try_pow(consts::MAX_LEVERAGE_LOOPS)?)?)
     .try_div(Decimal::one().try_sub(collateral_ratio)?)?;
