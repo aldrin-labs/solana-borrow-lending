@@ -339,11 +339,10 @@ mod tests {
     }
 
     #[test]
-    fn it_borrows() {
+    fn it_borrows_without_interest_accrual() {
         let last_interest_accrual_slot = 100;
 
         let config = ComponentConfig {
-            interest: Decimal::from_percent(50u64).into(),
             borrow_fee: Decimal::from_percent(10u64).into(),
             max_collateral_ratio: Decimal::from_percent(90u64).into(),
             ..Default::default()
@@ -357,7 +356,6 @@ mod tests {
             ..Default::default()
         };
 
-        // first let's see how it acts when we skip interest accrual
         let owed_before =
             receipt.owed_amount().unwrap().try_round_u64().unwrap();
         receipt
@@ -376,23 +374,44 @@ mod tests {
             + owed_before
             )
         );
+    }
 
-        // now let's accrue interest
+    #[test]
+    fn it_borrows_with_accrued_interest() {
+        let last_interest_accrual_slot = 100;
+
+        let config = ComponentConfig {
+            interest: Decimal::from_percent(50u64).into(),
+            borrow_fee: Decimal::from_percent(10u64).into(),
+            max_collateral_ratio: Decimal::from_percent(90u64).into(),
+            ..Default::default()
+        };
+
+        let mut receipt = Receipt {
+            collateral_amount: 100,
+            interest_amount: Decimal::zero().into(),
+            borrowed_amount: Decimal::one().into(),
+            last_interest_accrual_slot,
+            ..Default::default()
+        };
+
         let owed_before =
             receipt.owed_amount().unwrap().try_round_u64().unwrap();
+        let borrow_amount = 50u64;
         receipt
             .borrow(
                 &config,
                 last_interest_accrual_slot
                     + borrow_lending::prelude::consts::SLOTS_PER_YEAR,
-                50,
+                borrow_amount,
                 Decimal::from(1_000u64),
             )
             .unwrap();
+        println!("{}", receipt.owed_amount().unwrap());
         assert_eq!(
             receipt.owed_amount().unwrap().try_round_u64(),
             Decimal::from(
-                50u64 // borrow amount
+                borrow_amount // borrow amount
                 + 5 // borrow fee
                 + owed_before / 2 // interest is 50%
                 + owed_before
@@ -404,8 +423,18 @@ mod tests {
             last_interest_accrual_slot
                 + borrow_lending::prelude::consts::SLOTS_PER_YEAR
         );
+    }
 
-        // cannot borrow if unhealthy
+    #[test]
+    fn it_cant_borrow_if_unhealthy() {
+        let last_interest_accrual_slot = 100;
+
+        let config = ComponentConfig {
+            borrow_fee: Decimal::from_percent(10u64).into(),
+            max_collateral_ratio: Decimal::from_percent(90u64).into(),
+            ..Default::default()
+        };
+
         let mut receipt = Receipt {
             collateral_amount: 100,
             interest_amount: Decimal::zero().into(),
