@@ -101,7 +101,7 @@ pub struct LeverageOnAldrinAmm<'info> {
         constraint = receipt.borrower == borrower.key()
             @ err::acc("Receipt's borrower doesn't match"),
     )]
-    pub receipt: Account<'info, Receipt>,
+    pub receipt: Box<Account<'info, Receipt>>,
     /// Stable coin is minted here, but then swapped so in the end there're no
     /// extra tokens remaining (i.e. same amount as in the beginning)
     #[account(mut)]
@@ -110,12 +110,12 @@ pub struct LeverageOnAldrinAmm<'info> {
     /// the end there's no extra tokens remaining (i.e. same amount as in the
     /// beginning)
     #[account(mut)]
-    pub borrower_intermediary_wallet: Account<'info, TokenAccount>,
+    pub borrower_intermediary_wallet: Box<Account<'info, TokenAccount>>,
     /// Collateral is swapped for intermediary into this wallet, but then it's
     /// transferred to freeze wallet so there're no extra tokens remaining
     /// (i.e. same amount as in the beginning)
     #[account(mut)]
-    pub borrower_collateral_wallet: Account<'info, TokenAccount>,
+    pub borrower_collateral_wallet: Box<Account<'info, TokenAccount>>,
     // -------------- AMM Accounts ----------------
     #[account(
         executable,
@@ -153,7 +153,7 @@ pub struct LeverageOnAldrinAmm<'info> {
 pub fn handle(
     ctx: Context<LeverageOnAldrinAmm>,
     stable_coin_bump_seed: u8,
-    collateral_ratio: SDecimal,
+    collateral_ratio: Decimal,
     initial_stable_coin_amount: u64,
     min_intermediary_swap_return: u64,
     min_collateral_swap_return: u64,
@@ -177,16 +177,19 @@ pub fn handle(
         token_market_price,
         accounts.component.config.max_collateral_ratio.to_dec(),
     )?;
-    if remaining_borrow_value
-        < Decimal::from(initial_stable_coin_amount)
-            .try_div(Decimal::from(consts::STABLE_COIN_DECIMALS as u64))?
-    {
+    let initial_borrow_value = Decimal::from(initial_stable_coin_amount)
+        .try_div(Decimal::from(consts::STABLE_COIN_DECIMALS as u64))?;
+    if remaining_borrow_value < initial_borrow_value {
+        msg!(
+            "Cannot borrow more than {}, but requested {}",
+            remaining_borrow_value,
+            initial_borrow_value
+        );
         return Err(ErrorCode::BorrowTooLarge.into());
     }
 
     let max_collateral_ratio =
         accounts.component.config.max_collateral_ratio.to_dec();
-    let collateral_ratio = collateral_ratio.to_dec();
     if collateral_ratio > max_collateral_ratio {
         return Err(ErrorCode::CannotGoOverMaxCollateralRatio.into());
     }

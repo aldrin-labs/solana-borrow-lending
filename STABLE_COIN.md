@@ -59,3 +59,10 @@ platform fee on this.
 The liquidation acts as a repayment of sorts. At the end, the receipt will
 contain ~2.63 SOL, the liquidator receives 0.153 SOL and the platform (us)
 0.017 SOL (ie. liquidation fee is 10%).
+
+### Equations
+Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
+
+⌐
+⊢
+⌙

@@ -40,6 +40,7 @@ import {
 } from "./consts";
 import { AmmPool } from "./amm-pool";
 import { globalContainer } from "./global-container";
+import { TokenWrapper } from "./token-wrapper";
 
 interface ReserveOracle {
   simplePyth?: {
@@ -258,6 +259,18 @@ export class Reserve {
     return this.market.program.account.reserve.fetch(
       this.accounts.reserve.publicKey
     );
+  }
+
+  public toTokenWrapper() {
+    const wrapper = new TokenWrapper(this.accounts.liquidityMint);
+    if (this.accounts.liquidityMintAuthority) {
+      return wrapper.setAuthority(this.accounts.liquidityMintAuthority);
+    } else {
+      return wrapper.setSourceWallet(
+        this.accounts.sourceLiquidityWallet,
+        this.owner
+      );
+    }
   }
 
   public async refresh() {

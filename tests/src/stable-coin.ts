@@ -4,6 +4,7 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 import { StableCoin } from "../../target/types/stable_coin";
 import { globalContainer } from "./global-container";
 import { waitForCommit } from "./helpers";
+import { TokenWrapper } from "./token-wrapper";
 
 export class USP {
   private constructor(
@@ -89,6 +90,13 @@ export class USP {
       this.owner,
       [],
       amount
+    );
+  }
+
+  public toTokenWrapper(): TokenWrapper {
+    return new TokenWrapper(this.mint).setSourceWallet(
+      this.stableCoinVault,
+      this.owner
     );
   }
 }
