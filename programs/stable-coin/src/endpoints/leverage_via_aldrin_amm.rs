@@ -76,11 +76,7 @@ pub struct LeverageViaAldrinAmm<'info> {
     )]
     pub stable_coin_pda: AccountInfo<'info>,
     /// We need to mutate mint allowance in config.
-    #[account(
-        mut,
-        constraint = freeze_wallet.key() == component.freeze_wallet
-            @ err::freeze_wallet_mismatch(),
-    )]
+    #[account(mut)]
     pub component: Box<Account<'info, Component>>,
     #[account(
         constraint = reserve.key() == component.blp_reserve
@@ -90,7 +86,11 @@ pub struct LeverageViaAldrinAmm<'info> {
     )]
     pub reserve: Box<Account<'info, borrow_lending::models::Reserve>>,
     /// The swapped collateral is eventually transferred here
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = freeze_wallet.key() == component.freeze_wallet
+            @ err::freeze_wallet_mismatch(),
+    )]
     pub freeze_wallet: AccountInfo<'info>,
     /// Needed to mint new stable coin tokens
     #[account(mut)]
