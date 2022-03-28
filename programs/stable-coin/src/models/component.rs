@@ -18,8 +18,12 @@ pub struct Component {
     /// Where we store the tokens deposited as collateral. From here they're
     /// withdrawn on repay or liquidation.
     pub freeze_wallet: Pubkey,
-    /// Liquidation fees etc are sent here.
-    pub fee_wallet: Pubkey,
+    /// Liquidation fees (in collateral token) are sent here
+    pub liquidation_fee_wallet: Pubkey,
+    /// Borrow fees (in stable coin token) are sent here
+    pub borrow_fee_wallet: Pubkey,
+    /// Collected interest (in stable coin token) is sent here
+    pub interest_wallet: Pubkey,
     pub config: ComponentConfig,
 }
 

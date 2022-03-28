@@ -2,22 +2,15 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 import { expect } from "chai";
 import { AmmPool } from "../amm-pool";
 import { Component } from "../component";
-import { DEFAULT_SRM_PRICE } from "../consts";
 import { globalContainer } from "../global-container";
-import {
-  CaptureStdoutAndStderr,
-  ONE_WAD,
-  u192ToBN,
-  waitForCommit,
-} from "../helpers";
+import { CaptureStdoutAndStderr } from "../helpers";
 import { LendingMarket } from "../lending-market";
 import { Receipt } from "../receipt";
 import { Reserve } from "../reserve";
 import { USP } from "../stable-coin";
-import { TokenWrapper } from "../token-wrapper";
 
 export function test(owner: Keypair) {
-  describe.only("USP leverage on aldrin AMM", () => {
+  describe("USP leverage on aldrin AMM", () => {
     let usp: USP,
       market: LendingMarket,
       receipt: Receipt,

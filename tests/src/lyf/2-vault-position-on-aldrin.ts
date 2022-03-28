@@ -18,8 +18,7 @@ export function test(owner: Keypair) {
       ammPool: AmmPool,
       ammFarm: AmmFarm,
       callerLpWallet: PublicKey,
-      srmWallet: PublicKey,
-      dogeWallet: PublicKey;
+      srmWallet: PublicKey;
 
     before("initialize lending market", async () => {
       market = await LendingMarket.init(blp, owner, undefined, amm.programId);
@@ -38,10 +37,6 @@ export function test(owner: Keypair) {
         owner.publicKey,
         110_000
       );
-      dogeWallet = await reserveDoge.createLiquidityWallet(
-        owner.publicKey,
-        110_000
-      );
     });
 
     before("initialize liquidity pool", async () => {
@@ -49,13 +44,13 @@ export function test(owner: Keypair) {
         amm,
         market,
         ammAuthority,
-        reserveSrm,
-        reserveDoge
+        reserveSrm.toTokenWrapper(),
+        reserveDoge.toTokenWrapper()
       );
     });
 
     before("initialize farming", async () => {
-      ammFarm = await AmmFarm.init(ammPool, reserveSrm);
+      ammFarm = await AmmFarm.init(ammPool, reserveSrm.toTokenWrapper());
     });
 
     beforeEach("creates callers's LP wallet", async () => {

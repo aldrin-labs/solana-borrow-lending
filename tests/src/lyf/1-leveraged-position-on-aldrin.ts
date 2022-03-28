@@ -68,13 +68,13 @@ export function test(owner: Keypair) {
         amm,
         market,
         ammAuthority,
-        reserveSrm,
-        reserveDoge
+        reserveSrm.toTokenWrapper(),
+        reserveDoge.toTokenWrapper()
       );
     });
 
     before("initialize farming", async () => {
-      ammFarm = await AmmFarm.init(ammPool, reserveSrm);
+      ammFarm = await AmmFarm.init(ammPool, reserveSrm.toTokenWrapper());
     });
 
     beforeEach("initialize obligation", async () => {

@@ -86,10 +86,6 @@ pub fn freeze_wallet_mismatch() -> ProgramError {
     acc("Freeze wallet doesn't match component's configuration")
 }
 
-pub fn fee_wallet_mismatch() -> ProgramError {
-    acc("Fee wallet doesn't match component's configuration")
-}
-
 pub fn aldrin_amm_program_mismatch() -> ProgramError {
     acc("Market's AMM program ID must match provided account id")
 }

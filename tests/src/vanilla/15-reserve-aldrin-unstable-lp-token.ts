@@ -62,8 +62,8 @@ export function test(owner: Keypair) {
         amm,
         market,
         ammAuthority,
-        reserveSrm,
-        reserveDoge
+        reserveSrm.toTokenWrapper(),
+        reserveDoge.toTokenWrapper()
       );
     });
 

@@ -18,6 +18,18 @@ pub struct RepayStableCoin<'info> {
     /// We need to mutate mint allowance in config.
     #[account(mut)]
     pub component: Box<Account<'info, Component>>,
+    #[account(
+        mut,
+        constraint = interest_wallet.key() == component.interest_wallet
+            @ err::acc("Interest wallet must match component's config"),
+    )]
+    pub interest_wallet: AccountInfo<'info>,
+    #[account(
+        mut,
+        constraint = borrow_fee_wallet.key() == component.borrow_fee_wallet
+            @ err::acc("Borrow fee wallet must match component's config"),
+    )]
+    pub borrow_fee_wallet: AccountInfo<'info>,
     #[account(mut)]
     pub stable_coin_mint: AccountInfo<'info>,
     #[account(
@@ -46,37 +58,29 @@ pub fn handle(
         return Err(ErrorCode::InvalidAmount.into());
     }
 
-    let amount_to_burn = accounts
-        .receipt
-        .repay(
-            &accounts.component.config,
-            accounts.clock.slot,
-            max_amount_to_repay.into(),
-        )?
-        .try_ceil_u64()?;
+    let RepaidShares {
+        repaid_borrow_fee,
+        repaid_interest,
+        repaid_borrow,
+    } = accounts.receipt.repay(
+        &accounts.component.config,
+        accounts.clock.slot,
+        max_amount_to_repay.into(),
+    )?;
 
-    if amount_to_burn > max_amount_to_repay {
-        msg!(
-            "An unexpected rounding issue occurred, amount to burn can never \
-            be more than max amount to repay"
-        );
-        return Err(ErrorCode::MathOverflow.into());
-    }
-
-    // A surprising behavior here is that the allowance is increased
-    // by the borrow fee and interest here, whereas its not decreased by these
-    // amounts when borrowing. That is not a big deal and it'd be annoying
-    // to untangle the borrow fee from the borrowed amount, so we just keep it
-    // this way. We can easily tolerate this behavior because we're manually
-    // adjusting the allowance.
     accounts.component.config.mint_allowance = accounts
         .component
         .config
         .mint_allowance
-        .checked_add(amount_to_burn)
+        .checked_add(repaid_borrow)
         .ok_or(ErrorCode::MathOverflow)?;
 
-    token::burn(accounts.as_burn_stable_coin_context(), amount_to_burn)?;
+    token::burn(accounts.as_burn_stable_coin_context(), repaid_borrow)?;
+
+    // pay borrow fee into a dedicated wallet
+    token::transfer(accounts.as_pay_borrow_fee_context(), repaid_borrow_fee)?;
+    // pay interest into a dedicated wallet
+    token::transfer(accounts.as_pay_interest_context(), repaid_interest)?;
 
     Ok(())
 }
@@ -88,6 +92,30 @@ impl<'info> RepayStableCoin<'info> {
         let cpi_accounts = token::Burn {
             mint: self.stable_coin_mint.to_account_info(),
             to: self.borrower_stable_coin_wallet.to_account_info(),
+            authority: self.borrower.to_account_info(),
+        };
+        let cpi_program = self.token_program.to_account_info();
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+
+    pub fn as_pay_borrow_fee_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
+        let cpi_accounts = token::Transfer {
+            from: self.borrower_stable_coin_wallet.clone(),
+            to: self.borrow_fee_wallet.to_account_info(),
+            authority: self.borrower.to_account_info(),
+        };
+        let cpi_program = self.token_program.to_account_info();
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+
+    pub fn as_pay_interest_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
+        let cpi_accounts = token::Transfer {
+            from: self.borrower_stable_coin_wallet.to_account_info(),
+            to: self.interest_wallet.to_account_info(),
             authority: self.borrower.to_account_info(),
         };
         let cpi_program = self.token_program.to_account_info();

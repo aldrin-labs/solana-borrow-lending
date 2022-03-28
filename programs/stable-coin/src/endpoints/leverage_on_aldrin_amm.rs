@@ -219,9 +219,9 @@ pub fn handle(
     // and add borrow fee to interest (users won't pay interest on borrow fee)
     let borrow_fee = Decimal::from(stable_coin_amount_to_mint)
         .try_mul(accounts.component.config.borrow_fee.to_dec())?;
-    accounts.receipt.interest_amount = accounts
+    accounts.receipt.borrow_fee_amount = accounts
         .receipt
-        .interest_amount
+        .borrow_fee_amount
         .to_dec()
         .try_add(borrow_fee)?
         .into();

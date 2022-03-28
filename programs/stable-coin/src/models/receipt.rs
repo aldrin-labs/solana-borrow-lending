@@ -15,8 +15,8 @@ pub struct Receipt {
     /// This amount represents in the lowest decimal place representation, ie
     /// it'd be lamports in case of SOL.
     pub collateral_amount: u64,
-    /// How much MIM does the user have to repay, this includes borrow fee and
-    /// APR interest.
+    /// How much MIM does the user have to repay, not including interest nor
+    /// borrow fee. This is the amount interest is accrued on.
     ///
     /// This amount represents the lowest decimal place of the stable coin. If
     /// the user owes 10 USP and we have 4 decimal places, this value would be
@@ -31,6 +31,11 @@ pub struct Receipt {
     /// This amount affects whether we mark receipt as unhealthy. It is repayed
     /// after all borrowed amount is repayed. Same as the borrowed amount.
     pub interest_amount: SDecimal,
+    /// How much does the user owe in borrow fees. We keep this number separate
+    /// from borrow amount and interest amount because we don't want to charge
+    /// interest on this amount and we want to transfer borrow fee to a
+    /// different wallet than interest.
+    pub borrow_fee_amount: SDecimal,
     /// Every time a user interacts with receipt, we first calculate interest.
     /// Since the interest is a simple formulate, we can just take the
     /// difference between the last slot and this slot.
@@ -42,9 +47,26 @@ pub struct Receipt {
 
 #[derive(Debug, PartialEq)]
 pub struct Liquidate {
-    pub stable_coin_tokens_to_burn: u64,
+    pub repaid_shares: RepaidShares,
     pub liquidator_collateral_tokens: u64,
     pub platform_collateral_tokens: u64,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct RepaidShares {
+    pub repaid_borrow_fee: u64,
+    pub repaid_interest: u64,
+    pub repaid_borrow: u64,
+}
+
+impl RepaidShares {
+    pub fn total(&self) -> Result<u64> {
+        self.repaid_borrow
+            .checked_add(self.repaid_borrow_fee)
+            .and_then(|t| t.checked_add(self.repaid_interest))
+            .ok_or(ErrorCode::MathOverflow)
+            .map_err(From::from)
+    }
 }
 
 impl Receipt {
@@ -75,7 +97,8 @@ impl Receipt {
     pub fn owed_amount(&self) -> Result<Decimal> {
         self.borrowed_amount
             .to_dec()
-            .try_add(self.interest_amount.to_dec())
+            .try_add(self.interest_amount.to_dec())?
+            .try_add(self.borrow_fee_amount.to_dec())
             .map_err(From::from)
     }
 
@@ -126,8 +149,8 @@ impl Receipt {
 
         // users don't pay interest on the borrow fee
         let borrow_fee = config.borrow_fee.to_dec().try_mul(amount)?;
-        self.interest_amount =
-            self.interest_amount.to_dec().try_add(borrow_fee)?.into();
+        self.borrow_fee_amount =
+            self.borrow_fee_amount.to_dec().try_add(borrow_fee)?.into();
 
         self.borrowed_amount =
             self.borrowed_amount.to_dec().try_add(amount.into())?.into();
@@ -152,36 +175,39 @@ impl Receipt {
         config: &ComponentConfig,
         slot: u64,
         max_amount_to_repay: Decimal,
-    ) -> Result<Decimal> {
+    ) -> Result<RepaidShares> {
         self.accrue_interest(slot, config.interest.into())?;
 
-        let owed = self.owed_amount()?;
-        let interest = self.interest_amount.to_dec();
+        let repaid_borrow_fee =
+            self.borrow_fee_amount.to_dec().min(max_amount_to_repay);
+        self.borrow_fee_amount = self
+            .borrow_fee_amount
+            .to_dec()
+            .try_sub(repaid_borrow_fee)?
+            .into();
+        let max_amount_to_repay =
+            max_amount_to_repay.try_sub(repaid_borrow_fee)?;
 
-        if max_amount_to_repay <= interest {
-            // 1. max amount is enough to just repay some/all of interest
-            //      amount, but no borrow
-            self.interest_amount =
-                interest.try_sub(max_amount_to_repay)?.into();
-            Ok(max_amount_to_repay)
-        } else if max_amount_to_repay < owed {
-            // 2. max amount is enough to repay all of interest amount and
-            //      some of borrowed
-            let remove_from_borrowed_amount =
-                max_amount_to_repay.try_sub(interest)?;
-            self.interest_amount = Decimal::zero().into();
-            self.borrowed_amount = self
-                .borrowed_amount
-                .to_dec()
-                .try_sub(remove_from_borrowed_amount)?
-                .into();
-            Ok(max_amount_to_repay)
-        } else {
-            // 3. max a mount is enough to repay everything
-            self.borrowed_amount = Decimal::zero().into();
-            self.interest_amount = Decimal::zero().into();
-            Ok(owed)
-        }
+        let repaid_interest =
+            self.interest_amount.to_dec().min(max_amount_to_repay);
+        self.interest_amount = self
+            .interest_amount
+            .to_dec()
+            .try_sub(repaid_interest)?
+            .into();
+        let max_amount_to_repay =
+            max_amount_to_repay.try_sub(repaid_interest)?;
+
+        let repaid_borrow =
+            self.borrowed_amount.to_dec().min(max_amount_to_repay);
+        self.borrowed_amount =
+            self.borrowed_amount.to_dec().try_sub(repaid_borrow)?.into();
+
+        Ok(RepaidShares {
+            repaid_borrow: repaid_borrow.try_ceil_u64()?,
+            repaid_interest: repaid_interest.try_ceil_u64()?,
+            repaid_borrow_fee: repaid_borrow_fee.try_ceil_u64()?,
+        })
     }
 
     /// Repays user's loan by calculating how many stable coin tokens to burn
@@ -228,13 +254,14 @@ impl Receipt {
         )?;
 
         // give the liquidator the tokens at a discounted price
-        let eligible_collateral_tokens = stable_coin_tokens_liquidated
-            // must be scaled down because the repay function returns the
-            // smallest denomination, while we work with UAC here
-            .try_mul(smallest_stable_coin_unit_market_price())?
-            .try_div(discounted_market_price)?
-            .try_floor_u64()?
-            .max(1);
+        let eligible_collateral_tokens =
+            Decimal::from(stable_coin_tokens_liquidated.total()?)
+                // must be scaled down because the repay function returns the
+                // smallest denomination, while we work with UAC here
+                .try_mul(smallest_stable_coin_unit_market_price())?
+                .try_div(discounted_market_price)?
+                .try_floor_u64()?
+                .max(1);
         // but some of those will go to the admin
         let platform_cut = Decimal::from(eligible_collateral_tokens)
             .try_mul(
@@ -252,8 +279,7 @@ impl Receipt {
             .ok_or(ErrorCode::MathOverflow)?;
 
         Ok(Liquidate {
-            stable_coin_tokens_to_burn: stable_coin_tokens_liquidated
-                .try_ceil_u64()?,
+            repaid_shares: stable_coin_tokens_liquidated,
             liquidator_collateral_tokens: eligible_collateral_tokens
                 .checked_sub(platform_cut)
                 .ok_or(ErrorCode::MathOverflow)?,
