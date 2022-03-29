@@ -79,8 +79,8 @@ pub fn handle(
         .checked_add(repaid_borrow)
         .ok_or(ErrorCode::MathOverflow)?;
 
+    // burn what's been minted to the user
     token::burn(accounts.as_burn_stable_coin_context(), repaid_borrow)?;
-
     // pay borrow fee into a dedicated wallet
     token::transfer(accounts.as_pay_borrow_fee_context(), repaid_borrow_fee)?;
     // pay interest into a dedicated wallet

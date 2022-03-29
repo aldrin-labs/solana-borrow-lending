@@ -99,4 +99,20 @@ pub mod stable_coin {
             min_collateral_swap_return,
         )
     }
+
+    pub fn deleverage_via_aldrin_amm(
+        ctx: Context<DeleverageViaAldrinAmm>,
+        component_bump_seed: u8,
+        collateral_amount: u64,
+        min_intermediary_swap_return: u64,
+        min_stable_coin_swap_return: u64,
+    ) -> ProgramResult {
+        endpoints::deleverage_via_aldrin_amm::handle(
+            ctx,
+            component_bump_seed,
+            collateral_amount,
+            min_intermediary_swap_return,
+            min_stable_coin_swap_return,
+        )
+    }
 }
