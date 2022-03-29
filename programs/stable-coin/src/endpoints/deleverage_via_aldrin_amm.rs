@@ -15,6 +15,8 @@
 //! 3. Swap all gained intermediary into stable coin.
 //!
 //! 4. Repay loan and decrement the collateral amount.
+//!
+//! 5. Burn lent tokens and transfer fees into admin wallets.
 
 use crate::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount};

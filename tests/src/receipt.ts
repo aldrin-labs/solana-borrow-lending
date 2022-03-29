@@ -200,4 +200,52 @@ export class Receipt {
       }
     );
   }
+
+  public async deleverageViaAldrinAmm(
+    collateralIntermediaryPool: AmmPool,
+    intermediaryUspPool: AmmPool,
+    borrowerStableCoinWallet: PublicKey,
+    borrowerCollateralWallet: PublicKey,
+    borrowerIntermediaryWallet: PublicKey,
+    collateralAmount: number
+  ) {
+    await this.component.usp.scp.rpc.deleverageViaAldrinAmm(
+      this.component.bumpSeed,
+      new BN(collateralAmount),
+      new BN(0), // TODO: test slippage
+      new BN(0), // TODO: test slippage
+      {
+        accounts: {
+          borrower: this.borrower.publicKey,
+          stableCoin: this.component.usp.id,
+          component: this.component.id,
+          componentPda: this.component.pda,
+          stableCoinMint: this.component.usp.mint.publicKey,
+          freezeWallet: this.component.accounts.freezeWallet,
+          interestWallet: this.component.accounts.interestWallet,
+          borrowFeeWallet: this.component.accounts.borrowFeeWallet,
+          receipt: this.id,
+          borrowerStableCoinWallet,
+          borrowerCollateralWallet,
+          borrowerIntermediaryWallet,
+          ammProgram: globalContainer.amm.programId,
+          pool1: collateralIntermediaryPool.id,
+          poolSigner1: collateralIntermediaryPool.accounts.vaultSigner,
+          poolMint1: collateralIntermediaryPool.accounts.mint.publicKey,
+          baseTokenVault1: collateralIntermediaryPool.accounts.vaultBase,
+          quoteTokenVault1: collateralIntermediaryPool.accounts.vaultQuote,
+          feePoolWallet1: collateralIntermediaryPool.accounts.feeWallet,
+          pool2: intermediaryUspPool.id,
+          poolSigner2: intermediaryUspPool.accounts.vaultSigner,
+          poolMint2: intermediaryUspPool.accounts.mint.publicKey,
+          baseTokenVault2: intermediaryUspPool.accounts.vaultBase,
+          quoteTokenVault2: intermediaryUspPool.accounts.vaultQuote,
+          feePoolWallet2: intermediaryUspPool.accounts.feeWallet,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          clock: SYSVAR_CLOCK_PUBKEY,
+        },
+        signers: [this.borrower],
+      }
+    );
+  }
 }

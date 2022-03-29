@@ -85,7 +85,7 @@ export function test(owner: Keypair) {
     beforeEach("deposits collateral", async () => {
       srmWallet = await reserveSrm.createLiquidityWallet(
         receipt.borrower.publicKey,
-        100
+        3_100
       );
       await receipt.deposit(srmWallet, 100);
     });
@@ -160,6 +160,76 @@ export function test(owner: Keypair) {
       expect(u192ToBN(receiptInfo.borrowFeeAmount).toString()).to.eq(
         "39980000000000000000"
       );
+    });
+
+    it("starts leverage and then closes half", async () => {
+      await receipt.leverageViaAldrinAmm(
+        uspDogePool,
+        dogeSrmPool,
+        uspWallet,
+        srmWallet,
+        dogeWallet,
+        0.5,
+        1_000
+      );
+
+      await usp.airdrop(uspWallet, 1_000_000);
+      const receiptInfoBefore = await receipt.fetch();
+
+      await receipt.deleverageViaAldrinAmm(
+        dogeSrmPool,
+        uspDogePool,
+        uspWallet,
+        srmWallet,
+        dogeWallet,
+        receiptInfoBefore.collateralAmount.toNumber() / 2
+      );
+
+      const receiptInfoAfter = await receipt.fetch();
+
+      expect(receiptInfoAfter.collateralAmount.toNumber()).to.eq(1007);
+      expect(
+        u192ToBN(receiptInfoBefore.borrowedAmount).gt(
+          u192ToBN(receiptInfoAfter.borrowedAmount)
+        )
+      ).to.be.true;
+      expect(u192ToBN(receiptInfoAfter.borrowFeeAmount).toNumber()).to.eq(0);
+      expect(u192ToBN(receiptInfoAfter.interestAmount).toNumber()).to.eq(0);
+
+      expect(
+        receiptInfoAfter.lastInterestAccrualSlot.toNumber()
+      ).to.be.approximately(await usp.scp.provider.connection.getSlot(), 3);
+    });
+
+    it("deleverages all collateral", async () => {
+      await receipt.deposit(srmWallet, 3_000);
+      await receipt.borrow(uspWallet, 10);
+
+      await usp.airdrop(uspWallet, 1_000_000);
+      const receiptInfoBefore = await receipt.fetch();
+      const { amount: uspAmountBefore } = await usp.mint.getAccountInfo(
+        uspWallet
+      );
+
+      await receipt.deleverageViaAldrinAmm(
+        dogeSrmPool,
+        uspDogePool,
+        uspWallet,
+        srmWallet,
+        dogeWallet,
+        receiptInfoBefore.collateralAmount.toNumber()
+      );
+
+      const { amount: uspAmountAfter } = await usp.mint.getAccountInfo(
+        uspWallet
+      );
+      expect(uspAmountAfter.gt(uspAmountBefore)).to.be.true;
+
+      const receiptInfoAfter = await receipt.fetch();
+      expect(receiptInfoAfter.collateralAmount.toNumber()).to.eq(0);
+      expect(u192ToBN(receiptInfoAfter.borrowFeeAmount).toNumber()).to.eq(0);
+      expect(u192ToBN(receiptInfoAfter.interestAmount).toNumber()).to.eq(0);
+      expect(u192ToBN(receiptInfoAfter.borrowedAmount).toNumber()).to.eq(0);
     });
   });
 }
