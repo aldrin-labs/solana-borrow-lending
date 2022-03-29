@@ -67,17 +67,10 @@ pub fn handle(
         repaid_interest,
         repaid_borrow,
     } = accounts.receipt.repay(
-        &accounts.component.config,
+        &mut accounts.component.config,
         accounts.clock.slot,
         max_amount_to_repay.into(),
     )?;
-
-    accounts.component.config.mint_allowance = accounts
-        .component
-        .config
-        .mint_allowance
-        .checked_add(repaid_borrow)
-        .ok_or(ErrorCode::MathOverflow)?;
 
     // burn what's been minted to the user
     token::burn(accounts.as_burn_stable_coin_context(), repaid_borrow)?;

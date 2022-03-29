@@ -60,24 +60,12 @@ pub fn handle(
         return Err(ErrorCode::InvalidAmount.into());
     }
 
-    if amount > accounts.component.config.mint_allowance {
-        msg!(
-            "This type of collateral can be presently used to
-            mint at most {} stable coin tokens",
-            accounts.component.config.mint_allowance
-        );
-        return Err(ErrorCode::MintAllowanceTooSmall.into());
-    }
-
-    // we've just checked that this doesn't underflow
-    accounts.component.config.mint_allowance -= amount;
-
     let token_market_price = accounts
         .component
         .smallest_unit_market_price(&accounts.reserve)?;
     // this fails if there isn't enough collateral to cover the borrow
     accounts.receipt.borrow(
-        &accounts.component.config,
+        &mut accounts.component.config,
         accounts.clock.slot,
         amount,
         token_market_price,

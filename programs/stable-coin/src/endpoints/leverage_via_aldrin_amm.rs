@@ -8,11 +8,10 @@
 //!
 //!
 //! # Steps
-//! 1. Calculate leverage [ref. eq. (13)] and
-//! from that calculate how many stable coin tokens to mint by multiplying the
-//! initial borrow amount of stable coin. The user must have deposited enough
-//! collateral for the initial borrow amount. The total minted amount is added,
-//! along with a borrow fee, to the user's receipt as borrow amount.
+//! 1. Calculate leverage [ref. eq. (13)] and from that calculate how many
+//! stable coin tokens to mint by multiplying the initial borrow amount of
+//! stable coin. The user must have deposited enough collateral for the initial
+//! borrow amount.
 //!
 //! 2. Swap minted stable coin into an intermediary token. We use an
 //! intermediary token because there won't be pools which would allow us to swap
@@ -22,6 +21,8 @@
 //!
 //! 4. Transfer the collateral tokens into freeze wallet and add the amount to
 //! the receipt as collateral.
+//!
+//! 5. Keep track of the borrow and new collateral in the receipt.
 //!
 //!
 //! # Important
@@ -161,11 +162,6 @@ pub fn handle(
 ) -> ProgramResult {
     let accounts = ctx.accounts;
 
-    accounts.receipt.accrue_interest(
-        accounts.clock.slot,
-        accounts.component.config.interest.to_dec(),
-    )?;
-
     //
     // 1.
     //
@@ -206,34 +202,6 @@ pub fn handle(
     let stable_coin_amount_to_mint: u64 = leverage
         .try_mul(Decimal::from(initial_stable_coin_amount))?
         .try_floor_u64()?;
-
-    if stable_coin_amount_to_mint > accounts.component.config.mint_allowance {
-        msg!(
-            "This type of collateral can be presently used to
-            mint at most {} stable coin tokens",
-            accounts.component.config.mint_allowance
-        );
-        return Err(ErrorCode::MintAllowanceTooSmall.into());
-    }
-    accounts.component.config.mint_allowance -= stable_coin_amount_to_mint;
-
-    // add the stable coin amount that's minted and swapped as borrowed amount
-    // and add borrow fee to interest (users won't pay interest on borrow fee)
-    let borrow_fee = Decimal::from(stable_coin_amount_to_mint)
-        .try_mul(accounts.component.config.borrow_fee.to_dec())?;
-    accounts.receipt.borrow_fee_amount = accounts
-        .receipt
-        .borrow_fee_amount
-        .to_dec()
-        .try_add(borrow_fee)?
-        .into();
-
-    accounts.receipt.borrowed_amount = accounts
-        .receipt
-        .borrowed_amount
-        .to_dec()
-        .try_add(Decimal::from(stable_coin_amount_to_mint))?
-        .into();
 
     let pda_seeds = &[
         &accounts.component.stable_coin.to_bytes()[..],
@@ -284,22 +252,27 @@ pub fn handle(
     let collateral_gained = final_borrower_collateral
         .checked_sub(initial_borrower_collateral)
         .ok_or(ErrorCode::MathOverflow)?;
-    accounts.receipt.collateral_amount = accounts
-        .receipt
-        .collateral_amount
-        .checked_add(collateral_gained)
-        .ok_or(ErrorCode::MathOverflow)?;
     token::transfer(
         accounts.as_swapped_collateral_to_freeze_wallet_context(),
         collateral_gained,
     )?;
 
-    // we don't need to check that the position is healthy, because we checked
-    // that the collateral ratio is less than maximum, and the user doesn't
-    // actually owe any funds
     //
-    // so they won't be able to withdraw unless the position is healthy, and if
-    // it's not healthy then they get liquidated
+    // 5.
+    //
+
+    accounts.receipt.collateral_amount = accounts
+        .receipt
+        .collateral_amount
+        .checked_add(collateral_gained)
+        .ok_or(ErrorCode::MathOverflow)?;
+    accounts.receipt.borrow(
+        &mut accounts.component.config,
+        accounts.clock.slot,
+        stable_coin_amount_to_mint,
+        token_market_price,
+    )?;
+
     Ok(())
 }
 

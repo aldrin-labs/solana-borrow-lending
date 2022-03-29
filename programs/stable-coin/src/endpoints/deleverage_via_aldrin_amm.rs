@@ -1,3 +1,21 @@
+//! A reverse action of [`crate::endpoints::leverage_via_aldrin_amm`] and
+//! somewhat similar to [`crate::endpoints::repay_stable_coin`].
+//!
+//! User gives us amount of collateral to swap into stable coin via intermediary
+//! (such as USDC) and we do the swap, leaving any extra USP in the borrower's
+//! wallet. (Extra USP after repaying their loan.)
+//!
+//! # Steps
+//! 1. Transfer required amount of collateral to the borrower's wallet. We do
+//! this so that we don't use freeze wallet which we couldn't anyway, because
+//! the AMM requires that the  signer (borrower) owns both swap wallets.
+//!
+//! 2. Swap collateral into an intermediary using borrower wallets.
+//!
+//! 3. Swap all gained intermediary into stable coin.
+//!
+//! 4. Repay loan and decrement the collateral amount.
+
 use crate::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount};
 use cpis::aldrin::SwapCpi;
@@ -119,12 +137,13 @@ pub fn handle(
 
     if accounts.receipt.collateral_amount < collateral_amount {
         msg!(
-            "Cannot deleverage more than {} collateral",
+            "Cannot deleverage more than {} tokens",
             accounts.receipt.collateral_amount
         );
         return Err(ErrorCode::InvalidAmount.into());
     }
 
+    // record initial amounts so that we can swap all
     let initial_borrower_intermediary =
         accounts.borrower_intermediary_wallet.amount;
     let initial_borrower_stable_coin =
@@ -144,13 +163,18 @@ pub fn handle(
             .with_signer(&[&pda_seeds[..]]),
         collateral_amount,
     )?;
+
+    //
+    // 2.
+    //
+
     accounts.swap_collateral_to_intermediary(
         collateral_amount,
         min_intermediary_swap_return,
     )?;
 
     //
-    // 2.
+    // 3.
     //
 
     accounts.borrower_intermediary_wallet.reload()?;
@@ -165,7 +189,7 @@ pub fn handle(
     )?;
 
     //
-    // 3.
+    // 4.
     //
 
     accounts.borrower_stable_coin_wallet.reload()?;
@@ -181,12 +205,16 @@ pub fn handle(
         repaid_interest,
         repaid_borrow_fee,
     } = accounts.receipt.repay(
-        &accounts.component.config,
+        &mut accounts.component.config,
         accounts.clock.slot,
         Decimal::from(stable_coin_gained),
     )?;
 
-    // burn what's been minted to the user
+    //
+    // 5.
+    //
+
+    // burn what's been minted to the user at the time of borrow
     token::burn(accounts.as_burn_stable_coin_context(), repaid_borrow)?;
     // pay borrow fee into a dedicated wallet
     token::transfer(accounts.as_pay_borrow_fee_context(), repaid_borrow_fee)?;
@@ -196,6 +224,8 @@ pub fn handle(
     // we don't need to check that the position is healthy, because the user
     // won't be able to withdraw unless the position is healthy, and if it's
     // not healthy then they get liquidated
+    //
+    // so the collateral covers all the stable coin
     Ok(())
 }
 
