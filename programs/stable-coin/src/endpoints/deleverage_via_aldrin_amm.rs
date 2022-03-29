@@ -13,31 +13,38 @@ pub struct DeleverageViaAldrinAmm<'info> {
             @ err::stable_coin_mint_mismatch(),
     )]
     pub stable_coin: Box<Account<'info, StableCoin>>,
+    /// We need to mutate the allowance in the config.
     #[account(mut)]
     pub component: Box<Account<'info, Component>>,
+    /// Used to transfer tokens from the component to the borrower's wallet.
     #[account(
         seeds = [component.key().as_ref()],
         bump = component_bump_seed,
     )]
     pub component_pda: AccountInfo<'info>,
+    /// The borrower repays what's owed in interest here.
     #[account(
         mut,
         constraint = interest_wallet.key() == component.interest_wallet
             @ err::acc("Interest wallet must match component's config"),
     )]
     pub interest_wallet: AccountInfo<'info>,
+    /// The borrower repays what's owed in borrow fees here.
     #[account(
         mut,
         constraint = borrow_fee_wallet.key() == component.borrow_fee_wallet
             @ err::acc("Borrow fee wallet must match component's config"),
     )]
     pub borrow_fee_wallet: AccountInfo<'info>,
+    /// We transfer given amount of collateral from here to the borrower's
+    /// wallet.
     #[account(
         mut,
         constraint = freeze_wallet.key() == component.freeze_wallet
             @ err::freeze_wallet_mismatch(),
     )]
     pub freeze_wallet: AccountInfo<'info>,
+    /// Needs to be mutable because we burn tokens.
     #[account(mut)]
     pub stable_coin_mint: AccountInfo<'info>,
     #[account(
@@ -48,12 +55,20 @@ pub struct DeleverageViaAldrinAmm<'info> {
             @ err::acc("Receipt's borrower doesn't match"),
     )]
     pub receipt: Box<Account<'info, Receipt>>,
-    #[account(mut)]
-    pub borrower_stable_coin_wallet: Box<Account<'info, TokenAccount>>,
-    #[account(mut)]
-    pub borrower_intermediary_wallet: Box<Account<'info, TokenAccount>>,
+    /// We transfer from freeze wallet to this wallet, and then do the swap
+    /// from collateral to intermediary. The user doesn't end up with any more
+    /// tokens in this wallet.
     #[account(mut)]
     pub borrower_collateral_wallet: AccountInfo<'info>,
+    /// The borrower might end up with more stable coin than they started with
+    /// if the collateral value is higher than the borrowed amount.
+    #[account(mut)]
+    pub borrower_stable_coin_wallet: Box<Account<'info, TokenAccount>>,
+    /// We swap collateral to intermediary token and all those tokens are again
+    /// swapped into collateral. So in the end, no extra tokens are left in
+    /// this wallet.
+    #[account(mut)]
+    pub borrower_intermediary_wallet: Box<Account<'info, TokenAccount>>,
     // -------------- AMM Accounts ----------------
     #[account(
         executable,
@@ -61,6 +76,7 @@ pub struct DeleverageViaAldrinAmm<'info> {
             @ err::aldrin_amm_program_mismatch(),
     )]
     pub amm_program: AccountInfo<'info>,
+    /// Collateral into intermediary swap
     pub pool_1: AccountInfo<'info>,
     pub pool_signer_1: AccountInfo<'info>,
     #[account(mut)]
@@ -71,6 +87,7 @@ pub struct DeleverageViaAldrinAmm<'info> {
     pub quote_token_vault_1: AccountInfo<'info>,
     #[account(mut)]
     pub fee_pool_wallet_1: AccountInfo<'info>,
+    /// Intermediary into stable coin swap
     pub pool_2: AccountInfo<'info>,
     pub pool_signer_2: AccountInfo<'info>,
     #[account(mut)]
@@ -101,7 +118,11 @@ pub fn handle(
     )?;
 
     if accounts.receipt.collateral_amount < collateral_amount {
-        // TOOD: err
+        msg!(
+            "Cannot deleverage more than {} collateral",
+            accounts.receipt.collateral_amount
+        );
+        return Err(ErrorCode::InvalidAmount.into());
     }
 
     let initial_borrower_intermediary =
