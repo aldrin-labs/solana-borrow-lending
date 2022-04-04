@@ -23,12 +23,12 @@
 //! will repay the loan if there's something extra, it will stay in the caller's
 //! wallets.
 
-use super::{RedeemBasket, SwapCpi, UnstakeCpi};
 use crate::prelude::*;
 use anchor_lang::solana_program::{
     instruction::Instruction, program::invoke_signed,
 };
 use anchor_spl::token::{self, Token, TokenAccount};
+use cpis::aldrin::{RedeemBasket, SwapCpi, UnstakeCpi};
 use models::aldrin_amm::Side;
 
 #[derive(Accounts)]
@@ -201,7 +201,7 @@ pub fn handle(
         SwapCpi::from(&accounts).swap(
             tokens_to_swap,
             min_swap_return,
-            !side,
+            !side.is_ask(),
         )?;
     }
 
@@ -371,9 +371,9 @@ impl<'info> From<&&mut CloseLeveragedPositionOnAldrin<'info>>
             fee_pool_wallet: a.fee_pool_wallet.to_account_info(),
             base_token_vault: a.base_token_vault.to_account_info(),
             quote_token_vault: a.quote_token_vault.to_account_info(),
-            borrower_base_wallet: a.caller_base_wallet.to_account_info(),
-            borrower_quote_wallet: a.caller_quote_wallet.to_account_info(),
-            borrower: a.caller.to_account_info(),
+            user_base_wallet: a.caller_base_wallet.to_account_info(),
+            user_quote_wallet: a.caller_quote_wallet.to_account_info(),
+            user: a.caller.to_account_info(),
             token_program: a.token_program.to_account_info(),
         }
     }

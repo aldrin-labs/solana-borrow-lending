@@ -39,28 +39,25 @@ impl PartialEq for Error {
     }
 }
 
-/// Try to subtract, return an error on underflow
 pub trait TrySub: Sized {
-    /// Subtract
     fn try_sub(self, rhs: Self) -> Result<Self>;
 }
 
-/// Try to subtract, return an error on overflow
 pub trait TryAdd: Sized {
-    /// Add
     fn try_add(self, rhs: Self) -> Result<Self>;
 }
 
-/// Try to divide, return an error on overflow or divide by zero
 pub trait TryDiv<RHS>: Sized {
-    /// Divide
     fn try_div(self, rhs: RHS) -> Result<Self>;
 }
 
-/// Try to multiply, return an error on overflow
 pub trait TryMul<RHS>: Sized {
-    /// Multiply
     fn try_mul(self, rhs: RHS) -> Result<Self>;
+}
+
+pub trait TryPow<RHS>: Sized {
+    /// self^rhs
+    fn try_pow(self, rhs: RHS) -> Result<Self>;
 }
 
 mod custom_u192 {
@@ -138,23 +135,6 @@ impl Decimal {
             .checked_div(Self::wad())
             .ok_or(ErrorCode::MathOverflow)?;
         Ok(u64::try_from(ceil_val).map_err(|_| ErrorCode::MathOverflow)?)
-    }
-
-    /// Calculates base^exp
-    pub fn try_pow(&self, mut exp: u64) -> Result<Self> {
-        let mut base = *self;
-        let mut ret = if exp % 2 != 0 { base } else { Self::one() };
-
-        while exp > 0 {
-            exp /= 2;
-            base = base.try_mul(base)?;
-
-            if exp % 2 != 0 {
-                ret = ret.try_mul(base)?;
-            }
-        }
-
-        Ok(ret)
     }
 }
 
@@ -243,6 +223,25 @@ impl TryMul<Decimal> for Decimal {
                 .checked_div(Self::wad())
                 .ok_or(ErrorCode::MathOverflow)?,
         ))
+    }
+}
+
+impl TryPow<u64> for Decimal {
+    /// Calculates base^exp
+    fn try_pow(self, mut exp: u64) -> Result<Self> {
+        let mut base = self;
+        let mut ret = if exp % 2 != 0 { base } else { Self::one() };
+
+        while exp > 0 {
+            exp /= 2;
+            base = base.try_mul(base)?;
+
+            if exp % 2 != 0 {
+                ret = ret.try_mul(base)?;
+            }
+        }
+
+        Ok(ret)
     }
 }
 

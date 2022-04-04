@@ -11,6 +11,7 @@ import { AMM_FEE_OWNER } from "./consts";
 import { LendingMarket } from "./lending-market";
 import { Reserve } from "./reserve";
 import { createEmptyAccount, waitForCommit } from "./helpers";
+import { TokenWrapper } from "./token-wrapper";
 
 export interface AmmPoolAccounts {
   keypair: Keypair;
@@ -37,8 +38,8 @@ export class AmmPool {
   private constructor(
     public amm: Program<any>,
     public market: LendingMarket,
-    public baseReserve: Reserve,
-    public quoteReserve: Reserve,
+    public baseToken: TokenWrapper,
+    public quoteToken: TokenWrapper,
     public accounts: AmmPoolAccounts
   ) {
     //
@@ -48,8 +49,8 @@ export class AmmPool {
     amm: Program<any>,
     market: LendingMarket,
     poolAuthority: Keypair,
-    baseReserve: Reserve,
-    quoteReserve: Reserve
+    baseToken: TokenWrapper,
+    quoteToken: TokenWrapper
   ): Promise<AmmPool> {
     const poolKeypair = Keypair.generate();
     const farmingState = Keypair.generate();
@@ -69,17 +70,10 @@ export class AmmPool {
 
     const lpWallet = await poolMint.createAccount(market.owner.publicKey);
     const lpTokenFreeze = await poolMint.createAccount(vaultSigner);
-    const vaultBase = await baseReserve.accounts.liquidityMint.createAccount(
-      vaultSigner
-    );
-    const vaultQuote = await quoteReserve.accounts.liquidityMint.createAccount(
-      vaultSigner
-    );
-    const feeVaultBase = await baseReserve.accounts.liquidityMint.createAccount(
-      AMM_FEE_OWNER
-    );
-    const feeVaultQuote =
-      await quoteReserve.accounts.liquidityMint.createAccount(AMM_FEE_OWNER);
+    const vaultBase = await baseToken.createWallet(vaultSigner);
+    const vaultQuote = await quoteToken.createWallet(vaultSigner);
+    const feeVaultBase = await baseToken.createWallet(AMM_FEE_OWNER);
+    const feeVaultQuote = await quoteToken.createWallet(AMM_FEE_OWNER);
     const feeWallet = await poolMint.createAccount(market.owner.publicKey);
 
     // required by the AMM constraints
@@ -100,7 +94,7 @@ export class AmmPool {
 
     await amm.rpc.initialize(new BN(vaultSignerNonce), {
       accounts: {
-        baseTokenMint: baseReserve.accounts.liquidityMint.publicKey,
+        baseTokenMint: baseToken.id,
         baseTokenVault: vaultBase,
         feeBaseAccount: feeVaultBase,
         feePoolTokenAccount: feeWallet,
@@ -111,7 +105,7 @@ export class AmmPool {
         poolAuthority: poolAuthority.publicKey,
         poolMint: poolMintKey,
         poolSigner: vaultSigner,
-        quoteTokenMint: quoteReserve.accounts.liquidityMint.publicKey,
+        quoteTokenMint: quoteToken.id,
         quoteTokenVault: vaultQuote,
         rent: SYSVAR_RENT_PUBKEY,
         tokenProgram: TOKEN_PROGRAM_ID,
@@ -121,24 +115,10 @@ export class AmmPool {
     });
 
     // airdrop some liquidity
-    const quoteWallet = await quoteReserve.accounts.liquidityMint.createAccount(
-      market.owner.publicKey
-    );
-    await quoteReserve.accounts.liquidityMint.mintTo(
-      quoteWallet,
-      quoteReserve.accounts.liquidityMintAuthority,
-      [],
-      110_000
-    );
-    const baseWallet = await baseReserve.accounts.liquidityMint.createAccount(
-      market.owner.publicKey
-    );
-    await baseReserve.accounts.liquidityMint.mintTo(
-      baseWallet,
-      baseReserve.accounts.liquidityMintAuthority,
-      [],
-      110_000
-    );
+    const quoteWallet = await quoteToken.createWallet(market.owner.publicKey);
+    await quoteToken.airdrop(quoteWallet, 110_000);
+    const baseWallet = await baseToken.createWallet(market.owner.publicKey);
+    await baseToken.airdrop(baseWallet, 110_000);
     // and deposit it
     await amm.rpc.createBasket(
       new BN(100_000),
@@ -163,7 +143,7 @@ export class AmmPool {
       }
     );
 
-    return new AmmPool(amm, market, baseReserve, quoteReserve, {
+    return new AmmPool(amm, market, baseToken, quoteToken, {
       keypair: poolKeypair,
       vaultSigner,
       mint: poolMint,
@@ -209,31 +189,24 @@ const FARMING_PERIOD_LENGTH_SECS = 1;
 export class AmmFarm {
   private constructor(
     public ammPool: AmmPool,
-    public farmingReserve: Reserve,
+    public farmingToken: TokenWrapper,
     public accounts: AmmFarmAccounts
   ) {
     //
   }
 
-  public static async init(ammPool: AmmPool, farmingReserve: Reserve) {
+  public static async init(ammPool: AmmPool, farmingToken: TokenWrapper) {
     const snapshots = Keypair.generate();
 
-    const farmingWallet =
-      await farmingReserve.accounts.liquidityMint.createAccount(
-        ammPool.market.owner.publicKey
-      );
-    await farmingReserve.accounts.liquidityMint.mintTo(
-      farmingWallet,
-      farmingReserve.accounts.liquidityMintAuthority,
-      [],
-      100_000
+    const farmingWallet = await farmingToken.createWallet(
+      ammPool.market.owner.publicKey
     );
+    await farmingToken.airdrop(farmingWallet, 100_000);
 
     // and now init farming for this pool
-    const farmTokenVault =
-      await farmingReserve.accounts.liquidityMint.createAccount(
-        ammPool.accounts.vaultSigner
-      );
+    const farmTokenVault = await farmingToken.createWallet(
+      ammPool.accounts.vaultSigner
+    );
     const tokenAmount = new BN(10000);
     const tokensPerPeriod = new BN(5);
     const periodLength = new BN(FARMING_PERIOD_LENGTH_SECS);
@@ -272,7 +245,7 @@ export class AmmFarm {
       }
     );
 
-    return new AmmFarm(ammPool, farmingReserve, {
+    return new AmmFarm(ammPool, farmingToken, {
       state: ammPool.accounts.farmingState.publicKey,
       tokenVault: farmTokenVault,
       snapshots: snapshots.publicKey,
@@ -280,7 +253,7 @@ export class AmmFarm {
   }
 
   public get mint() {
-    return this.farmingReserve.accounts.liquidityMint;
+    return this.farmingToken.mint;
   }
 
   public async calculateFarmed(

@@ -1,8 +1,10 @@
 import { Keypair, PublicKey, SYSVAR_CLOCK_PUBKEY } from "@solana/web3.js";
 import { Component } from "./component";
 import { BN } from "@project-serum/anchor";
-import { globalContainer } from "./globalContainer";
+import { globalContainer } from "./global-container";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { numberToU192 } from "./helpers";
+import { AmmPool } from "./amm-pool";
 
 export class Receipt {
   private constructor(
@@ -109,6 +111,8 @@ export class Receipt {
         borrowerStableCoinWallet,
         stableCoin: this.component.usp.id,
         stableCoinMint: this.component.usp.mint.publicKey,
+        interestWallet: this.component.accounts.interestWallet,
+        borrowFeeWallet: this.component.accounts.borrowFeeWallet,
         tokenProgram: TOKEN_PROGRAM_ID,
         clock: SYSVAR_CLOCK_PUBKEY,
       },
@@ -133,7 +137,9 @@ export class Receipt {
           component: this.component.id,
           componentPda: this.component.pda,
           reserve: this.component.accounts.reserve.id,
-          feeWallet: this.component.accounts.feeWallet,
+          liquidationFeeWallet: this.component.accounts.liquidationFeeWallet,
+          interestWallet: this.component.accounts.interestWallet,
+          borrowFeeWallet: this.component.accounts.borrowFeeWallet,
           freezeWallet: this.component.accounts.freezeWallet,
           receipt: this.id,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -141,6 +147,104 @@ export class Receipt {
         },
         preInstructions: [this.component.accounts.reserve.refreshInstruction()],
         signers: [liquidator],
+      }
+    );
+  }
+
+  public async leverageViaAldrinAmm(
+    uspIntermediaryPool: AmmPool,
+    intermediaryCollateralPool: AmmPool,
+    borrowerStableCoinWallet: PublicKey,
+    borrowerCollateralWallet: PublicKey,
+    borrowerIntermediaryWallet: PublicKey,
+    collateralRatio: number,
+    initialStableCoinAmount: number
+  ) {
+    await this.component.usp.scp.rpc.leverageViaAldrinAmm(
+      this.component.usp.bumpSeed,
+      { u192: numberToU192(collateralRatio) },
+      new BN(initialStableCoinAmount),
+      new BN(0), // TODO: test slippage
+      new BN(0), // TODO: test slippage
+      {
+        accounts: {
+          borrower: this.borrower.publicKey,
+          stableCoin: this.component.usp.id,
+          component: this.component.id,
+          stableCoinMint: this.component.usp.mint.publicKey,
+          stableCoinPda: this.component.usp.pda,
+          reserve: this.component.accounts.reserve.id,
+          freezeWallet: this.component.accounts.freezeWallet,
+          receipt: this.id,
+          borrowerStableCoinWallet,
+          borrowerCollateralWallet,
+          borrowerIntermediaryWallet,
+          ammProgram: globalContainer.amm.programId,
+          pool1: uspIntermediaryPool.id,
+          poolSigner1: uspIntermediaryPool.accounts.vaultSigner,
+          poolMint1: uspIntermediaryPool.accounts.mint.publicKey,
+          baseTokenVault1: uspIntermediaryPool.accounts.vaultBase,
+          quoteTokenVault1: uspIntermediaryPool.accounts.vaultQuote,
+          feePoolWallet1: uspIntermediaryPool.accounts.feeWallet,
+          pool2: intermediaryCollateralPool.id,
+          poolSigner2: intermediaryCollateralPool.accounts.vaultSigner,
+          poolMint2: intermediaryCollateralPool.accounts.mint.publicKey,
+          baseTokenVault2: intermediaryCollateralPool.accounts.vaultBase,
+          quoteTokenVault2: intermediaryCollateralPool.accounts.vaultQuote,
+          feePoolWallet2: intermediaryCollateralPool.accounts.feeWallet,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          clock: SYSVAR_CLOCK_PUBKEY,
+        },
+        preInstructions: [this.component.accounts.reserve.refreshInstruction()],
+        signers: [this.borrower],
+      }
+    );
+  }
+
+  public async deleverageViaAldrinAmm(
+    collateralIntermediaryPool: AmmPool,
+    intermediaryUspPool: AmmPool,
+    borrowerStableCoinWallet: PublicKey,
+    borrowerCollateralWallet: PublicKey,
+    borrowerIntermediaryWallet: PublicKey,
+    collateralAmount: number
+  ) {
+    await this.component.usp.scp.rpc.deleverageViaAldrinAmm(
+      this.component.bumpSeed,
+      new BN(collateralAmount),
+      new BN(0), // TODO: test slippage
+      new BN(0), // TODO: test slippage
+      {
+        accounts: {
+          borrower: this.borrower.publicKey,
+          stableCoin: this.component.usp.id,
+          component: this.component.id,
+          componentPda: this.component.pda,
+          stableCoinMint: this.component.usp.mint.publicKey,
+          freezeWallet: this.component.accounts.freezeWallet,
+          interestWallet: this.component.accounts.interestWallet,
+          borrowFeeWallet: this.component.accounts.borrowFeeWallet,
+          receipt: this.id,
+          borrowerStableCoinWallet,
+          borrowerCollateralWallet,
+          borrowerIntermediaryWallet,
+          ammProgram: globalContainer.amm.programId,
+          pool1: collateralIntermediaryPool.id,
+          poolSigner1: collateralIntermediaryPool.accounts.vaultSigner,
+          poolMint1: collateralIntermediaryPool.accounts.mint.publicKey,
+          baseTokenVault1: collateralIntermediaryPool.accounts.vaultBase,
+          quoteTokenVault1: collateralIntermediaryPool.accounts.vaultQuote,
+          feePoolWallet1: collateralIntermediaryPool.accounts.feeWallet,
+          pool2: intermediaryUspPool.id,
+          poolSigner2: intermediaryUspPool.accounts.vaultSigner,
+          poolMint2: intermediaryUspPool.accounts.mint.publicKey,
+          baseTokenVault2: intermediaryUspPool.accounts.vaultBase,
+          quoteTokenVault2: intermediaryUspPool.accounts.vaultQuote,
+          feePoolWallet2: intermediaryUspPool.accounts.feeWallet,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          clock: SYSVAR_CLOCK_PUBKEY,
+        },
+        signers: [this.borrower],
       }
     );
   }

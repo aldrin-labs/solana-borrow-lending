@@ -7,6 +7,8 @@ pub struct StableCoin {
     /// The signer of admin-only instructions such as adding or editing
     /// components must have this pubkey.
     pub admin: Pubkey,
+    /// The AMM program which allows us to swap tokens
+    pub aldrin_amm: Pubkey,
     pub _padding: [u64; 128],
 }
 

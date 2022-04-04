@@ -26,9 +26,9 @@
 //! With leverage of 3x the user's collateral covers only 100/3 SOL. Leverage
 //! 3x is 300%.
 
-use super::{GetLpTokensCpi, Side, StakeCpi, SwapCpi};
 use crate::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount};
+use cpis::aldrin::{GetLpTokensCpi, StakeCpi, SwapCpi};
 
 /// Contains market pubkey, obligation pubkey, reserve pubkey, leverage and bump
 /// seed.
@@ -160,7 +160,7 @@ pub fn handle(
     let borrower_initial_quote_amount = accounts.borrower_quote_wallet.amount;
     let borrower_initial_lp_amount = accounts.borrower_lp_wallet.amount;
 
-    let side = Side::try_from(
+    let side = aldrin_amm::Side::try_from(
         &accounts.reserve,
         &accounts.base_token_vault,
         &accounts.quote_token_vault,
@@ -250,7 +250,11 @@ pub fn handle(
         }
 
         // ~50k CU
-        SwapCpi::from(&accounts).swap(swap_amount, min_swap_return, side)?;
+        SwapCpi::from(&accounts).swap(
+            swap_amount,
+            min_swap_return,
+            side.is_ask(),
+        )?;
     }
 
     // refresh because upcoming logic depends on the latest amounts in the
@@ -318,8 +322,8 @@ impl<'info> From<&&mut OpenLeveragedPositionOnAldrin<'info>>
             farming_state: a.farming_state.to_account_info(),
             farming_ticket: a.farming_ticket.to_account_info(),
             lp_token_freeze_vault: a.lp_token_freeze_vault.to_account_info(),
-            borrower_lp_wallet: a.borrower_lp_wallet.to_account_info(),
-            borrower: a.borrower.to_account_info(),
+            user_lp_wallet: a.borrower_lp_wallet.to_account_info(),
+            user: a.borrower.to_account_info(),
             market_obligation_pda: a.market_obligation_pda.to_account_info(),
             token_program: a.token_program.to_account_info(),
             clock: a.clock.to_account_info(),
@@ -340,9 +344,9 @@ impl<'info> From<&&mut OpenLeveragedPositionOnAldrin<'info>>
             fee_pool_wallet: a.fee_pool_wallet.to_account_info(),
             base_token_vault: a.base_token_vault.to_account_info(),
             quote_token_vault: a.quote_token_vault.to_account_info(),
-            borrower_base_wallet: a.borrower_base_wallet.to_account_info(),
-            borrower_quote_wallet: a.borrower_quote_wallet.to_account_info(),
-            borrower: a.borrower.to_account_info(),
+            user_base_wallet: a.borrower_base_wallet.to_account_info(),
+            user_quote_wallet: a.borrower_quote_wallet.to_account_info(),
+            user: a.borrower.to_account_info(),
             token_program: a.token_program.to_account_info(),
         }
     }
@@ -357,12 +361,12 @@ impl<'info> From<&&mut OpenLeveragedPositionOnAldrin<'info>>
             pool: a.pool.to_account_info(),
             pool_signer: a.pool_signer.to_account_info(),
             pool_mint: a.pool_mint.to_account_info(),
-            borrower_lp_wallet: a.borrower_lp_wallet.to_account_info(),
+            user_lp_wallet: a.borrower_lp_wallet.to_account_info(),
             base_token_vault: a.base_token_vault.to_account_info(),
             quote_token_vault: a.quote_token_vault.to_account_info(),
-            borrower_base_wallet: a.borrower_base_wallet.to_account_info(),
-            borrower_quote_wallet: a.borrower_quote_wallet.to_account_info(),
-            borrower: a.borrower.to_account_info(),
+            user_base_wallet: a.borrower_base_wallet.to_account_info(),
+            user_quote_wallet: a.borrower_quote_wallet.to_account_info(),
+            user: a.borrower.to_account_info(),
             token_program: a.token_program.to_account_info(),
             clock: a.clock.to_account_info(),
             rent: a.rent.to_account_info(),
@@ -373,11 +377,11 @@ impl<'info> From<&&mut OpenLeveragedPositionOnAldrin<'info>>
 impl<'info> OpenLeveragedPositionOnAldrin<'info> {
     fn as_borrow_liquidity_context(
         &self,
-        side: Side,
+        side: aldrin_amm::Side,
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
         let cpi_accounts = token::Transfer {
             from: self.reserve_liquidity_wallet.clone(),
-            to: if matches!(side, Side::Ask) {
+            to: if matches!(side, aldrin_amm::Side::Ask) {
                 self.borrower_base_wallet.to_account_info()
             } else {
                 self.borrower_quote_wallet.to_account_info()

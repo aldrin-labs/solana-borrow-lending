@@ -37,12 +37,26 @@ pub struct InitComponent<'info> {
     )]
     pub freeze_wallet: Account<'info, TokenAccount>,
     #[account(
-        constraint = fee_wallet.mint == mint.key()
-            @ err::acc("Fee wallet mint must match component mint"),
-        constraint = fee_wallet.close_authority.is_none()
-            @ err::acc("Fee wallet mustn't have a close authority"),
+        constraint = liquidation_fee_wallet.mint == mint.key()
+            @ err::acc("Liq. fee wallet mint must match component mint"),
+        constraint = liquidation_fee_wallet.close_authority.is_none()
+            @ err::acc("Liq. fee wallet mustn't have a close authority"),
     )]
-    pub fee_wallet: Account<'info, TokenAccount>,
+    pub liquidation_fee_wallet: Account<'info, TokenAccount>,
+    #[account(
+        constraint = borrow_fee_wallet.mint == stable_coin.mint
+            @ err::acc("Borrow fee wallet mint must match stable coin mint"),
+        constraint = borrow_fee_wallet.close_authority.is_none()
+            @ err::acc("Borrow fee wallet mustn't have a close authority"),
+    )]
+    pub borrow_fee_wallet: Account<'info, TokenAccount>,
+    #[account(
+        constraint = interest_wallet.mint == stable_coin.mint
+            @ err::acc("Interest fee wallet mint must match stable coin mint"),
+        constraint = interest_wallet.close_authority.is_none()
+            @ err::acc("Interest fee wallet mustn't have a close authority"),
+    )]
+    pub interest_wallet: Account<'info, TokenAccount>,
     /// The owner of wallets associated with this component.
     #[account(
         seeds = [component.to_account_info().key.as_ref()],
@@ -65,7 +79,10 @@ pub fn handle(
     accounts.component.freeze_wallet = accounts.freeze_wallet.key();
     accounts.component.mint = accounts.mint.key();
     accounts.component.decimals = accounts.mint.decimals;
-    accounts.component.fee_wallet = accounts.fee_wallet.key();
+    accounts.component.liquidation_fee_wallet =
+        accounts.liquidation_fee_wallet.key();
+    accounts.component.borrow_fee_wallet = accounts.borrow_fee_wallet.key();
+    accounts.component.interest_wallet = accounts.interest_wallet.key();
     accounts.component.stable_coin = accounts.stable_coin.key();
 
     Ok(())

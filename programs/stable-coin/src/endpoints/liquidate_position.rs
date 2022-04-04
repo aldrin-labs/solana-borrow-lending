@@ -24,8 +24,6 @@ pub struct LiquidatePosition<'info> {
         mut,
         constraint = freeze_wallet.key() == component.freeze_wallet
             @ err::freeze_wallet_mismatch(),
-        constraint = fee_wallet.key() == component.fee_wallet
-            @ err::fee_wallet_mismatch(),
     )]
     pub component: Box<Account<'info, Component>>,
     /// Authorizes transfer from freeze wallet.
@@ -44,8 +42,28 @@ pub struct LiquidatePosition<'info> {
     /// Gives user's collateral away to liquidator at a discount price.
     #[account(mut)]
     pub freeze_wallet: AccountInfo<'info>,
-    #[account(mut)]
-    pub fee_wallet: AccountInfo<'info>,
+    /// We store collateral tokens which are taken from liquidators bonus as
+    /// admin fee.
+    #[account(
+        mut,
+        constraint = liquidation_fee_wallet.key() == component.liquidation_fee_wallet
+            @ err::acc("Liq. fee wallet must match component's config"),
+    )]
+    pub liquidation_fee_wallet: AccountInfo<'info>,
+    /// Whatever has been repaid as interest goes here.
+    #[account(
+        mut,
+        constraint = interest_wallet.key() == component.interest_wallet
+            @ err::acc("Interest wallet must match component's config"),
+    )]
+    pub interest_wallet: AccountInfo<'info>,
+    /// Whatever has been repaid as borrow fee goes here.
+    #[account(
+        mut,
+        constraint = borrow_fee_wallet.key() == component.borrow_fee_wallet
+            @ err::acc("Borrow fee wallet must match component's config"),
+    )]
+    pub borrow_fee_wallet: AccountInfo<'info>,
     #[account(
         mut,
         constraint = receipt.component == component.key()
@@ -73,19 +91,26 @@ pub fn handle(
         .component
         .smallest_unit_market_price(&accounts.reserve)?;
     let Liquidate {
-        stable_coin_tokens_to_burn,
+        repaid_shares,
         liquidator_collateral_tokens,
         platform_collateral_tokens,
     } = accounts.receipt.liquidate(
-        &accounts.component.config,
+        &mut accounts.component.config,
         accounts.clock.slot,
         token_market_price,
     )?;
+    let RepaidShares {
+        repaid_borrow_fee,
+        repaid_interest,
+        repaid_borrow,
+    } = repaid_shares;
 
-    token::burn(
-        accounts.as_burn_stable_coin_context(),
-        stable_coin_tokens_to_burn,
-    )?;
+    // burn the tokens that were minted for the loan
+    token::burn(accounts.as_burn_stable_coin_context(), repaid_borrow)?;
+    // pay borrow fee into a dedicated admin's wallet
+    token::transfer(accounts.as_pay_borrow_fee_context(), repaid_borrow_fee)?;
+    // pay interest into a dedicated admin's wallet
+    token::transfer(accounts.as_pay_interest_context(), repaid_interest)?;
 
     // pay liquidator
     let pda_seeds = &[
@@ -98,7 +123,6 @@ pub fn handle(
             .with_signer(&[&pda_seeds[..]]),
         liquidator_collateral_tokens,
     )?;
-
     // pay fee to stable coin's admin
     let pda_seeds = &[
         &accounts.component.key().to_bytes()[..],
@@ -106,7 +130,7 @@ pub fn handle(
     ];
     token::transfer(
         accounts
-            .as_claim_discounted_collateral_context()
+            .as_pay_liquidation_fee_context()
             .with_signer(&[&pda_seeds[..]]),
         platform_collateral_tokens,
     )?;
@@ -144,8 +168,32 @@ impl<'info> LiquidatePosition<'info> {
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
         let cpi_accounts = token::Transfer {
             from: self.freeze_wallet.clone(),
-            to: self.fee_wallet.clone(),
+            to: self.liquidation_fee_wallet.clone(),
             authority: self.component_pda.clone(),
+        };
+        let cpi_program = self.token_program.to_account_info();
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+
+    pub fn as_pay_borrow_fee_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
+        let cpi_accounts = token::Transfer {
+            from: self.liquidator_stable_coin_wallet.clone(),
+            to: self.borrow_fee_wallet.to_account_info(),
+            authority: self.liquidator.to_account_info(),
+        };
+        let cpi_program = self.token_program.to_account_info();
+        CpiContext::new(cpi_program, cpi_accounts)
+    }
+
+    pub fn as_pay_interest_context(
+        &self,
+    ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
+        let cpi_accounts = token::Transfer {
+            from: self.liquidator_stable_coin_wallet.to_account_info(),
+            to: self.interest_wallet.to_account_info(),
+            authority: self.liquidator.to_account_info(),
         };
         let cpi_program = self.token_program.to_account_info();
         CpiContext::new(cpi_program, cpi_accounts)
