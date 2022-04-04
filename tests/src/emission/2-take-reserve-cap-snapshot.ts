@@ -6,7 +6,7 @@ import { LendingMarket } from "../lending-market";
 import { expect } from "chai";
 import { Obligation } from "../obligation";
 import { ONE_WAD, u192ToBN } from "../helpers";
-import { globalContainer } from "../globalContainer";
+import { globalContainer } from "../global-container";
 
 export function test(owner: Keypair) {
   const program: Program<BorrowLending> = globalContainer.blp;

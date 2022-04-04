@@ -1,6 +1,6 @@
 [package]
 name = "stable-coin"
-version = "0.1.0"
+version = "0.3.0"
 description = ""
 edition = "2018"
 
@@ -19,8 +19,9 @@ default = []
 anchor-lang = "0.21"
 anchor-spl = "0.21"
 borrow-lending = { path = "../borrow-lending", features = ["no-entrypoint"] }
-uint = "0.9"
+cpis = { path = "../../cpis" }
 decimal = { path = "../../decimal" }
+uint = "0.9"
 
 [dev-dependencies]
 proptest = "1.0"

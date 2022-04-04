@@ -10,7 +10,7 @@ import {
 import { LendingMarket } from "../lending-market";
 import { Obligation } from "../obligation";
 import { Reserve } from "../reserve";
-import { globalContainer } from "../globalContainer";
+import { globalContainer } from "../global-container";
 
 export function test(owner: Keypair) {
   const program: Program<BorrowLending> = globalContainer.blp;

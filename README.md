@@ -1,8 +1,13 @@
-* [Code coverage][project-code-coverage]
-* [Rust docs][project-rust-docs]
-* [Changelog][project-changelog]
 * Solana v1.7.17
 * Anchor v0.21.0
+* [Code coverage][project-code-coverage]
+* [Rust docs][project-rust-docs]
+* [USP docs](#usp)
+* [USP changelog][scp-changelog]
+* [BLp docs](#borrow-lending)
+* [BLp changelog][blp-changelog]
+
+# Borrow-lending
 
 A lending platform is a tool where users lend and borrow tokens. A user either
 gets an interest on lent tokens or they get a loan and pay interest.
@@ -16,7 +21,7 @@ gets an interest on lent tokens or they get a loan and pay interest.
   150% of their funded value as another tokens. The borrowing interest rate for
   each token is always higher than the lending interest rate.
 
-## Example use case
+### Example use case
 Let's say Jimmy needs $3,000 for an emergency. He already has $6,000 in ETH.
 Jimmy could use his ETH as collateral to borrow a stablecoin like USDC, that
 way he can count on the value of his borrowed asset to be more stable when he
@@ -392,7 +397,91 @@ generous refresh there. That is because the funds never reach the user, but at
 the same time we are limited by the transaction size and cannot provide many
 additional accounts.
 
-### Equations
+
+
+# USP
+
+<details>
+<summary markdown="span">
+Diagram illustrating endpoints-accounts relationships
+</summary>
+
+![Overview of endpoints](docs/stable_coin_endpoints_accounts_relationship.png)
+
+</details>
+
+The admin inits new stable coin and then inits components, which are a way to
+represent different token mints. A component is associated with BLp's reserve.
+This allows us to use the oracle implementation from BLp without having to use
+any of the oracle code. Another advantage is that we can use BLp's reserve
+collateral mint for a component. It will be calculated with the exchange ratio
+method on the reserve account.
+
+A user first creates their own receipt for each different type of collateral
+(component) they want to use to mint the stable coin. Then they deposit their
+tokens into the program, them being transferred to a freeze wallet and the
+receipt's collateral amount, and thereby allowance, increased.
+
+User can borrow stable coin. The endpoint mints provided amount so long as the
+receipt stays _healthy_, ie. the collateral market value scaled down by max
+collateral ratio is larger than the loan.
+
+Borrow fee is added and the whole amount undergoes interest accrual. The
+interest is static and APR, that's why we store borrowed amount and interest
+amount separately.
+
+The user can then repay stable coin. The endpoint burns USP from user's wallet.
+If partial repay is done, we first repay the interest and then the borrowed
+amount.
+
+In the end, the user can withdraw collateral as long as the receipt remains
+healthy.
+
+
+## Liquidation
+
+The liquidator must liquidate the whole position at once, at the moment we
+don't offer partial liquidation. The provide the program with USP, which is
+burned, and in return receive collateral at a discounted market price. Part of
+this additional collateral is transferred to a fee wallet owned by the admin.
+
+### Example
+Say a SOL component's receipt has deposited 4 SOL. Market price of SOL is $100.
+The max collateral ratio is 90%. The user has borrowed $120 when the SOL market
+price was more favorable. Now, their position is unhealthy.
+
+The discounted market price is $87.5 (ie. liquidation bonus is 12.5%). The
+position will be deducted $120/$87.5 ~= 1.37 SOL. Without the discount this
+would be 1.2 SOL. The liquidator "wins" ~0.17 SOL. However, they must pay a
+platform fee on this.
+
+The liquidation acts as a repayment of sorts. At the end, the receipt will
+contain ~2.63 SOL, the liquidator receives 0.153 SOL and the platform (us)
+0.017 SOL (ie. liquidation fee is 10%).
+
+## Leverage
+We have action for following otherwise laborious process:
+1. user deposits collateral
+2. user borrows USP
+3. user swaps USP into USDC
+4. user swaps USDC into collateral
+5. user goes back to step 1.
+
+The process above can be repeated by the user several times, depending on
+what's the maximum collateral ratio for the component. The
+`leverage_via_aldrin_amm` endpoint calculates how much USP would be minted for
+how much collateral, and performs all of the above in a single instruction.
+
+The user gives us collateral ratio at which they want to perform this
+operation, where maximum they can provide is the maximum set in the component's
+config. The closer to the configured maximum, the higher is the risk of
+liquidation for the user. Second argument is the initial amount. The user must
+already have deposited enough collateral to cover the initial amount. The user
+also provides slippage information for both swaps.
+
+
+
+# Equations
 Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
 
 | Symbol       | Description |
@@ -422,9 +511,11 @@ Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
 | $`V_{maxw}`$ | maximum withdrawable UAC value |
 | $`V_{maxb}`$ | maximum borrowable UAC value (against deposited collateral) |
 | $`E`$        | emission tokens which a user can claim |
-| $`\omega`$      | emitted tokens per slot |
+| $`\omega`$   | emitted tokens per slot |
 | $`\kappa`$   | constant liquidity close factor |
 | $`\epsilon`$ | liquidation threshold in \[0; 1) |
+| $`\PHI`$     | leverage |
+
 
 ⌐
 
@@ -548,9 +639,19 @@ E = \omega^{s} S_e \dfrac{L^{u}_s}{L^{r}_s}
 \tag{12}
 ```
 
+⊢
+
+The leverage is a number which multiplies the initial user's deposit to find
+the end amount of USP which will be minted, added to user's borrow amount and
+then swapped into collateral.
+```math
+\PHI_{max} = \dfrac{1 - V_{maxb}^30}{1 - V_{maxb}}
+\tag{13}
+```
+
 ⌙
 
-## Commands
+# Commands
 Use following anchor command to build the `borrow-lending` program:
 
 ```
@@ -578,7 +679,7 @@ To generate unit test code coverage which can then be accessed at
 ```
 
 
-## CLI
+# CLI
 To ease BLp setup on devnet and mainnet, this repository provides a simple CLI
 which can be configured to call actions on the chain.
 
@@ -625,7 +726,7 @@ create a new lending market with:
 ```
 
 
-## PDA and bump seed
+# PDA and bump seed
 To obtain bump seed and PDA for a specific market, you can use following method
 on the web3's `PublicKey` type:
 
@@ -647,7 +748,7 @@ See the `obligation.ts` module in tests and its method
 `fromBytesSkipDiscriminatorCheck`.
 
 
-## `u192`
+# `u192`
 For decimal representation we use `u192` type which consists of 3 `u64`
 integers. That is, `u192` is an unsigned integer of 24 bytes. A unit
 representing one is a [wad][wiki-significand] and its value is $`10^{18}`$.
@@ -698,6 +799,7 @@ function u192ToBN(u192: U192 | BN[] | { u192: U192 | BN[] }): BN {
 }
 ```
 
+<!-- References -->
 
 [desmos-borrow-rate]: https://www.desmos.com/calculator/1002gfizz0
 [compound-interest-formula]: https://en.wikipedia.org/wiki/Compound_interest#Periodic_compounding
@@ -715,4 +817,5 @@ function u192ToBN(u192: U192 | BN[] | { u192: U192 | BN[] }): BN {
 [aave-risk-params]: https://docs.aave.com/risk/asset-risk/risk-parameters
 [project-code-coverage]: https://crypto_project.gitlab.io/perk/borrow-lending/coverage
 [wiki-significand]: https://en.wikipedia.org/wiki/Significand
-[project-changelog]: https://crypto_project.gitlab.io/perk/borrow-lending/blp.changelog.html
+[blp-changelog]: https://crypto_project.gitlab.io/perk/borrow-lending/blp.changelog.html
+[scp-changelog]: https://crypto_project.gitlab.io/perk/borrow-lending/scp.changelog.html

@@ -2,8 +2,9 @@ import { Program } from "@project-serum/anchor";
 import { Token, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { StableCoin } from "../../target/types/stable_coin";
-import { globalContainer } from "./globalContainer";
+import { globalContainer } from "./global-container";
 import { waitForCommit } from "./helpers";
+import { TokenWrapper } from "./token-wrapper";
 
 export class USP {
   private constructor(
@@ -55,6 +56,7 @@ export class USP {
         stableCoin: uspAccount.publicKey,
         stableCoinPda,
         mint: mint.publicKey,
+        aldrinAmm: globalContainer.amm.programId,
       },
       preInstructions: [
         await scp.account.stableCoin.createInstruction(uspAccount),
@@ -88,6 +90,13 @@ export class USP {
       this.owner,
       [],
       amount
+    );
+  }
+
+  public toTokenWrapper(): TokenWrapper {
+    return new TokenWrapper(this.mint).setSourceWallet(
+      this.stableCoinVault,
+      this.owner
     );
   }
 }

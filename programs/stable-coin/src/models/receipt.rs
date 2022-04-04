@@ -15,8 +15,8 @@ pub struct Receipt {
     /// This amount represents in the lowest decimal place representation, ie
     /// it'd be lamports in case of SOL.
     pub collateral_amount: u64,
-    /// How much MIM does the user have to repay, this includes borrow fee and
-    /// APR interest.
+    /// How much MIM does the user have to repay, not including interest nor
+    /// borrow fee. This is the amount interest is accrued on.
     ///
     /// This amount represents the lowest decimal place of the stable coin. If
     /// the user owes 10 USP and we have 4 decimal places, this value would be
@@ -31,6 +31,11 @@ pub struct Receipt {
     /// This amount affects whether we mark receipt as unhealthy. It is repayed
     /// after all borrowed amount is repayed. Same as the borrowed amount.
     pub interest_amount: SDecimal,
+    /// How much does the user owe in borrow fees. We keep this number separate
+    /// from borrow amount and interest amount because we don't want to charge
+    /// interest on this amount and we want to transfer borrow fee to a
+    /// different wallet than interest.
+    pub borrow_fee_amount: SDecimal,
     /// Every time a user interacts with receipt, we first calculate interest.
     /// Since the interest is a simple formulate, we can just take the
     /// difference between the last slot and this slot.
@@ -42,9 +47,26 @@ pub struct Receipt {
 
 #[derive(Debug, PartialEq)]
 pub struct Liquidate {
-    pub stable_coin_tokens_to_burn: u64,
+    pub repaid_shares: RepaidShares,
     pub liquidator_collateral_tokens: u64,
     pub platform_collateral_tokens: u64,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct RepaidShares {
+    pub repaid_borrow_fee: u64,
+    pub repaid_interest: u64,
+    pub repaid_borrow: u64,
+}
+
+impl RepaidShares {
+    pub fn total(&self) -> Result<u64> {
+        self.repaid_borrow
+            .checked_add(self.repaid_borrow_fee)
+            .and_then(|t| t.checked_add(self.repaid_interest))
+            .ok_or(ErrorCode::MathOverflow)
+            .map_err(From::from)
+    }
 }
 
 impl Receipt {
@@ -75,13 +97,14 @@ impl Receipt {
     pub fn owed_amount(&self) -> Result<Decimal> {
         self.borrowed_amount
             .to_dec()
-            .try_add(self.interest_amount.to_dec())
+            .try_add(self.interest_amount.to_dec())?
+            .try_add(self.borrow_fee_amount.to_dec())
             .map_err(From::from)
     }
 
     /// # Important
-    /// The provided market must already be adjusted by mint decimals, ie. if
-    /// it's SOL, the market price must be in lamports.
+    /// The provided market value must already be adjusted by mint decimals, ie.
+    /// if it's SOL, the market price must be in lamports.
     pub fn collateral_market_value(
         &self,
         market_price: Decimal,
@@ -91,28 +114,60 @@ impl Receipt {
             .map_err(From::from)
     }
 
+    /// How much more can be borrowed against collateral. If the receipt is
+    /// unhealthy then this method returns 0.
+    ///
+    /// # Important
+    /// The provided market value must already be adjusted by mint decimals, ie.
+    /// if it's SOL, the market price must be in lamports.
+    pub fn remaining_borrow_value(
+        &self,
+        market_price: Decimal,
+        max_collateral_ratio: Decimal,
+    ) -> Result<Decimal> {
+        Ok(self
+            .collateral_market_value(market_price)?
+            .try_mul(max_collateral_ratio)?
+            .try_sub(self.owed_amount()?)
+            .unwrap_or(Decimal::zero()))
+    }
+
     /// Tries to borrow given amount of stable coin. Fails if the borrow value
     /// would grow over a limit given by the max collateral ratio.
     ///
     /// # Important
     /// The provided market must already be adjusted by mint decimals, ie. if
     /// it's SOL, the market price must be in lamports.
+    ///
+    /// We decrease the mint allowance here, and fail if the mint allowance is
+    /// less than the required amount.
     pub fn borrow(
         &mut self,
-        config: &ComponentConfig,
+        config: &mut ComponentConfig,
         slot: u64,
         amount: u64,
         market_price: Decimal,
     ) -> ProgramResult {
         self.accrue_interest(slot, config.interest.into())?;
 
+        if amount > config.mint_allowance {
+            msg!(
+                "This type of collateral can be presently used to
+                mint at most {} stable coin tokens",
+                config.mint_allowance
+            );
+            return Err(ErrorCode::MintAllowanceTooSmall.into());
+        }
+        // we've just checked that this doesn't underflow
+        config.mint_allowance -= amount;
+
+        // users don't pay interest on the borrow fee
         let borrow_fee = config.borrow_fee.to_dec().try_mul(amount)?;
-        self.borrowed_amount = self
-            .borrowed_amount
-            .to_dec()
-            .try_add(amount.into())?
-            .try_add(borrow_fee)?
-            .into();
+        self.borrow_fee_amount =
+            self.borrow_fee_amount.to_dec().try_add(borrow_fee)?.into();
+
+        self.borrowed_amount =
+            self.borrowed_amount.to_dec().try_add(amount.into())?.into();
 
         if self.is_healthy(market_price, config.max_collateral_ratio.into())? {
             Ok(())
@@ -129,41 +184,53 @@ impl Receipt {
     /// In another words, returned number says how many tokens were actually
     /// used to repay the debt, and that's the number which should be burned
     /// from user's wallet.
+    ///
+    /// # Important
+    /// We update the mint allowance in config.
     pub fn repay(
         &mut self,
-        config: &ComponentConfig,
+        config: &mut ComponentConfig,
         slot: u64,
         max_amount_to_repay: Decimal,
-    ) -> Result<Decimal> {
+    ) -> Result<RepaidShares> {
         self.accrue_interest(slot, config.interest.into())?;
 
-        let owed = self.owed_amount()?;
-        let interest = self.interest_amount.to_dec();
+        let repaid_borrow_fee =
+            self.borrow_fee_amount.to_dec().min(max_amount_to_repay);
+        self.borrow_fee_amount = self
+            .borrow_fee_amount
+            .to_dec()
+            .try_sub(repaid_borrow_fee)?
+            .into();
+        let max_amount_to_repay =
+            max_amount_to_repay.try_sub(repaid_borrow_fee)?;
 
-        if max_amount_to_repay <= interest {
-            // 1. max amount is enough to just repay some/all of interest
-            //      amount, but no borrow
-            self.interest_amount =
-                interest.try_sub(max_amount_to_repay)?.into();
-            Ok(max_amount_to_repay)
-        } else if max_amount_to_repay < owed {
-            // 2. max amount is enough to repay all of interest amount and
-            //      some of borrowed
-            let remove_from_borrowed_amount =
-                max_amount_to_repay.try_sub(interest)?;
-            self.interest_amount = Decimal::zero().into();
-            self.borrowed_amount = self
-                .borrowed_amount
-                .to_dec()
-                .try_sub(remove_from_borrowed_amount)?
-                .into();
-            Ok(max_amount_to_repay)
-        } else {
-            // 3. max a mount is enough to repay everything
-            self.borrowed_amount = Decimal::zero().into();
-            self.interest_amount = Decimal::zero().into();
-            Ok(owed)
-        }
+        let repaid_interest =
+            self.interest_amount.to_dec().min(max_amount_to_repay);
+        self.interest_amount = self
+            .interest_amount
+            .to_dec()
+            .try_sub(repaid_interest)?
+            .into();
+        let max_amount_to_repay =
+            max_amount_to_repay.try_sub(repaid_interest)?;
+
+        let repaid_borrow =
+            self.borrowed_amount.to_dec().min(max_amount_to_repay);
+        self.borrowed_amount =
+            self.borrowed_amount.to_dec().try_sub(repaid_borrow)?.into();
+        let repaid_borrow = repaid_borrow.try_ceil_u64()?;
+
+        config.mint_allowance = config
+            .mint_allowance
+            .checked_add(repaid_borrow)
+            .ok_or(ErrorCode::MathOverflow)?;
+
+        Ok(RepaidShares {
+            repaid_borrow,
+            repaid_interest: repaid_interest.try_ceil_u64()?,
+            repaid_borrow_fee: repaid_borrow_fee.try_ceil_u64()?,
+        })
     }
 
     /// Repays user's loan by calculating how many stable coin tokens to burn
@@ -174,9 +241,11 @@ impl Receipt {
     /// # Important
     /// The provided market must already be adjusted by mint decimals, ie. if
     /// it's SOL, the market price must be in lamports.
+    ///
+    /// We also update mint allowance.
     pub fn liquidate(
         &mut self,
-        config: &ComponentConfig,
+        config: &mut ComponentConfig,
         slot: u64,
         market_price: Decimal,
     ) -> Result<Liquidate> {
@@ -210,13 +279,14 @@ impl Receipt {
         )?;
 
         // give the liquidator the tokens at a discounted price
-        let eligible_collateral_tokens = stable_coin_tokens_liquidated
-            // must be scaled down because the repay function returns the
-            // smallest denomination, while we work with UAC here
-            .try_mul(smallest_stable_coin_unit_market_price())?
-            .try_div(discounted_market_price)?
-            .try_floor_u64()?
-            .max(1);
+        let eligible_collateral_tokens =
+            Decimal::from(stable_coin_tokens_liquidated.total()?)
+                // must be scaled down because the repay function returns the
+                // smallest denomination, while we work with UAC here
+                .try_mul(smallest_stable_coin_unit_market_price())?
+                .try_div(discounted_market_price)?
+                .try_floor_u64()?
+                .max(1);
         // but some of those will go to the admin
         let platform_cut = Decimal::from(eligible_collateral_tokens)
             .try_mul(
@@ -234,8 +304,7 @@ impl Receipt {
             .ok_or(ErrorCode::MathOverflow)?;
 
         Ok(Liquidate {
-            stable_coin_tokens_to_burn: stable_coin_tokens_liquidated
-                .try_ceil_u64()?,
+            repaid_shares: stable_coin_tokens_liquidated,
             liquidator_collateral_tokens: eligible_collateral_tokens
                 .checked_sub(platform_cut)
                 .ok_or(ErrorCode::MathOverflow)?,
@@ -321,12 +390,12 @@ mod tests {
     }
 
     #[test]
-    fn it_borrows() {
+    fn it_borrows_without_interest_accrual() {
         let last_interest_accrual_slot = 100;
 
-        let config = ComponentConfig {
-            interest: Decimal::from_percent(50u64).into(),
+        let mut config = ComponentConfig {
             borrow_fee: Decimal::from_percent(10u64).into(),
+            mint_allowance: 1_000_000_000000,
             max_collateral_ratio: Decimal::from_percent(90u64).into(),
             ..Default::default()
         };
@@ -339,12 +408,11 @@ mod tests {
             ..Default::default()
         };
 
-        // first let's see how it acts when we skip interest accrual
         let owed_before =
             receipt.owed_amount().unwrap().try_round_u64().unwrap();
         receipt
             .borrow(
-                &config,
+                &mut config,
                 last_interest_accrual_slot,
                 50,
                 Decimal::from(100u64),
@@ -358,23 +426,44 @@ mod tests {
             + owed_before
             )
         );
+    }
 
-        // now let's accrue interest
+    #[test]
+    fn it_borrows_with_accrued_interest() {
+        let last_interest_accrual_slot = 100;
+
+        let mut config = ComponentConfig {
+            interest: Decimal::from_percent(50u64).into(),
+            borrow_fee: Decimal::from_percent(10u64).into(),
+            mint_allowance: 1_000_000_000000,
+            max_collateral_ratio: Decimal::from_percent(90u64).into(),
+            ..Default::default()
+        };
+
+        let mut receipt = Receipt {
+            collateral_amount: 100,
+            interest_amount: Decimal::zero().into(),
+            borrowed_amount: Decimal::one().into(),
+            last_interest_accrual_slot,
+            ..Default::default()
+        };
+
         let owed_before =
             receipt.owed_amount().unwrap().try_round_u64().unwrap();
+        let borrow_amount = 50u64;
         receipt
             .borrow(
-                &config,
+                &mut config,
                 last_interest_accrual_slot
                     + borrow_lending::prelude::consts::SLOTS_PER_YEAR,
-                50,
+                borrow_amount,
                 Decimal::from(1_000u64),
             )
             .unwrap();
         assert_eq!(
             receipt.owed_amount().unwrap().try_round_u64(),
             Decimal::from(
-                50u64 // borrow amount
+                borrow_amount // borrow amount
                 + 5 // borrow fee
                 + owed_before / 2 // interest is 50%
                 + owed_before
@@ -386,8 +475,19 @@ mod tests {
             last_interest_accrual_slot
                 + borrow_lending::prelude::consts::SLOTS_PER_YEAR
         );
+    }
 
-        // cannot borrow if unhealthy
+    #[test]
+    fn it_cant_borrow_if_unhealthy() {
+        let last_interest_accrual_slot = 100;
+
+        let mut config = ComponentConfig {
+            borrow_fee: Decimal::from_percent(10u64).into(),
+            max_collateral_ratio: Decimal::from_percent(90u64).into(),
+            mint_allowance: 1_000_000_000000,
+            ..Default::default()
+        };
+
         let mut receipt = Receipt {
             collateral_amount: 100,
             interest_amount: Decimal::zero().into(),
@@ -397,7 +497,7 @@ mod tests {
         };
         assert_eq!(
             receipt.borrow(
-                &config,
+                &mut config,
                 receipt.last_interest_accrual_slot,
                 150_000000,
                 Decimal::from(1u64),
@@ -407,10 +507,38 @@ mod tests {
     }
 
     #[test]
+    fn it_cant_borrow_if_allowance_is_less() {
+        let last_interest_accrual_slot = 100;
+
+        let mut config = ComponentConfig {
+            borrow_fee: Decimal::from_percent(10u64).into(),
+            max_collateral_ratio: Decimal::from_percent(90u64).into(),
+            ..Default::default()
+        };
+
+        let mut receipt = Receipt {
+            collateral_amount: 100,
+            interest_amount: Decimal::zero().into(),
+            borrowed_amount: Decimal::zero().into(),
+            last_interest_accrual_slot,
+            ..Default::default()
+        };
+        assert_eq!(
+            receipt.borrow(
+                &mut config,
+                receipt.last_interest_accrual_slot,
+                1_000000,
+                Decimal::from(1u64),
+            ),
+            Err(ErrorCode::MintAllowanceTooSmall.into())
+        );
+    }
+
+    #[test]
     fn it_repays() {
         let last_interest_accrual_slot = 100;
 
-        let config = ComponentConfig {
+        let mut config = ComponentConfig {
             interest: Decimal::from_percent(50u64).into(),
             max_collateral_ratio: Decimal::from_percent(90u64).into(),
             ..Default::default()
@@ -425,22 +553,48 @@ mod tests {
         };
 
         assert_eq!(
-            receipt.repay(&config, last_interest_accrual_slot, 75u64.into()),
-            Ok(75u64.into())
+            receipt.repay(
+                &mut config,
+                last_interest_accrual_slot,
+                75u64.into()
+            ),
+            Ok(RepaidShares {
+                repaid_borrow_fee: 0,
+                repaid_interest: 75,
+                repaid_borrow: 0,
+            })
         );
         assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(15));
         assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(10));
+        assert_eq!(config.mint_allowance, 0);
 
         assert_eq!(
-            receipt.repay(&config, last_interest_accrual_slot, 20u64.into()),
-            Ok(20u64.into())
+            receipt.repay(
+                &mut config,
+                last_interest_accrual_slot,
+                20u64.into()
+            ),
+            Ok(RepaidShares {
+                repaid_borrow_fee: 0,
+                repaid_interest: 15,
+                repaid_borrow: 5,
+            })
         );
         assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(5));
         assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(0));
+        assert_eq!(config.mint_allowance, 5);
 
         assert_eq!(
-            receipt.repay(&config, last_interest_accrual_slot, u64::MAX.into()),
-            Ok(5u64.into())
+            receipt.repay(
+                &mut config,
+                last_interest_accrual_slot,
+                u64::MAX.into()
+            ),
+            Ok(RepaidShares {
+                repaid_borrow_fee: 0,
+                repaid_interest: 0,
+                repaid_borrow: 5,
+            })
         );
         assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(0));
         assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(0));
@@ -448,29 +602,60 @@ mod tests {
         receipt.borrowed_amount = Decimal::from(100u64).into();
         receipt.interest_amount = Decimal::from(1u64).into();
         assert_eq!(
-            receipt
-                .repay(
-                    &config,
-                    last_interest_accrual_slot
-                        + borrow_lending::prelude::consts::SLOTS_PER_YEAR,
-                    1_000u64.into()
-                )
-                .unwrap()
-                .try_round_u64()
-                .unwrap(),
-            100u64 // borrowed amount set before the call
-                + 100 / 2 // interest is 50%
-                + 1 // interest set before the call
+            receipt.repay(
+                &mut config,
+                last_interest_accrual_slot
+                    + borrow_lending::prelude::consts::SLOTS_PER_YEAR,
+                1_000u64.into()
+            ),
+            Ok(RepaidShares {
+                repaid_borrow_fee: 0,
+                repaid_interest: 51,
+                repaid_borrow: 100,
+            })
         );
         assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(0));
         assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(0));
     }
 
     #[test]
+    fn it_repays_borrow_fee() {
+        let last_interest_accrual_slot = 100;
+
+        let mut config = ComponentConfig {
+            interest: Decimal::from_percent(50u64).into(),
+            max_collateral_ratio: Decimal::from_percent(90u64).into(),
+            ..Default::default()
+        };
+
+        let mut receipt = Receipt {
+            collateral_amount: 100,
+            interest_amount: Decimal::from(90u64).into(),
+            borrowed_amount: Decimal::from(5u64).into(),
+            borrow_fee_amount: Decimal::from(5u64).into(),
+            last_interest_accrual_slot,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            receipt.repay(
+                &mut config,
+                last_interest_accrual_slot,
+                1_000u64.into()
+            ),
+            Ok(RepaidShares {
+                repaid_borrow_fee: 5,
+                repaid_interest: 90,
+                repaid_borrow: 5,
+            })
+        );
+    }
+
+    #[test]
     fn it_liquidates_position_where_collateral_is_worth_more() {
         let last_interest_accrual_slot = 100;
 
-        let config = ComponentConfig {
+        let mut config = ComponentConfig {
             interest: Decimal::from_percent(50u64).into(),
             liquidation_bonus: Decimal::from_percent(10u64).into(),
             platform_liquidation_fee: Decimal::from_percent(50u64).into(),
@@ -490,13 +675,17 @@ mod tests {
         assert_eq!(
             Ok(Liquidate {
                 // interest + borrowed
-                stable_coin_tokens_to_burn: 100_000000,
+                repaid_shares: RepaidShares {
+                    repaid_borrow_fee: 0,
+                    repaid_interest: 10_000000,
+                    repaid_borrow: 90_000000,
+                },
                 // (interest + borrow) / market_price * fee
                 liquidator_collateral_tokens: 52,
                 platform_collateral_tokens: 3,
             }),
             receipt.liquidate(
-                &config,
+                &mut config,
                 last_interest_accrual_slot,
                 market_price
             )
@@ -510,7 +699,7 @@ mod tests {
     fn it_liquidates_position_where_collateral_is_worth_less() {
         let last_interest_accrual_slot = 100;
 
-        let config = ComponentConfig {
+        let mut config = ComponentConfig {
             liquidation_bonus: Decimal::from_percent(10u64).into(),
             platform_liquidation_fee: Decimal::from_percent(50u64).into(),
             ..Default::default()
@@ -529,13 +718,17 @@ mod tests {
         assert_eq!(
             Ok(Liquidate {
                 // collateral amount * fee
-                stable_coin_tokens_to_burn: 18_000000,
+                repaid_shares: RepaidShares {
+                    repaid_borrow_fee: 0,
+                    repaid_interest: 10_000000,
+                    repaid_borrow: 8_000000,
+                },
                 // collateral amount
                 liquidator_collateral_tokens: 9,
                 platform_collateral_tokens: 1,
             }),
             receipt.liquidate(
-                &config,
+                &mut config,
                 last_interest_accrual_slot,
                 market_price
             )

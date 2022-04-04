@@ -13,7 +13,7 @@ import {
 } from "@solana/web3.js";
 import * as anchor from "@project-serum/anchor";
 import { Program, Provider } from "@project-serum/anchor";
-import { globalContainer } from "./globalContainer";
+import { globalContainer } from "./global-container";
 import { StableCoin } from "../../target/types/stable_coin";
 import { BorrowLending } from "../../target/types/borrow_lending";
 import { AMM_TARGET_SO_BIN_PATH, SHMEM_SO_BIN_PATH } from "./consts";
@@ -45,6 +45,7 @@ import { test as testWithdrawCollateral } from "./stable-coin/4-withdraw-collate
 import { test as testBorrowStableCoin } from "./stable-coin/5-borrow-stable-coin";
 import { test as testRepayStableCoin } from "./stable-coin/6-repay-stable-coin";
 import { test as testLiquidatePosition } from "./stable-coin/7-liquidate-position";
+import { test as testAldrinAmmLeverage } from "./stable-coin/8-aldrin-amm-leverage";
 
 describe("borrow-lending", function () {
   const ammKeypair = Keypair.generate();
@@ -143,6 +144,7 @@ describe("borrow-lending", function () {
   testBorrowStableCoin(payer);
   testRepayStableCoin(payer);
   testLiquidatePosition(payer);
+  testAldrinAmmLeverage(payer);
 
   // get a list of top level suites which will run
   const onlySuites: string[] = this.suites
@@ -159,6 +161,7 @@ describe("borrow-lending", function () {
       "leveraged position on Aldrin",
       "vault position on aldrin",
       "reserve of Aldrin's AMM unstable LP token",
+      "USP leverage on aldrin AMM",
     ];
     if (
       onlySuites.length > 0 &&

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2022-03-28
+
+### Changed
+- Logic for CPI calls to Aldrin's AMM has been extracted to a crate called
+  `cpis` for the purpose of reuse with stable coin program.
+
+
 ## [3.1.0] - 2022-02-21
 
 ### Added

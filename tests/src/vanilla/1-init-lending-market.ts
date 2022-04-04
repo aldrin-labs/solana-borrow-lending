@@ -3,7 +3,7 @@ import { BorrowLending } from "../../../target/types/borrow_lending";
 import { Keypair } from "@solana/web3.js";
 import { expect } from "chai";
 import { LendingMarket } from "../lending-market";
-import { globalContainer } from "../globalContainer";
+import { globalContainer } from "../global-container";
 
 export function test() {
   const program: Program<BorrowLending> = globalContainer.blp;

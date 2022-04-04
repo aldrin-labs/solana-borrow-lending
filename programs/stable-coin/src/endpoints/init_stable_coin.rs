@@ -32,6 +32,8 @@ pub struct InitStableCoin<'info> {
         bump = stable_coin_bump_seed,
     )]
     pub stable_coin_pda: AccountInfo<'info>,
+    #[account(executable)]
+    pub aldrin_amm: AccountInfo<'info>,
 }
 
 pub fn handle(
@@ -42,6 +44,7 @@ pub fn handle(
 
     accounts.stable_coin.mint = accounts.mint.key();
     accounts.stable_coin.admin = accounts.admin.key();
+    accounts.stable_coin.aldrin_amm = accounts.aldrin_amm.key();
 
     Ok(())
 }

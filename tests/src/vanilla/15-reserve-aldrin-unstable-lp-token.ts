@@ -20,7 +20,7 @@ import {
 import { AmmPool } from "../amm-pool";
 import { ONE_LIQ_TO_COL_INITIAL_PRICE, SHMEM_SO_BIN_PATH } from "../consts";
 import { oracleProductBinByteLen } from "../pyth";
-import { globalContainer } from "../globalContainer";
+import { globalContainer } from "../global-container";
 
 export function test(owner: Keypair) {
   const { amm, blp, ammAuthority } = globalContainer;
@@ -62,8 +62,8 @@ export function test(owner: Keypair) {
         amm,
         market,
         ammAuthority,
-        reserveSrm,
-        reserveDoge
+        reserveSrm.toTokenWrapper(),
+        reserveDoge.toTokenWrapper()
       );
     });
 

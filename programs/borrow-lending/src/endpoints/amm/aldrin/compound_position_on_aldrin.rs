@@ -11,9 +11,9 @@
 //!
 //! 3. Stake caller's LP tokens, let them keep the harvested ones.
 
-use super::{StakeCpi, WithdrawFarmCpi};
 use crate::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
+use cpis::aldrin::{StakeCpi, WithdrawFarmCpi};
 
 #[derive(Accounts)]
 pub struct CompoundPositionOnAldrin<'info> {
@@ -274,8 +274,8 @@ impl<'info> Compoundable<'info> for &mut CompoundPositionOnAldrin<'info> {
             farming_state: self.farming_state.to_account_info(),
             farming_ticket: self.new_farming_ticket.to_account_info(),
             lp_token_freeze_vault: self.lp_token_freeze_vault.to_account_info(),
-            borrower_lp_wallet: self.caller_lp_wallet.to_account_info(),
-            borrower: self.caller.to_account_info(),
+            user_lp_wallet: self.caller_lp_wallet.to_account_info(),
+            user: self.caller.to_account_info(),
             market_obligation_pda: self
                 .farming_ticket_owner_pda
                 .to_account_info(),

@@ -65,7 +65,11 @@ export function test(owner: Keypair) {
         receiptInfo.lastInterestAccrualSlot.toNumber()
       ).to.be.approximately(await usp.scp.provider.connection.getSlot(), 3);
       expect(u192ToBN(receiptInfo.borrowedAmount).toString()).to.eq(
-        "5100000000000000000"
+        "5000000000000000000"
+      );
+      expect(u192ToBN(receiptInfo.interestAmount).toString()).to.eq("0");
+      expect(u192ToBN(receiptInfo.borrowFeeAmount).toString()).to.eq(
+        "100000000000000000"
       );
 
       const uspWalletInfo = await usp.mint.getAccountInfo(uspWallet);

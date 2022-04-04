@@ -1,6 +1,6 @@
-use super::UnstakeCpi;
 use crate::prelude::*;
 use anchor_spl::token::Token;
+use cpis::aldrin::UnstakeCpi;
 
 #[derive(Accounts)]
 #[instruction(bump_seed: u8)]

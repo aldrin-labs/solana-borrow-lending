@@ -8,7 +8,7 @@ import { expect } from "chai";
 import { CaptureStdoutAndStderr } from "../helpers";
 import { EmissionStrategy } from "../emission";
 import { sleep } from "@project-serum/common";
-import { globalContainer } from "../globalContainer";
+import { globalContainer } from "../global-container";
 
 export function test(owner: Keypair) {
   const program: Program<BorrowLending> = globalContainer.blp;

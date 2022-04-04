@@ -65,6 +65,10 @@ impl Not for Side {
 }
 
 impl Side {
+    pub fn is_ask(self) -> bool {
+        matches!(self, Side::Ask)
+    }
+
     pub fn try_from(
         reserve: &Reserve,
         base_token: &Account<'_, TokenAccount>,

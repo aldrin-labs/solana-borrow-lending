@@ -6,7 +6,7 @@ import { CaptureStdoutAndStderr, u192ToBN } from "../helpers";
 import { readFile } from "fs/promises";
 import { LendingMarket } from "../lending-market";
 import { Obligation } from "../obligation";
-import { globalContainer } from "../globalContainer";
+import { globalContainer } from "../global-container";
 
 export function test(owner: Keypair) {
   const program: Program<BorrowLending> = globalContainer.blp;
