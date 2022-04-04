@@ -19,6 +19,7 @@ export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Co
 export RUSTDOCFLAGS="-Cpanic=abort"
 export RUSTUP_TOOLCHAIN="nightly"
 
+cargo clean
 cargo test --lib
 
 rm -f grcov.log
