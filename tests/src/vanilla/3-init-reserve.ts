@@ -42,14 +42,20 @@ export function test(owner: Keypair) {
     });
 
     it("must init with at least some liquidity", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
       // this should make the program fail
       const liquidityAmount = 0;
       await expect(market.addReserve(liquidityAmount)).to.be.rejectedWith(
-        /Provided amount is in invalid range/i
+        /Provided amount is in invalid range/
       );
+
+      stdCapture.restore();
     });
 
     it("fails on invalid config", async () => {
+      const stdCapture = new CaptureStdoutAndStderr();
+
       const liquidityAmount = 10;
       const config = Reserve.defaultConfig();
       // this should make the endpoint fail
@@ -58,8 +64,10 @@ export function test(owner: Keypair) {
       await expect(
         market.addReserve(liquidityAmount, config)
       ).to.be.rejectedWith(
-        "Provided configuration isn't in the right format or range"
+        /Provided configuration isn't in the right format or range/
       );
+
+      stdCapture.restore();
     });
 
     it("fails if oracle product's price doesn't match price account", async () => {
@@ -69,11 +77,11 @@ export function test(owner: Keypair) {
       builder.accounts.oraclePrice = someReserve.accounts.oraclePrice;
 
       const stdCapture = new CaptureStdoutAndStderr();
-      await expect(builder.build(10)).to.be.rejected;
-
-      expect(stdCapture.restore()).to.contain(
-        "product price account does not match"
+      await expect(builder.build(10)).to.be.rejectedWith(
+        /Provided oracle configuration isn't in the right format or range/
       );
+
+      stdCapture.restore();
     });
 
     it("fails if oracle currency doesn't match lending market currency", async () => {
@@ -86,9 +94,11 @@ export function test(owner: Keypair) {
         undefined,
         Keypair.generate().publicKey
       );
-      await expect(differentMarket.addReserve(10)).to.be.rejected;
+      await expect(differentMarket.addReserve(10)).to.be.rejectedWith(
+        /Provided oracle configuration isn't in the right format or range/
+      );
 
-      expect(stdCapture.restore()).to.contain("currency does not match");
+      stdCapture.restore();
     });
 
     it("fails if oracle price last updated slot is too far behind", async () => {
@@ -107,9 +117,11 @@ export function test(owner: Keypair) {
       );
       await waitForCommit();
 
-      await expect(builder.build(liquidityAmount)).to.be.rejected;
+      await expect(builder.build(liquidityAmount)).to.be.rejectedWith(
+        /Provided oracle configuration isn't in the right format or range/
+      );
 
-      expect(stdCapture.restore()).to.contain("is stale");
+      stdCapture.restore();
     });
 
     it("fails if oracle product owner does not match oracle price owner", async () => {
@@ -127,11 +139,11 @@ export function test(owner: Keypair) {
 
       const stdCapture = new CaptureStdoutAndStderr();
 
-      await expect(builder.build(10)).to.be.rejected;
-
-      expect(stdCapture.restore()).to.contain(
-        "Product's owner must be prices's owner"
+      await expect(builder.build(10)).to.be.rejectedWith(
+        /Provided oracle configuration isn't in the right format or range/
       );
+
+      stdCapture.restore();
     });
 
     it("initializes all accounts, transfers liquidity and mints collateral", async () => {
