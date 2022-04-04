@@ -1,4 +1,5 @@
 pub mod borrow_stable_coin;
+pub mod degen;
 pub mod deleverage_via_aldrin_amm;
 pub mod deposit_collateral;
 pub mod init_component;
@@ -11,6 +12,7 @@ pub mod update_component_config;
 pub mod withdraw_collateral;
 
 pub use borrow_stable_coin::*;
+pub use degen::*;
 pub use deleverage_via_aldrin_amm::*;
 pub use deposit_collateral::*;
 pub use init_component::*;
