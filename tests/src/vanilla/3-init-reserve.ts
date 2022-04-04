@@ -41,14 +41,16 @@ export function test(owner: Keypair) {
       market = await LendingMarket.init(program, owner);
     });
 
-    it("must init with at least some liquidity", async () => {
+    it.only("must init with at least some liquidity", async () => {
       const stdCapture = new CaptureStdoutAndStderr();
 
       // this should make the program fail
       const liquidityAmount = 0;
       await expect(market.addReserve(liquidityAmount)).to.be.rejected;
 
-      stdCapture.restore();
+      expect(stdCapture.restore()).to.contain(
+        "must be initialized with liquidity"
+      );
     });
 
     it("fails on invalid config", async () => {

@@ -19,8 +19,8 @@ export class CaptureStdoutAndStderr {
   constructor() {
     this.originalConsoleMethods = [console.log, console.error];
 
-    const capture = (...data) => (this.data += JSON.stringify(data) + "\n");
-    console.log = console.error = capture;
+    // const capture = (...data) => (this.data += JSON.stringify(data) + "\n");
+    // console.log = console.error = capture;
   }
 
   public restore(): string {
