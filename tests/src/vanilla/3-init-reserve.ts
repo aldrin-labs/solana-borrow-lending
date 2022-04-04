@@ -41,31 +41,25 @@ export function test(owner: Keypair) {
       market = await LendingMarket.init(program, owner);
     });
 
-    it.only("must init with at least some liquidity", async () => {
-      // const stdCapture = new CaptureStdoutAndStderr();
-
+    it("must init with at least some liquidity", async () => {
       // this should make the program fail
-      console.log('wtf')
       const liquidityAmount = 0;
-      await market.addReserve(liquidityAmount)
-      await expect(market.addReserve(liquidityAmount)).to.be.rejected;
-
-      // expect(stdCapture.restore()).to.contain(
-      //   "must be initialized with liquidity"
-      // );
+      await expect(market.addReserve(liquidityAmount)).to.be.rejectedWith(
+        /Provided amount is in invalid range/i
+      );
     });
 
     it("fails on invalid config", async () => {
-      const stdCapture = new CaptureStdoutAndStderr();
-
       const liquidityAmount = 10;
       const config = Reserve.defaultConfig();
       // this should make the endpoint fail
       config.conf.liquidationBonus.percent = 120;
 
-      await expect(market.addReserve(liquidityAmount, config)).to.be.rejected;
-
-      expect(stdCapture.restore()).to.contain("must be in range [0, 100]");
+      await expect(
+        market.addReserve(liquidityAmount, config)
+      ).to.be.rejectedWith(
+        "Provided configuration isn't in the right format or range"
+      );
     });
 
     it("fails if oracle product's price doesn't match price account", async () => {
