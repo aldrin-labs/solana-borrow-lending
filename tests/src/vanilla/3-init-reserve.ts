@@ -42,15 +42,17 @@ export function test(owner: Keypair) {
     });
 
     it.only("must init with at least some liquidity", async () => {
-      const stdCapture = new CaptureStdoutAndStderr();
+      // const stdCapture = new CaptureStdoutAndStderr();
 
       // this should make the program fail
+      console.log('wtf')
       const liquidityAmount = 0;
+      await market.addReserve(liquidityAmount)
       await expect(market.addReserve(liquidityAmount)).to.be.rejected;
 
-      expect(stdCapture.restore()).to.contain(
-        "must be initialized with liquidity"
-      );
+      // expect(stdCapture.restore()).to.contain(
+      //   "must be initialized with liquidity"
+      // );
     });
 
     it("fails on invalid config", async () => {
