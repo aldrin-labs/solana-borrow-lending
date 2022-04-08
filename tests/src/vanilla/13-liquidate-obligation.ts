@@ -158,7 +158,7 @@ export function test(owner: Keypair) {
           liquidatorsSrmWallet,
           { liquidator, tokenProgram: Keypair.generate().publicKey }
         )
-      ).to.be.rejectedWith(/Program ID was not as expected/);
+      ).to.be.rejected;
 
       stdCapture.restore();
     });

@@ -4,6 +4,7 @@ import { BN } from "@project-serum/anchor";
 import { Token, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Reserve } from "./reserve";
 import { Obligation } from "./obligation";
+import { transact } from "./helpers";
 
 interface EmissionToken {
   wallet: PublicKey;
@@ -144,21 +145,26 @@ export class EmissionStrategy {
   }
 
   public async close() {
-    await this.market.program.rpc.closeEmission(this.market.bumpSeed, {
-      accounts: {
-        owner: this.market.owner.publicKey,
-        lendingMarket: this.market.id,
-        lendingMarketPda: this.market.pda,
-        emissions: this.id,
-        clock: SYSVAR_CLOCK_PUBKEY,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      },
-      signers: [this.market.owner],
-      remainingAccounts: this.emissionTokens.map((t) => ({
-        pubkey: t.wallet,
-        isSigner: false,
-        isWritable: true,
-      })),
-    });
+    const instruction = this.market.program.instruction.closeEmission(
+      this.market.bumpSeed,
+      {
+        accounts: {
+          owner: this.market.owner.publicKey,
+          lendingMarket: this.market.id,
+          lendingMarketPda: this.market.pda,
+          emissions: this.id,
+          clock: SYSVAR_CLOCK_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        },
+        signers: [this.market.owner],
+        remainingAccounts: this.emissionTokens.map((t) => ({
+          pubkey: t.wallet,
+          isSigner: false,
+          isWritable: true,
+        })),
+      }
+    );
+
+    await transact([this.market.owner], instruction);
   }
 }

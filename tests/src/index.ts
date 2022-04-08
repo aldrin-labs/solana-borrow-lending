@@ -80,6 +80,7 @@ describe("borrow-lending", function () {
   globalContainer.ammAuthority = ammPoolAuthority;
   globalContainer.blp = blp;
   globalContainer.scp = scp;
+  globalContainer.payer = payer;
   globalContainer.shmem = shmemKeypair.publicKey;
 
   console.table({

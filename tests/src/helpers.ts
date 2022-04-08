@@ -8,6 +8,7 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 import { expect } from "chai";
+import { globalContainer } from "./global-container";
 
 export type PercentInt = { percent: number };
 
@@ -158,4 +159,27 @@ export async function createEmptyAccount(
   );
 
   return farmingTicket.publicKey;
+}
+
+/**
+ * Prints program logs into stderr if transaction fails
+ */
+export async function transact(
+  signers: Keypair[],
+  ...instructions: TransactionInstruction[]
+) {
+  const tx = instructions.reduce((tx, i) => tx.add(i), new Transaction());
+  tx.recentBlockhash = (
+    await globalContainer.blp.provider.connection.getRecentBlockhash()
+  ).blockhash;
+  if (signers.length) {
+    tx.sign(...signers);
+  }
+
+  try {
+    await globalContainer.blp.provider.send(tx, signers);
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
 }

@@ -2,6 +2,7 @@ import {
   createProgramAccounts,
   numberToU192,
   PercentInt,
+  transact,
   U192,
   waitForCommit,
 } from "./helpers";
@@ -14,7 +15,6 @@ import {
   SYSVAR_CLOCK_PUBKEY,
   TransactionInstruction,
   Connection,
-  Transaction,
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
@@ -274,9 +274,7 @@ export class Reserve {
   }
 
   public async refresh() {
-    await this.market.program.provider.send(
-      new Transaction().add(this.refreshInstruction())
-    );
+    await transact([], this.refreshInstruction());
   }
 
   public refreshInstruction(): TransactionInstruction {
@@ -366,7 +364,7 @@ export class Reserve {
         );
     }
 
-    await this.market.program.rpc.depositReserveLiquidity(
+    const instruction = this.market.program.instruction.depositReserveLiquidity(
       this.market.bumpSeed,
       new BN(liquidityAmount),
       {
@@ -383,8 +381,14 @@ export class Reserve {
           clock: SYSVAR_CLOCK_PUBKEY,
         },
         signers: [funder],
-        instructions: refreshReserve ? [this.refreshInstruction()] : [],
       }
+    );
+
+    await transact(
+      [funder],
+      ...(refreshReserve
+        ? [this.refreshInstruction(), instruction]
+        : [instruction])
     );
 
     return { funder, sourceLiquidityWallet, destinationCollateralWallet };
@@ -404,25 +408,33 @@ export class Reserve {
       ...opt,
     };
 
-    await this.market.program.rpc.redeemReserveCollateral(
-      this.market.bumpSeed,
-      new BN(collateralAmount),
-      {
-        accounts: {
-          funder: depositAccounts.funder.publicKey,
-          lendingMarketPda: this.market.pda,
-          reserve: this.id,
-          reserveCollateralMint: this.accounts.reserveCollateralMint.publicKey,
-          reserveLiquidityWallet:
-            this.accounts.reserveLiquidityWallet.publicKey,
-          destinationLiquidityWallet: depositAccounts.sourceLiquidityWallet,
-          sourceCollateralWallet: depositAccounts.destinationCollateralWallet,
-          tokenProgram,
-          clock: SYSVAR_CLOCK_PUBKEY,
-        },
-        signers: [depositAccounts.funder],
-        instructions: refreshReserve ? [this.refreshInstruction()] : [],
-      }
+    const instruction =
+      await this.market.program.instruction.redeemReserveCollateral(
+        this.market.bumpSeed,
+        new BN(collateralAmount),
+        {
+          accounts: {
+            funder: depositAccounts.funder.publicKey,
+            lendingMarketPda: this.market.pda,
+            reserve: this.id,
+            reserveCollateralMint:
+              this.accounts.reserveCollateralMint.publicKey,
+            reserveLiquidityWallet:
+              this.accounts.reserveLiquidityWallet.publicKey,
+            destinationLiquidityWallet: depositAccounts.sourceLiquidityWallet,
+            sourceCollateralWallet: depositAccounts.destinationCollateralWallet,
+            tokenProgram,
+            clock: SYSVAR_CLOCK_PUBKEY,
+          },
+          signers: [depositAccounts.funder],
+        }
+      );
+
+    await transact(
+      [depositAccounts.funder],
+      ...(refreshReserve
+        ? [this.refreshInstruction(), instruction]
+        : [instruction])
     );
   }
 
@@ -589,7 +601,7 @@ async function rpcInitReserve(
   liquidityAmount: number,
   config: ReserveConfig
 ) {
-  await program.rpc.initReserve(
+  const instruction = program.instruction.initReserve(
     market.bumpSeed,
     new BN(liquidityAmount),
     config as any, // IDL is not very good with types
@@ -616,15 +628,19 @@ async function rpcInitReserve(
         tokenProgram: TOKEN_PROGRAM_ID,
         clock: SYSVAR_CLOCK_PUBKEY,
       },
-      signers: [owner, accounts.reserve, accounts.snapshots],
-      instructions: [
-        await program.account.reserveCapSnapshots.createInstruction(
-          accounts.snapshots
-        ),
-        await program.account.reserve.createInstruction(accounts.reserve),
-      ],
+      signers: [owner],
     }
   );
+
+  await transact(
+    [accounts.reserve, accounts.snapshots],
+    await program.account.reserve.createInstruction(accounts.reserve),
+    await program.account.reserveCapSnapshots.createInstruction(
+      accounts.snapshots
+    )
+  );
+
+  await transact([owner], instruction);
 }
 
 async function rpcInitReserveAldrinUnstableLpToken(
@@ -637,7 +653,7 @@ async function rpcInitReserveAldrinUnstableLpToken(
   config: ReserveConfig,
   isOracleForBaseVault: boolean
 ) {
-  await program.rpc.initReserveAldrinUnstableLpToken(
+  const instruction = program.instruction.initReserveAldrinUnstableLpToken(
     market.bumpSeed,
     new BN(liquidityAmount),
     config as any, // IDL is not very good with types,
@@ -666,13 +682,17 @@ async function rpcInitReserveAldrinUnstableLpToken(
         tokenProgram: TOKEN_PROGRAM_ID,
         clock: SYSVAR_CLOCK_PUBKEY,
       },
-      signers: [owner, accounts.reserve, accounts.snapshots],
-      instructions: [
-        await program.account.reserveCapSnapshots.createInstruction(
-          accounts.snapshots
-        ),
-        await program.account.reserve.createInstruction(accounts.reserve),
-      ],
+      signers: [owner],
     }
   );
+
+  await transact(
+    [accounts.reserve, accounts.snapshots],
+    await program.account.reserve.createInstruction(accounts.reserve),
+    await program.account.reserveCapSnapshots.createInstruction(
+      accounts.snapshots
+    )
+  );
+
+  await transact([owner], instruction);
 }

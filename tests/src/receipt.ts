@@ -3,7 +3,7 @@ import { Component } from "./component";
 import { BN } from "@project-serum/anchor";
 import { globalContainer } from "./global-container";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { numberToU192 } from "./helpers";
+import { numberToU192, transact } from "./helpers";
 import { AmmPool } from "./amm-pool";
 
 export class Receipt {
@@ -125,7 +125,7 @@ export class Receipt {
     liquidatorStableCoinWallet: PublicKey,
     liquidatorCollateralWallet: PublicKey
   ) {
-    await this.component.usp.scp.rpc.liquidatePosition(
+    const instruction = this.component.usp.scp.instruction.liquidatePosition(
       this.component.bumpSeed,
       {
         accounts: {
@@ -145,9 +145,14 @@ export class Receipt {
           tokenProgram: TOKEN_PROGRAM_ID,
           clock: SYSVAR_CLOCK_PUBKEY,
         },
-        preInstructions: [this.component.accounts.reserve.refreshInstruction()],
         signers: [liquidator],
       }
+    );
+
+    await transact(
+      [liquidator],
+      this.component.accounts.reserve.refreshInstruction(),
+      instruction
     );
   }
 
@@ -160,7 +165,7 @@ export class Receipt {
     collateralRatio: number,
     initialStableCoinAmount: number
   ) {
-    await this.component.usp.scp.rpc.leverageViaAldrinAmm(
+    const instruction = this.component.usp.scp.instruction.leverageViaAldrinAmm(
       this.component.usp.bumpSeed,
       { u192: numberToU192(collateralRatio) },
       new BN(initialStableCoinAmount),
@@ -195,9 +200,14 @@ export class Receipt {
           tokenProgram: TOKEN_PROGRAM_ID,
           clock: SYSVAR_CLOCK_PUBKEY,
         },
-        preInstructions: [this.component.accounts.reserve.refreshInstruction()],
         signers: [this.borrower],
       }
+    );
+
+    await transact(
+      [this.borrower],
+      this.component.accounts.reserve.refreshInstruction(),
+      instruction
     );
   }
 

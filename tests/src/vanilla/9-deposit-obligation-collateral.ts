@@ -105,7 +105,7 @@ export function test(owner: Keypair) {
         obligation.deposit(reserve, sourceCollateralWallet, 10, {
           tokenProgram: Keypair.generate().publicKey,
         })
-      ).to.be.rejectedWith(/Program ID was not as expected/);
+      ).to.be.rejected;
 
       stdCapture.restore();
     });

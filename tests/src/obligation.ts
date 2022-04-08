@@ -11,6 +11,7 @@ import { LendingMarket } from "./lending-market";
 import { Reserve } from "./reserve";
 import {
   createEmptyAccount,
+  transact,
   U192,
   u192FromBytes,
   u192ToBN,
@@ -339,7 +340,7 @@ export class Obligation {
   public async refresh(
     reserves: Reserve[] = Array.from(this.reservesToRefresh)
   ) {
-    await this.market.program.rpc.refreshObligation({
+    const instruction = this.market.program.instruction.refreshObligation({
       accounts: {
         obligation: this.id,
         clock: SYSVAR_CLOCK_PUBKEY,
@@ -349,8 +350,13 @@ export class Obligation {
         isSigner: false,
         isWritable: false,
       })),
-      instructions: reserves.map((reserve) => reserve.refreshInstruction()),
     });
+
+    await transact(
+      [],
+      ...reserves.map((reserve) => reserve.refreshInstruction()),
+      instruction
+    );
   }
 
   public refreshInstruction(
@@ -388,22 +394,25 @@ export class Obligation {
       ...opt,
     };
 
-    await this.market.program.rpc.depositObligationCollateral(
-      new BN(collateralAmount),
-      {
-        accounts: {
-          borrower: this.borrower.publicKey,
-          obligation: this.id,
-          sourceCollateralWallet,
-          reserve: reserve.id,
-          destinationCollateralWallet:
-            reserve.accounts.reserveCollateralWallet.publicKey,
-          clock: SYSVAR_CLOCK_PUBKEY,
-          tokenProgram,
-        },
-        signers: sign ? [this.borrower] : [],
-      }
-    );
+    const instruction =
+      this.market.program.instruction.depositObligationCollateral(
+        new BN(collateralAmount),
+        {
+          accounts: {
+            borrower: this.borrower.publicKey,
+            obligation: this.id,
+            sourceCollateralWallet,
+            reserve: reserve.id,
+            destinationCollateralWallet:
+              reserve.accounts.reserveCollateralWallet.publicKey,
+            clock: SYSVAR_CLOCK_PUBKEY,
+            tokenProgram,
+          },
+          signers: sign ? [this.borrower] : [],
+        }
+      );
+
+    await transact(sign ? [this.borrower] : [], instruction);
 
     this.reservesToRefresh.add(reserve);
   }
@@ -435,25 +444,27 @@ export class Obligation {
       instructions.push(this.refreshInstruction());
     }
 
-    await this.market.program.rpc.withdrawObligationCollateral(
-      this.market.bumpSeed,
-      new BN(collateralAmount),
-      {
-        accounts: {
-          lendingMarketPda: this.market.pda,
-          reserve: reserve.id,
-          obligation: this.id,
-          borrower: this.borrower.publicKey,
-          destinationCollateralWallet,
-          sourceCollateralWallet:
-            reserve.accounts.reserveCollateralWallet.publicKey,
-          clock: SYSVAR_CLOCK_PUBKEY,
-          tokenProgram,
-        },
-        signers: sign ? [this.borrower] : [],
-        instructions,
-      }
-    );
+    const instruction =
+      this.market.program.instruction.withdrawObligationCollateral(
+        this.market.bumpSeed,
+        new BN(collateralAmount),
+        {
+          accounts: {
+            lendingMarketPda: this.market.pda,
+            reserve: reserve.id,
+            obligation: this.id,
+            borrower: this.borrower.publicKey,
+            destinationCollateralWallet,
+            sourceCollateralWallet:
+              reserve.accounts.reserveCollateralWallet.publicKey,
+            clock: SYSVAR_CLOCK_PUBKEY,
+            tokenProgram,
+          },
+          signers: sign ? [this.borrower] : [],
+        }
+      );
+
+    await transact(sign ? [this.borrower] : [], ...instructions, instruction);
   }
 
   public async borrow(
@@ -497,34 +508,41 @@ export class Obligation {
       instructions.push(this.refreshInstruction(Array.from(reserves)));
     }
 
-    await this.market.program.rpc.borrowObligationLiquidity(
-      this.market.bumpSeed,
-      new BN(liquidityAmount),
-      {
-        accounts: {
-          borrower: this.borrower.publicKey,
-          reserve: reserve.id,
-          obligation: this.id,
-          lendingMarketPda: this.market.pda,
-          feeReceiver: reserve.accounts.reserveLiquidityFeeRecvWallet.publicKey,
-          sourceLiquidityWallet:
-            reserve.accounts.reserveLiquidityWallet.publicKey,
-          destinationLiquidityWallet,
-          clock: SYSVAR_CLOCK_PUBKEY,
-          tokenProgram,
-        },
-        signers: sign ? [this.borrower] : [],
-        instructions: Array.from(instructions),
-        remainingAccounts: hostFeeReceiver
-          ? [
-              {
-                isSigner: false,
-                isWritable: true,
-                pubkey: hostFeeReceiver,
-              },
-            ]
-          : [],
-      }
+    const instruction =
+      this.market.program.instruction.borrowObligationLiquidity(
+        this.market.bumpSeed,
+        new BN(liquidityAmount),
+        {
+          accounts: {
+            borrower: this.borrower.publicKey,
+            reserve: reserve.id,
+            obligation: this.id,
+            lendingMarketPda: this.market.pda,
+            feeReceiver:
+              reserve.accounts.reserveLiquidityFeeRecvWallet.publicKey,
+            sourceLiquidityWallet:
+              reserve.accounts.reserveLiquidityWallet.publicKey,
+            destinationLiquidityWallet,
+            clock: SYSVAR_CLOCK_PUBKEY,
+            tokenProgram,
+          },
+          signers: sign ? [this.borrower] : [],
+          remainingAccounts: hostFeeReceiver
+            ? [
+                {
+                  isSigner: false,
+                  isWritable: true,
+                  pubkey: hostFeeReceiver,
+                },
+              ]
+            : [],
+        }
+      );
+
+    await transact(
+      sign ? [this.borrower] : [],
+      ...Array.from(instructions),
+      instruction
     );
 
     this.reservesToRefresh.add(reserve);
@@ -559,26 +577,28 @@ export class Obligation {
       instructions.push(this.refreshInstruction());
     }
 
-    await this.market.program.rpc.repayObligationLiquidity(
-      new BN(liquidityAmount),
-      leverage
-        ? { yieldFarming: { leverage: { percent: new BN(leverage) } } }
-        : { standard: {} },
-      {
-        accounts: {
-          repayer: this.borrower.publicKey,
-          reserve: reserve.id,
-          obligation: this.id,
-          sourceLiquidityWallet,
-          destinationLiquidityWallet:
-            reserve.accounts.reserveLiquidityWallet.publicKey,
-          clock: SYSVAR_CLOCK_PUBKEY,
-          tokenProgram,
-        },
-        signers: sign ? [this.borrower] : [],
-        instructions,
-      }
-    );
+    const instruction =
+      this.market.program.instruction.repayObligationLiquidity(
+        new BN(liquidityAmount),
+        leverage
+          ? { yieldFarming: { leverage: { percent: new BN(leverage) } } }
+          : { standard: {} },
+        {
+          accounts: {
+            repayer: this.borrower.publicKey,
+            reserve: reserve.id,
+            obligation: this.id,
+            sourceLiquidityWallet,
+            destinationLiquidityWallet:
+              reserve.accounts.reserveLiquidityWallet.publicKey,
+            clock: SYSVAR_CLOCK_PUBKEY,
+            tokenProgram,
+          },
+          signers: sign ? [this.borrower] : [],
+        }
+      );
+
+    await transact(sign ? [this.borrower] : [], ...instructions, instruction);
   }
 
   public async liquidate(
@@ -628,7 +648,7 @@ export class Obligation {
       instructions.push(this.refreshInstruction());
     }
 
-    await this.market.program.rpc.liquidateObligation(
+    const instruction = this.market.program.instruction.liquidateObligation(
       this.market.bumpSeed,
       new BN(liquidityAmount),
       leverage
@@ -651,9 +671,10 @@ export class Obligation {
           tokenProgram,
         },
         signers: sign ? [liquidator] : [],
-        instructions,
       }
     );
+
+    await transact(sign ? [liquidator] : [], ...instructions, instruction);
   }
 
   public async openLeveragedPositionOnAldrin(
@@ -693,45 +714,51 @@ export class Obligation {
     this.reservesToRefresh.add(reserveToBorrow);
     await this.refresh();
 
-    await this.market.program.rpc.openLeveragedPositionOnAldrin(
-      this.market.bumpSeed,
-      positionBumpSeed,
-      new BN(stakeLpAmount),
-      new BN(liquidityAmount),
-      new BN(swapAmount),
-      new BN(minSwapReturn),
-      { percent: new BN(leverage) },
-      {
-        accounts: {
-          lendingMarket: this.market.id,
-          borrower: this.borrower.publicKey,
-          obligation: this.id,
-          reserve: reserveToBorrow.id,
-          reserveLiquidityWallet:
-            reserveToBorrow.accounts.reserveLiquidityWallet.publicKey,
-          lendingMarketPda: this.market.pda,
-          marketObligationPda: positionPda,
-          farmingReceipt: farmingReceipt,
-          ammProgram: ammId,
-          pool: pool.id,
-          poolMint: pool.accounts.mint.publicKey,
-          poolSigner: pool.accounts.vaultSigner,
-          baseTokenVault: pool.accounts.vaultBase,
-          quoteTokenVault: pool.accounts.vaultQuote,
-          feePoolWallet: pool.accounts.feeWallet,
-          borrowerBaseWallet: borrowerBaseWallet,
-          borrowerQuoteWallet: borrowerQuoteWallet,
-          farmingState: pool.accounts.farmingState.publicKey,
-          farmingTicket,
-          borrowerLpWallet: borrowerLpWallet,
-          lpTokenFreezeVault: pool.accounts.lpTokenFreeze,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          clock: SYSVAR_CLOCK_PUBKEY,
-          rent: SYSVAR_RENT_PUBKEY,
-        },
-        signers: [this.borrower],
-        instructions: [reserveToBorrow.refreshInstruction()],
-      }
+    const instruction =
+      this.market.program.instruction.openLeveragedPositionOnAldrin(
+        this.market.bumpSeed,
+        positionBumpSeed,
+        new BN(stakeLpAmount),
+        new BN(liquidityAmount),
+        new BN(swapAmount),
+        new BN(minSwapReturn),
+        { percent: new BN(leverage) },
+        {
+          accounts: {
+            lendingMarket: this.market.id,
+            borrower: this.borrower.publicKey,
+            obligation: this.id,
+            reserve: reserveToBorrow.id,
+            reserveLiquidityWallet:
+              reserveToBorrow.accounts.reserveLiquidityWallet.publicKey,
+            lendingMarketPda: this.market.pda,
+            marketObligationPda: positionPda,
+            farmingReceipt: farmingReceipt,
+            ammProgram: ammId,
+            pool: pool.id,
+            poolMint: pool.accounts.mint.publicKey,
+            poolSigner: pool.accounts.vaultSigner,
+            baseTokenVault: pool.accounts.vaultBase,
+            quoteTokenVault: pool.accounts.vaultQuote,
+            feePoolWallet: pool.accounts.feeWallet,
+            borrowerBaseWallet: borrowerBaseWallet,
+            borrowerQuoteWallet: borrowerQuoteWallet,
+            farmingState: pool.accounts.farmingState.publicKey,
+            farmingTicket,
+            borrowerLpWallet: borrowerLpWallet,
+            lpTokenFreezeVault: pool.accounts.lpTokenFreeze,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            clock: SYSVAR_CLOCK_PUBKEY,
+            rent: SYSVAR_RENT_PUBKEY,
+          },
+          signers: [this.borrower],
+        }
+      );
+
+    await transact(
+      [this.borrower],
+      reserveToBorrow.refreshInstruction(),
+      instruction
     );
 
     return farmingReceipt;
