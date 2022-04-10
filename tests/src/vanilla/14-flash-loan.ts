@@ -11,7 +11,7 @@ import { Reserve } from "../reserve";
 import { LendingMarket } from "../lending-market";
 import { readFile } from "fs/promises";
 import { expect } from "chai";
-import { CaptureStdoutAndStderr } from "../helpers";
+import { CaptureStdoutAndStderr, transact } from "../helpers";
 import { FLASHLOAN_TARGET_SO_BIN_PATH } from "../consts";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { globalContainer } from "../global-container";
@@ -132,7 +132,7 @@ export function test(owner: Keypair) {
       targetProgram: PublicKey = flashLoanTargetProgram.publicKey,
       instructionPrefix: number[] = [1]
     ) {
-      await program.rpc.flashLoan(
+      const instruction = program.instruction.flashLoan(
         market.bumpSeed,
         new BN(100),
         Buffer.from(instructionPrefix),
@@ -178,9 +178,10 @@ export function test(owner: Keypair) {
             },
           ],
           signers: [owner],
-          instructions: [reserve.refreshInstruction()],
         }
       );
+
+      await transact([owner], reserve.refreshInstruction(), instruction);
     }
   });
 }

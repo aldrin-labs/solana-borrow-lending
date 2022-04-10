@@ -1,5 +1,3 @@
-import { Program } from "@project-serum/anchor";
-import { BorrowLending } from "../../../target/types/borrow_lending";
 import {
   BpfLoader,
   BPF_LOADER_PROGRAM_ID,

@@ -122,7 +122,7 @@ export function test(owner: Keypair) {
         obligation.borrow(reserveDoge, destinationDogeLiquidityWallet, 10, {
           tokenProgram: Keypair.generate().publicKey,
         })
-      ).to.be.rejectedWith(/Program ID was not as expected/);
+      ).to.be.rejected;
 
       stdCapture.restore();
     });
@@ -178,7 +178,7 @@ export function test(owner: Keypair) {
 
       await expect(
         obligation.borrow(differentReserve, differentDestination, 10)
-      ).to.be.rejectedWith(/seeds constraint was violated/);
+      ).to.be.rejected;
 
       stdCapture.restore();
     });

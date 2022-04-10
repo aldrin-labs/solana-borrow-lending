@@ -10,7 +10,7 @@ import {
 import { AMM_FEE_OWNER } from "./consts";
 import { LendingMarket } from "./lending-market";
 import { Reserve } from "./reserve";
-import { createEmptyAccount, waitForCommit } from "./helpers";
+import { createEmptyAccount, transact, waitForCommit } from "./helpers";
 import { TokenWrapper } from "./token-wrapper";
 
 export interface AmmPoolAccounts {
@@ -342,28 +342,31 @@ export class AmmFarm {
 
     await waitForCommit();
 
-    await this.ammPool.market.program.rpc.openVaultPositionOnAldrin(
-      bumpSeed,
-      new BN(amount),
-      {
-        accounts: {
-          lendingMarket: this.ammPool.market.id,
-          ammProgram: this.ammPool.amm.programId,
-          caller: caller.publicKey,
-          callerLpWallet,
-          clock: SYSVAR_CLOCK_PUBKEY,
-          farmingReceipt,
-          farmingState: this.ammPool.accounts.farmingState.publicKey,
-          farmingTicket,
-          farmingTicketOwnerPda: positionPda,
-          lpTokenFreezeVault: this.ammPool.accounts.lpTokenFreeze,
-          pool: this.ammPool.id,
-          rent: SYSVAR_RENT_PUBKEY,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        },
-        signers: [caller],
-      }
-    );
+    const instruction =
+      this.ammPool.market.program.instruction.openVaultPositionOnAldrin(
+        bumpSeed,
+        new BN(amount),
+        {
+          accounts: {
+            lendingMarket: this.ammPool.market.id,
+            ammProgram: this.ammPool.amm.programId,
+            caller: caller.publicKey,
+            callerLpWallet,
+            clock: SYSVAR_CLOCK_PUBKEY,
+            farmingReceipt,
+            farmingState: this.ammPool.accounts.farmingState.publicKey,
+            farmingTicket,
+            farmingTicketOwnerPda: positionPda,
+            lpTokenFreezeVault: this.ammPool.accounts.lpTokenFreeze,
+            pool: this.ammPool.id,
+            rent: SYSVAR_RENT_PUBKEY,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          },
+          signers: [caller],
+        }
+      );
+
+    await transact([caller], instruction);
 
     return {
       receipt: farmingReceipt,

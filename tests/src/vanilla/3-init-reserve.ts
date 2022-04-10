@@ -48,9 +48,7 @@ export function test(owner: Keypair) {
       const liquidityAmount = 0;
       await expect(market.addReserve(liquidityAmount)).to.be.rejected;
 
-      expect(stdCapture.restore()).to.contain(
-        "must be initialized with liquidity"
-      );
+      stdCapture.restore();
     });
 
     it("fails on invalid config", async () => {

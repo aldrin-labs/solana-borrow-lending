@@ -514,7 +514,7 @@ Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
 | $`\omega`$   | emitted tokens per slot |
 | $`\kappa`$   | constant liquidity close factor |
 | $`\epsilon`$ | liquidation threshold in \[0; 1) |
-| $`\PHI`$     | leverage |
+| $`\phi`$     | leverage |
 
 
 ⌐
@@ -645,7 +645,7 @@ The leverage is a number which multiplies the initial user's deposit to find
 the end amount of USP which will be minted, added to user's borrow amount and
 then swapped into collateral.
 ```math
-\PHI_{max} = \dfrac{1 - V_{maxb}^30}{1 - V_{maxb}}
+\phi_{max} = \dfrac{1 - V_{maxb}^30}{1 - V_{maxb}}
 \tag{13}
 ```
 
