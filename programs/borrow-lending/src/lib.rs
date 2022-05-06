@@ -34,7 +34,7 @@ pub mod borrow_lending {
         leveraged_compound_fee: PercentageInt,
         vault_compound_fee: PercentageInt,
         min_collateral_uac_value_for_leverage: SDecimal,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::init_lending_market::handle(
             ctx,
             currency,
@@ -49,7 +49,7 @@ pub mod borrow_lending {
         leveraged_compound_fee: PercentageInt,
         vault_compound_fee: PercentageInt,
         min_collateral_uac_value_for_leverage: SDecimal,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::update_lending_market::handle(
             ctx,
             leveraged_compound_fee,
@@ -60,7 +60,7 @@ pub mod borrow_lending {
 
     pub fn set_lending_market_owner(
         ctx: Context<SetLendingMarketOwner>,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::set_lending_market_owner::handle(ctx)
     }
 
@@ -69,7 +69,7 @@ pub mod borrow_lending {
         lending_market_bump_seed: u8,
         liquidity_amount: u64,
         config: InputReserveConfig,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::init_reserve::handle(
             ctx,
             lending_market_bump_seed,
@@ -87,7 +87,7 @@ pub mod borrow_lending {
         liquidity_amount: u64,
         config: InputReserveConfig,
         is_oracle_for_base_vault: bool,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::amm::aldrin::init_reserve_aldrin_unstable_lp_token::handle(
             ctx,
             lending_market_bump_seed,
@@ -100,17 +100,17 @@ pub mod borrow_lending {
     pub fn update_reserve_config(
         ctx: Context<UpdateReserveConfig>,
         config: InputReserveConfig,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::update_reserve_config::handle(ctx, config)
     }
 
-    pub fn refresh_reserve(ctx: Context<RefreshReserve>) -> ProgramResult {
+    pub fn refresh_reserve(ctx: Context<RefreshReserve>) -> Result<()> {
         endpoints::refresh_reserve::handle(ctx)
     }
 
     pub fn refresh_reserve_aldrin_unstable_lp_token(
         ctx: Context<RefreshReserveAldrinUnstableLpToken>,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::refresh_reserve_aldrin_unstable_lp_token::handle(ctx)
     }
 
@@ -118,7 +118,7 @@ pub mod borrow_lending {
         ctx: Context<DepositReserveLiquidity>,
         lending_market_bump_seed: u8,
         liquidity_amount: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::deposit_reserve_liquidity::handle(
             ctx,
             lending_market_bump_seed,
@@ -130,7 +130,7 @@ pub mod borrow_lending {
         ctx: Context<RedeemReserveCollateral>,
         lending_market_bump_seed: u8,
         collateral_amount: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::redeem_reserve_collateral::handle(
             ctx,
             lending_market_bump_seed,
@@ -140,20 +140,18 @@ pub mod borrow_lending {
 
     /// Creates a new obligation with up to 10 possible different reserves from
     /// which to borrow or to which to deposit.
-    pub fn init_obligation_r10(ctx: Context<InitObligation>) -> ProgramResult {
+    pub fn init_obligation_r10(ctx: Context<InitObligation>) -> Result<()> {
         endpoints::init_obligation::handle(ctx)
     }
 
-    pub fn refresh_obligation(
-        ctx: Context<RefreshObligation>,
-    ) -> ProgramResult {
+    pub fn refresh_obligation(ctx: Context<RefreshObligation>) -> Result<()> {
         endpoints::refresh_obligation::handle(ctx)
     }
 
     pub fn deposit_obligation_collateral(
         ctx: Context<DepositObligationCollateral>,
         collateral_amount: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::deposit_obligation_collateral::handle(ctx, collateral_amount)
     }
 
@@ -163,7 +161,7 @@ pub mod borrow_lending {
         ctx: Context<WithdrawObligationCollateral>,
         lending_market_bump_seed: u8,
         collateral_amount: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::withdraw_obligation_collateral::handle(
             ctx,
             lending_market_bump_seed,
@@ -177,7 +175,7 @@ pub mod borrow_lending {
         ctx: Context<'_, '_, '_, 'info, BorrowObligationLiquidity<'info>>,
         lending_market_bump_seed: u8,
         liquidity_amount: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::borrow_obligation_liquidity::handle(
             ctx,
             lending_market_bump_seed,
@@ -190,7 +188,7 @@ pub mod borrow_lending {
         ctx: Context<RepayObligationLiquidity>,
         liquidity_amount: u64,
         loan_kind: LoanKind,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::repay_obligation_liquidity::handle(
             ctx,
             liquidity_amount,
@@ -205,7 +203,7 @@ pub mod borrow_lending {
         lending_market_bump_seed: u8,
         liquidity_amount: u64,
         loan_kind: LoanKind,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::liquidate_obligation::handle(
             ctx,
             lending_market_bump_seed,
@@ -223,7 +221,7 @@ pub mod borrow_lending {
         lending_market_bump_seed: u8,
         liquidity_amount: u64,
         target_data_prefix: Vec<u8>,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::flash_loan::handle(
             ctx,
             lending_market_bump_seed,
@@ -233,7 +231,7 @@ pub mod borrow_lending {
     }
 
     /// Used by the market owner to conditionally turn off/on flash loans.
-    pub fn toggle_flash_loans(ctx: Context<ToggleFlashLoans>) -> ProgramResult {
+    pub fn toggle_flash_loans(ctx: Context<ToggleFlashLoans>) -> Result<()> {
         endpoints::toggle_flash_loans::handle(ctx)
     }
 
@@ -263,7 +261,7 @@ pub mod borrow_lending {
         swap_amount: u64,
         min_swap_return: u64,
         leverage: Leverage,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::amm::aldrin::open_leveraged_position_on_aldrin::handle(
             ctx,
             lending_market_bump_seed,
@@ -280,7 +278,7 @@ pub mod borrow_lending {
         ctx: Context<CloseLeveragedPositionOnAldrin>,
         market_obligation_bump_seed: u8,
         leverage: Leverage,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::amm::aldrin::close_leveraged_position_on_aldrin::handle(
             ctx,
             market_obligation_bump_seed,
@@ -296,7 +294,7 @@ pub mod borrow_lending {
         ctx: Context<CompoundPositionOnAldrin>,
         stake_lp_amount: u64,
         seeds: Vec<Vec<u8>>,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::amm::aldrin::compound_position_on_aldrin::handle(
             ctx,
             stake_lp_amount,
@@ -308,7 +306,7 @@ pub mod borrow_lending {
     /// at present time for a reserve.
     pub fn take_reserve_cap_snapshot(
         ctx: Context<TakeReserveCapSnapshot>,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::emit::take_reserve_cap_snapshot::handle(ctx)
     }
 
@@ -317,7 +315,7 @@ pub mod borrow_lending {
     pub fn close_emission<'info>(
         ctx: Context<'_, '_, '_, 'info, CloseEmission<'info>>,
         lending_market_bump_seed: u8,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::emit::close_emission::handle(ctx, lending_market_bump_seed)
     }
 
@@ -332,7 +330,7 @@ pub mod borrow_lending {
         ends_at_slot: u64,
         min_slots_elapsed_before_claim: u64,
         tokens: Vec<EmittedToken>,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::emit::create_emission::handle(
             ctx,
             lending_market_bump_seed,
@@ -349,7 +347,7 @@ pub mod borrow_lending {
         ctx: Context<'_, '_, '_, 'info, ClaimEmission<'info>>,
         lending_market_bump_seed: u8,
         reserve_index: u8,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::emit::claim_emission::handle(
             ctx,
             lending_market_bump_seed,
@@ -365,7 +363,7 @@ pub mod borrow_lending {
         ctx: Context<OpenVaultPositionOnAldrin>,
         bump_seed: u8,
         stake_lp_amount: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::amm::aldrin::open_vault_position_on_aldrin::handle(
             ctx,
             bump_seed,
@@ -379,7 +377,7 @@ pub mod borrow_lending {
     pub fn close_vault_position_on_aldrin(
         ctx: Context<CloseVaultPositionOnAldrin>,
         bump_seed: u8,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::amm::aldrin::close_vault_position_on_aldrin::handle(
             ctx, bump_seed,
         )

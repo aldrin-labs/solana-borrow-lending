@@ -9,8 +9,7 @@ use anchor_spl::token::{self, Token};
 #[derive(Accounts)]
 #[instruction(lending_market_bump_seed: u8)]
 pub struct WithdrawObligationCollateral<'info> {
-    #[account(signer)]
-    pub borrower: AccountInfo<'info>,
+    pub borrower: Signer<'info>,
     #[account(mut)]
     pub obligation: AccountLoader<'info, Obligation>,
     /// The reserve whose collateral is deposited in the obligation and should
@@ -19,6 +18,7 @@ pub struct WithdrawObligationCollateral<'info> {
         constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
     pub reserve: Box<Account<'info, Reserve>>,
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [reserve.lending_market.as_ref()],
         bump = lending_market_bump_seed,
@@ -26,6 +26,8 @@ pub struct WithdrawObligationCollateral<'info> {
     pub lending_market_pda: AccountInfo<'info>,
     /// The reserve's collateral supply wallet where BLp stores all deposited
     /// collateral from all borrowers.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = source_collateral_wallet.key() == reserve.collateral.supply
@@ -34,6 +36,8 @@ pub struct WithdrawObligationCollateral<'info> {
     pub source_collateral_wallet: AccountInfo<'info>,
     /// Any kind of token wallet with the same mint as source collateral
     /// wallet.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = destination_collateral_wallet.key() !=
@@ -49,7 +53,7 @@ pub fn handle(
     ctx: Context<WithdrawObligationCollateral>,
     lending_market_bump_seed: u8,
     collateral_amount: u64,
-) -> ProgramResult {
+) -> Result<()> {
     msg!(
         "withdraw {} tokens from obligation '{}'",
         collateral_amount,
@@ -66,22 +70,22 @@ pub fn handle(
     let mut obligation = accounts.obligation.load_mut()?;
 
     if accounts.reserve.lending_market != obligation.lending_market {
-        return Err(err::market_mismatch());
+        return Err(error!(err::market_mismatch()));
     }
     if obligation.is_stale(&accounts.clock) {
-        return Err(err::obligation_stale());
+        return Err(error!(err::obligation_stale()));
     }
     if accounts.borrower.key() != obligation.owner {
-        return Err(ProgramError::IllegalOwner);
+        return Err(error!(ErrorCode::IllegalOwner));
     }
 
     let (collateral_index, collateral) =
         obligation.get_collateral(accounts.reserve.key())?;
 
     if collateral.deposited_amount == 0 {
-        return Err(err::empty_collateral(
+        return Err(error!(err::empty_collateral(
             "Collateral deposited amount is zero",
-        ));
+        )));
     }
 
     let withdraw_amount = if !obligation.has_borrows() {
@@ -91,15 +95,15 @@ pub fn handle(
         // unlikely situation as if there's no deposited value then there won't
         // be any borrows, but since we're dividing by deposited amount, this
         // is a more friendly error in any case
-        return Err(err::empty_collateral(
+        return Err(error!(err::empty_collateral(
             "Obligation deposited value is zero",
-        ));
+        )));
     } else {
         let max_withdraw_value = obligation.max_withdraw_value()?;
         if max_withdraw_value == Decimal::zero() {
-            return Err(err::empty_collateral(
+            return Err(error!(err::empty_collateral(
                 "No collateral can be withdrawn",
-            ));
+            )));
         }
 
         let withdraw_amount =

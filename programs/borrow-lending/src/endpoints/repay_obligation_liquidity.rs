@@ -14,8 +14,7 @@ use anchor_spl::token::{self, Token};
 #[derive(Accounts)]
 pub struct RepayObligationLiquidity<'info> {
     /// Presumably `obligation.owner` but doesn't have to be.
-    #[account(signer)]
-    pub repayer: AccountInfo<'info>,
+    pub repayer: Signer<'info>,
     #[account(mut)]
     pub obligation: AccountLoader<'info, Obligation>,
     #[account(
@@ -23,12 +22,14 @@ pub struct RepayObligationLiquidity<'info> {
         constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
     pub reserve: Box<Account<'info, Reserve>>,
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = source_liquidity_wallet.key() != reserve.liquidity.supply
             @ err::acc("Source liq. wallet mustn't eq. reserve's liq. supply"),
     )]
     pub source_liquidity_wallet: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = destination_liquidity_wallet.key() ==
@@ -44,7 +45,7 @@ pub fn handle(
     ctx: Context<RepayObligationLiquidity>,
     liquidity_amount: u64,
     loan_kind: LoanKind,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     if liquidity_amount == 0 {
@@ -55,16 +56,18 @@ pub fn handle(
     let mut obligation = accounts.obligation.load_mut()?;
 
     if obligation.is_stale(&accounts.clock) {
-        return Err(err::obligation_stale());
+        return Err(error!(err::obligation_stale()));
     }
     if accounts.reserve.lending_market != obligation.lending_market {
-        return Err(err::market_mismatch());
+        return Err(error!(err::market_mismatch()));
     }
 
     let (liquidity_index, liquidity) =
         obligation.get_liquidity(accounts.reserve.key(), loan_kind)?;
     if liquidity.borrowed_amount.to_dec() == Decimal::zero() {
-        return Err(err::empty_liquidity("Liquidity borrowed amount is zero"));
+        return Err(error!(err::empty_liquidity(
+            "Liquidity borrowed amount is zero"
+        )));
     }
 
     // the repay amount is similar to liquidity but at most equal to the
@@ -106,9 +109,9 @@ impl<'info> RepayObligationLiquidity<'info> {
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
         let cpi_accounts = token::Transfer {
-            from: self.source_liquidity_wallet.clone(),
-            to: self.destination_liquidity_wallet.clone(),
-            authority: self.repayer.clone(),
+            from: self.source_liquidity_wallet.to_account_info(),
+            to: self.destination_liquidity_wallet.to_account_info(),
+            authority: self.repayer.to_account_info(),
         };
         let cpi_program = self.token_program.to_account_info();
         CpiContext::new(cpi_program, cpi_accounts)

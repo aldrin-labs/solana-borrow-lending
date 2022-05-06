@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use std::fmt::Display;
 
-#[error]
+#[error_code]
 #[derive(PartialEq, Eq)]
 pub enum ErrorCode {
     #[msg("Provided owner does not match the market owner")]
@@ -98,121 +98,107 @@ pub enum ErrorCode {
     EmissionEnded,
     #[msg("More snapshots have to be taken for the reserve before emissions can work")]
     NotEnoughSnapshots,
+    #[msg("Illegal owner")]
+    IllegalOwner,
+    #[msg("Insufficient funds")]
+    InsufficientFunds,
+    #[msg("Invalid argument")]
+    InvalidArgument,
 }
 
-impl PartialEq for Error {
-    fn eq(&self, other: &Self) -> bool {
-        self == other
+impl From<decimal::ErrorCode> for ErrorCode {
+    fn from(_e: decimal::ErrorCode) -> Self {
+        ErrorCode::MathOverflow
     }
 }
 
-impl From<decimal::Error> for Error {
-    fn from(_e: decimal::Error) -> Self {
-        ErrorCode::MathOverflow.into()
-    }
-}
-
-pub fn illegal_owner(msg: impl AsRef<str>) -> ProgramError {
+pub fn illegal_owner(msg: impl AsRef<str>) -> ErrorCode {
     msg!("[IllegalOwner] {}", msg.as_ref());
 
-    ProgramError::IllegalOwner
+    ErrorCode::IllegalOwner
 }
 
-pub fn acc(msg: impl AsRef<str>) -> ProgramError {
+pub fn acc(msg: impl AsRef<str>) -> ErrorCode {
     msg!("[InvalidAccountInput] {}", msg.as_ref());
 
-    ErrorCode::InvalidAccountInput.into()
+    ErrorCode::InvalidAccountInput
 }
 
-pub fn aldrin_amm_program_mismatch() -> ProgramError {
+pub fn aldrin_amm_program_mismatch() -> ErrorCode {
     acc("Market's AMM program ID must match provided account id")
 }
 
-pub fn reserve_stale() -> ProgramError {
+pub fn reserve_stale() -> ErrorCode {
     msg!("[ReserveStale] Account needs to be refreshed");
 
-    ErrorCode::ReserveStale.into()
+    ErrorCode::ReserveStale
 }
 
-pub fn obligation_stale() -> ProgramError {
+pub fn obligation_stale() -> ErrorCode {
     msg!("[ObligationStale] Account needs to be refreshed");
 
-    ErrorCode::ObligationStale.into()
+    ErrorCode::ObligationStale
 }
 
-pub fn cannot_use_as_collateral() -> ProgramError {
+pub fn cannot_use_as_collateral() -> ErrorCode {
     msg!(
         "[ReserveCollateralDisabled] This reserve was configured to not \
             be used as a collateral"
     );
 
-    ErrorCode::ReserveCollateralDisabled.into()
+    ErrorCode::ReserveCollateralDisabled
 }
 
-pub fn market_mismatch() -> ProgramError {
+pub fn market_mismatch() -> ErrorCode {
     msg!(
         "[LendingMarketMismatch] All accounts must belong to the same \
             lending market"
     );
 
-    ErrorCode::LendingMarketMismatch.into()
+    ErrorCode::LendingMarketMismatch
 }
 
-pub fn obligation_healthy() -> ProgramError {
+pub fn obligation_healthy() -> ErrorCode {
     msg!(
         "[ObligationHealthy] Obligation's unhealthy borrow value is zero \
         hence there's nothing to be liquidated"
     );
 
-    ErrorCode::ObligationHealthy.into()
+    ErrorCode::ObligationHealthy
 }
 
-pub fn empty_liquidity(msg: impl AsRef<str>) -> ProgramError {
+pub fn empty_liquidity(msg: impl AsRef<str>) -> ErrorCode {
     msg!("[ObligationLiquidityEmpty] {}", msg.as_ref());
 
-    ErrorCode::ObligationLiquidityEmpty.into()
+    ErrorCode::ObligationLiquidityEmpty
 }
 
-pub fn empty_collateral(msg: impl AsRef<str>) -> ProgramError {
+pub fn empty_collateral(msg: impl AsRef<str>) -> ErrorCode {
     msg!("[ObligationCollateralEmpty] {}", msg.as_ref());
 
-    ErrorCode::ObligationCollateralEmpty.into()
+    ErrorCode::ObligationCollateralEmpty
 }
 
 pub fn insufficient_funds(
     required: impl Display,
     got: impl Display,
-) -> ProgramError {
+) -> ErrorCode {
     msg!("[InsufficientFunds] Required {} but got {}", required, got);
 
-    ProgramError::InsufficientFunds
+    ErrorCode::InsufficientFunds
 }
 
-pub fn oracle(msg: impl AsRef<str>) -> ProgramError {
+pub fn oracle(msg: impl AsRef<str>) -> ErrorCode {
     msg!("[InvalidOracleConfig] {}", msg.as_ref());
 
-    ErrorCode::InvalidOracleConfig.into()
+    ErrorCode::InvalidOracleConfig
 }
 
-pub fn flash_loans_disabled() -> ProgramError {
+pub fn flash_loans_disabled() -> ErrorCode {
     msg!(
         "[FlashLoansDisabled] You cannot use flash loans as \
         this feature is currently not enabled"
     );
 
-    ErrorCode::FlashLoansDisabled.into()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use anchor_lang::solana_program::program_error::ProgramError;
-
-    #[test]
-    fn test_error_conversion() {
-        assert_eq!(
-            ProgramError::Custom(6000),
-            ErrorCode::InvalidMarketOwner.into()
-        );
-    }
+    ErrorCode::FlashLoansDisabled
 }

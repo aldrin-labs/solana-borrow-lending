@@ -12,10 +12,10 @@ use std::iter;
 #[derive(Accounts)]
 #[instruction(lending_market_bump_seed: u8)]
 pub struct CreateEmission<'info> {
-    #[account(signer)]
-    pub owner: AccountInfo<'info>,
+    pub owner: Signer<'info>,
     #[account(has_one = owner @ ErrorCode::InvalidMarketOwner)]
     pub lending_market: Box<Account<'info, LendingMarket>>,
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [lending_market.key().as_ref()],
         bump = lending_market_bump_seed,
@@ -38,7 +38,7 @@ pub fn handle<'info>(
     ends_at_slot: u64,
     min_slots_elapsed_before_claim: u64,
     tokens: Vec<EmittedToken>,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     let input_tokens_len = tokens.len();
@@ -48,14 +48,14 @@ pub fn handle<'info>(
             "At most {} different emission token mints are allowed",
             consts::EMISSION_TOKENS_COUNT
         );
-        return Err(ProgramError::InvalidArgument);
+        return Err(error!(ErrorCode::InvalidArgument));
     }
     if input_tokens_len != ctx.remaining_accounts.len() {
         msg!(
             "In remaining accounts, there must be {} wallets",
             input_tokens_len
         );
-        return Err(ProgramError::InvalidArgument);
+        return Err(error!(ErrorCode::InvalidArgument));
     }
 
     // transfers all wallets to the BLp
@@ -67,7 +67,7 @@ pub fn handle<'info>(
                 "Order of wallets in remaining accounts must follow the order \
                 in the emission's mints"
             );
-            return Err(ProgramError::InvalidArgument);
+            return Err(error!(ErrorCode::InvalidArgument));
         }
 
         token::set_authority(
@@ -89,7 +89,7 @@ pub fn handle<'info>(
         .collect();
     accounts.emission.tokens = tokens.try_into().map_err(|_| {
         msg!("Cannot convert vector into array");
-        ProgramError::InvalidArgument
+        ErrorCode::InvalidArgument
     })?;
     accounts.emission.reserve = accounts.reserve.key();
     accounts.emission.starts_at_slot = starts_at_slot;
@@ -106,7 +106,7 @@ impl<'info> CreateEmission<'info> {
         wallet: AccountInfo<'info>,
     ) -> CpiContext<'_, '_, '_, 'info, token::SetAuthority<'info>> {
         let cpi_accounts = token::SetAuthority {
-            current_authority: self.owner.clone(),
+            current_authority: self.owner.to_account_info(),
             account_or_mint: wallet,
         };
         let cpi_program = self.token_program.to_account_info();

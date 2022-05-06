@@ -83,7 +83,7 @@ impl Side {
                 "The reserve's liquidity mint must match either \
                 the base token vault mint or quote token vault mint"
             );
-            Err(ProgramError::from(ErrorCode::InvalidAccountInput))
+            Err(ErrorCode::from(ErrorCode::InvalidAccountInput))
         };
 
         Ok(side?)

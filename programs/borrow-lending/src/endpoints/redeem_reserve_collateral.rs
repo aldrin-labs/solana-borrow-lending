@@ -15,8 +15,7 @@ use anchor_spl::token::{self, Token, TokenAccount};
 #[derive(Accounts)]
 #[instruction(lending_market_bump_seed: u8, liquidity_amount: u64)]
 pub struct RedeemReserveCollateral<'info> {
-    #[account(signer)]
-    pub funder: AccountInfo<'info>,
+    pub funder: Signer<'info>,
     /// Funder's token account which will be deposited with liquidity that they
     /// funder plus accrued interest. The interest they receive is given by the
     /// exchange rate between the collateral token and liquidity token. See
@@ -30,6 +29,7 @@ pub struct RedeemReserveCollateral<'info> {
             equal to reserve liq. wallet"),
     )]
     pub destination_liquidity_wallet: Account<'info, TokenAccount>,
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [reserve.lending_market.as_ref()],
         bump = lending_market_bump_seed,
@@ -40,6 +40,7 @@ pub struct RedeemReserveCollateral<'info> {
         constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
     pub reserve: Account<'info, Reserve>,
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = reserve.collateral.mint == reserve_collateral_mint.key()
@@ -50,6 +51,8 @@ pub struct RedeemReserveCollateral<'info> {
     /// they got collateral token in exchange for their liquidity.
     ///
     /// In this endpoint we burn these tokens.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = source_collateral_wallet.key() != reserve.collateral.supply
@@ -58,6 +61,8 @@ pub struct RedeemReserveCollateral<'info> {
     pub source_collateral_wallet: AccountInfo<'info>,
     /// All assets are deposited into this wallet, and we pay the funder from
     /// this wallet too.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = reserve_liquidity_wallet.key() == reserve.liquidity.supply
@@ -72,7 +77,7 @@ pub fn handle(
     ctx: Context<RedeemReserveCollateral>,
     lending_market_bump_seed: u8,
     collateral_amount: u64,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     if collateral_amount == 0 {
@@ -108,9 +113,9 @@ impl<'info> RedeemReserveCollateral<'info> {
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::Burn<'info>> {
         let cpi_accounts = token::Burn {
-            mint: self.reserve_collateral_mint.clone(),
-            to: self.source_collateral_wallet.clone(),
-            authority: self.funder.clone(),
+            mint: self.reserve_collateral_mint.to_account_info(),
+            from: self.source_collateral_wallet.to_account_info(),
+            authority: self.funder.to_account_info(),
         };
         let cpi_program = self.token_program.to_account_info();
         CpiContext::new(cpi_program, cpi_accounts)

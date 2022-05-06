@@ -11,7 +11,7 @@ pub struct InitReceipt<'info> {
     pub receipt: Account<'info, Receipt>,
 }
 
-pub fn handle(ctx: Context<InitReceipt>) -> ProgramResult {
+pub fn handle(ctx: Context<InitReceipt>) -> Result<()> {
     let accounts = ctx.accounts;
 
     accounts.receipt.borrower = accounts.borrower.key();

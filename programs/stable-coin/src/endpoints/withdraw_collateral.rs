@@ -23,12 +23,16 @@ pub struct WithdrawCollateral<'info> {
     )]
     pub reserve: Box<Account<'info, borrow_lending::models::Reserve>>,
     /// Authorizes transfer from freeze wallet
+    ///
+    /// CHECK: UNSAFE_CODES#signer
     #[account(
         seeds = [component.key().as_ref()],
         bump = component_bump_seed,
     )]
     pub component_pda: AccountInfo<'info>,
     /// Returns user's collateral
+    ///
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(mut)]
     pub freeze_wallet: AccountInfo<'info>,
     #[account(
@@ -40,6 +44,8 @@ pub struct WithdrawCollateral<'info> {
     )]
     pub receipt: Account<'info, Receipt>,
     /// Tokens from the freeze wallet are sent here.
+    ///
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(mut)]
     pub borrower_collateral_wallet: AccountInfo<'info>,
     pub token_program: Program<'info, Token>,
@@ -50,7 +56,7 @@ pub fn handle(
     ctx: Context<WithdrawCollateral>,
     component_bump_seed: u8,
     amount: u64,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     if amount == 0 {

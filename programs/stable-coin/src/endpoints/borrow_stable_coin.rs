@@ -28,6 +28,8 @@ pub struct BorrowStableCoin<'info> {
     #[account(mut)]
     pub stable_coin_mint: Account<'info, Mint>,
     /// Necessary to authorize minting of new stable coin tokens.
+    ///
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [component.stable_coin.as_ref()],
         bump = stable_coin_bump_seed,
@@ -42,6 +44,8 @@ pub struct BorrowStableCoin<'info> {
     )]
     pub receipt: Account<'info, Receipt>,
     /// Mint tokens in here
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(mut)]
     pub borrower_stable_coin_wallet: AccountInfo<'info>,
     pub token_program: Program<'info, Token>,
@@ -52,7 +56,7 @@ pub fn handle(
     ctx: Context<BorrowStableCoin>,
     stable_coin_bump_seed: u8,
     amount: u64,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     if amount == 0 {

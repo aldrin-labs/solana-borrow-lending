@@ -1,6 +1,6 @@
 [package]
 name = "stable-coin"
-version = "0.3.0"
+version = "1.0.0"
 description = ""
 edition = "2018"
 
@@ -16,11 +16,11 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-anchor-lang = "0.21"
-anchor-spl = "0.21"
+anchor-lang = "0.24.2"
+anchor-spl = "0.24.2"
 borrow-lending = { path = "../borrow-lending", features = ["no-entrypoint"] }
 cpis = { path = "../../cpis" }
-decimal = { path = "../../decimal" }
+decimal = { git = "ssh://git@gitlab.com/crypto_project/defi/decimal.git", tag = "0.1.0" }
 uint = "0.9"
 
 [dev-dependencies]

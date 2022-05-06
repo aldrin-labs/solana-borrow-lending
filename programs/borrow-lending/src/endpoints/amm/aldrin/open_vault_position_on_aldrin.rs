@@ -9,12 +9,13 @@ pub const VAULT_POSITION_PDA_SEEDS_LEN: usize = 3;
 #[instruction(bump_seed: u8)]
 pub struct OpenVaultPositionOnAldrin<'info> {
     pub lending_market: Box<Account<'info, LendingMarket>>,
-    #[account(signer)]
-    pub caller: AccountInfo<'info>,
+    pub caller: Signer<'info>,
     /// The owner will be a PDA from the caller's key (who owns the LP token
     /// wallet) and the pool pubkey.
     ///
     /// See also [`VAULT_POSITION_PDA_SEEDS_LEN`]
+    ///
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [caller.key().as_ref(), pool.key().as_ref()],
         bump = bump_seed,
@@ -25,23 +26,30 @@ pub struct OpenVaultPositionOnAldrin<'info> {
     #[account(zero)]
     pub farming_receipt: Account<'info, AldrinFarmingReceipt>,
     // -------------- AMM Accounts ----------------
+    /// CHECK: UNSAFE_CODES.md#constraints
     #[account(
         executable,
         constraint = lending_market.aldrin_amm == amm_program.key()
             @ err::aldrin_amm_program_mismatch(),
     )]
     pub amm_program: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub pool: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub caller_lp_wallet: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub farming_state: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub farming_ticket: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub lp_token_freeze_vault: AccountInfo<'info>,
     // -------------- Other ----------------
     pub token_program: Program<'info, Token>,
     pub clock: Sysvar<'info, Clock>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub rent: AccountInfo<'info>,
 }
 
@@ -49,7 +57,7 @@ pub fn handle(
     ctx: Context<OpenVaultPositionOnAldrin>,
     bump_seed: u8,
     stake_lp_amount: u64,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     if stake_lp_amount == 0 {

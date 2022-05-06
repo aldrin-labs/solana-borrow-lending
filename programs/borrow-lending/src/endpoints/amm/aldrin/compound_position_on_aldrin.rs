@@ -22,8 +22,7 @@ pub struct CompoundPositionOnAldrin<'info> {
             @ err::acc("Only designated bot account can call compound"),
     )]
     pub lending_market: Box<Account<'info, LendingMarket>>,
-    #[account(signer)]
-    pub caller: AccountInfo<'info>,
+    pub caller: Signer<'info>,
     /// We don't check for correctness of the PDA in constraints because it
     /// will be checked when we invoke signed CPI on AMM. The farming
     /// ticket's authority is the PDA, and therefore the pubkey here must
@@ -37,16 +36,25 @@ pub struct CompoundPositionOnAldrin<'info> {
     /// called by Aldrin's bot. If you provide incorrectly generated PDA
     /// with wrong seed, the endpoint will fail because AMM returns an
     /// error about authority mismatch.
+    ///
+    /// CHECK: UNSAFE_CODES.md#signer
     pub farming_ticket_owner_pda: AccountInfo<'info>,
     // -------------- AMM Accounts ----------------
-    #[account(executable)]
+    /// CHECK: UNSAFE_CODES.md#constraints
+    #[account(
+        executable,
+        constraint = lending_market.aldrin_amm == amm_program.key()
+            @ err::aldrin_amm_program_mismatch(),
+    )]
     pub amm_program: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(
         constraint = *pool.owner == amm_program.key()
             @ err::illegal_owner("Amm pool account \
             must be owned by amm program"),
     )]
     pub pool: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub pool_signer: AccountInfo<'info>,
     pub pool_mint: Box<Account<'info, Mint>>,
     pub base_token_vault: Box<Account<'info, TokenAccount>>,
@@ -67,11 +75,15 @@ pub struct CompoundPositionOnAldrin<'info> {
     pub caller_lp_wallet: Box<Account<'info, TokenAccount>>,
     #[account(mut)]
     pub caller_farm_wallet: Box<Account<'info, TokenAccount>>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub farming_state: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub farming_calc: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub new_farming_ticket: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub farming_snapshots: AccountInfo<'info>,
     #[account(mut)]
     pub farm_token_vault: Box<Account<'info, TokenAccount>>,
@@ -81,11 +93,13 @@ pub struct CompoundPositionOnAldrin<'info> {
         constraint = !farm_token_reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
     pub farm_token_reserve: Box<Account<'info, Reserve>>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub lp_token_freeze_vault: AccountInfo<'info>,
     // -------------- Other ----------------
     pub token_program: Program<'info, Token>,
     pub clock: Sysvar<'info, Clock>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub rent: AccountInfo<'info>,
 }
 
@@ -93,14 +107,14 @@ pub fn handle(
     mut ctx: Context<CompoundPositionOnAldrin>,
     stake_lp_amount: u64,
     seeds: Vec<Vec<u8>>,
-) -> ProgramResult {
+) -> Result<()> {
     let fee = if seeds.len() == super::LEVERAGED_POSITION_PDA_SEEDS_LEN {
         ctx.accounts.lending_market.leveraged_compound_fee
     } else if seeds.len() == super::VAULT_POSITION_PDA_SEEDS_LEN {
         ctx.accounts.lending_market.vault_compound_fee
     } else {
         msg!("Unexpected seed length {}", seeds.len());
-        return Err(ProgramError::InvalidArgument);
+        return Err(error!(ErrorCode::InvalidArgument));
     };
 
     ctx.accounts.compound(fee, stake_lp_amount, seeds)
@@ -118,12 +132,12 @@ trait Compoundable<'info> {
         compound_fee: PercentageInt,
         stake_lp_amount: u64,
         seeds: Vec<Vec<u8>>,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let farm_mint = self.caller_farm_wallet().mint;
         let lp_mint = self.caller_lp_wallet().mint;
         if farm_mint == lp_mint {
             msg!("Farm wallet mint cannot be the same as the LP token mint");
-            return Err(ProgramError::InvalidArgument);
+            return Err(error!(ErrorCode::InvalidArgument));
         }
 
         let farm_token_amount_before_withdraw =
@@ -165,7 +179,7 @@ trait Compoundable<'info> {
         compound_fee: PercentageInt,
         farmed_amount: u64,
         lp_token_amount: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let pool = self.pool();
         let amm_pool_data = pool.try_borrow_data()?;
         let amm = aldrin_amm::Pool::load(&amm_pool_data)?;
@@ -204,7 +218,7 @@ trait Compoundable<'info> {
     }
 
     fn caller_farm_wallet(&self) -> &Account<'info, TokenAccount>;
-    fn reload_caller_farm_wallet(&mut self) -> ProgramResult;
+    fn reload_caller_farm_wallet(&mut self) -> Result<()>;
     fn caller_lp_wallet(&self) -> &Account<'info, TokenAccount>;
     fn pool_mint(&self) -> &Account<'info, Mint>;
     fn pool(&self) -> &AccountInfo<'info>;
@@ -221,7 +235,7 @@ impl<'info> Compoundable<'info> for &mut CompoundPositionOnAldrin<'info> {
     fn caller_farm_wallet(&self) -> &Account<'info, TokenAccount> {
         &self.caller_farm_wallet
     }
-    fn reload_caller_farm_wallet(&mut self) -> ProgramResult {
+    fn reload_caller_farm_wallet(&mut self) -> Result<()> {
         self.caller_farm_wallet.reload()?;
         Ok(())
     }

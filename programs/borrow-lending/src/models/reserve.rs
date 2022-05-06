@@ -304,7 +304,7 @@ impl Reserve {
 
     /// Update borrow rate and accrue interest based on how much of the funds
     /// are presently borrowed.
-    pub fn accrue_interest(&mut self, current_slot: u64) -> ProgramResult {
+    pub fn accrue_interest(&mut self, current_slot: u64) -> Result<()> {
         let slots_elapsed = self.last_update.slots_elapsed(current_slot)?;
         if slots_elapsed > 0 {
             let current_borrow_rate = self.current_borrow_rate()?;
@@ -441,7 +441,7 @@ impl ReserveLiquidity {
         &mut self,
         repay_amount: u64,
         settle_amount: Decimal,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         self.available_amount = self
             .available_amount
             .checked_add(repay_amount)
@@ -808,7 +808,7 @@ pub(crate) trait InitReserveOps<'info> {
         config: ReserveConfig,
         market_price: SDecimal,
         liquidity_amount: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let slot = self.slot();
         let last_update = LastUpdate::new(slot);
         let lending_market = self.lending_market_key();
@@ -853,7 +853,7 @@ pub(crate) trait InitReserveOps<'info> {
         liquidity_amount: u64,
         liquidity_mint_decimals: u8,
         lending_market_bump_seed: u8,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let freeze_authority = None;
         token::initialize_mint(
             self.as_init_collateral_mint_context(),

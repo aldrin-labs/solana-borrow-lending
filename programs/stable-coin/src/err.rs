@@ -1,9 +1,7 @@
 use crate::prelude::*;
-use borrow_lending::err::{
-    Error as BorrowLendingError, ErrorCode as BorrowLendingErrorCode,
-};
+use borrow_lending::err::ErrorCode as BorrowLendingErrorCode;
 
-#[error]
+#[error_code]
 #[derive(PartialEq, Eq)]
 pub enum ErrorCode {
     #[msg("Operation would result in an overflow")]
@@ -28,64 +26,54 @@ pub enum ErrorCode {
     CannotLiquidateHealthyReceipt,
     #[msg("Provided wanted collateral cannot be more than configured max")]
     CannotGoOverMaxCollateralRatio,
+    #[msg("Check the logs for borrow lending related error")]
+    BorrowLendingRethrow,
 }
 
-impl PartialEq for Error {
-    fn eq(&self, other: &Self) -> bool {
-        self == other
+impl From<decimal::ErrorCode> for ErrorCode {
+    fn from(_e: decimal::ErrorCode) -> Self {
+        ErrorCode::MathOverflow
     }
 }
 
-impl From<decimal::Error> for Error {
-    fn from(_e: decimal::Error) -> Self {
-        ErrorCode::MathOverflow.into()
-    }
-}
-
-impl From<BorrowLendingError> for Error {
-    fn from(e: BorrowLendingError) -> Self {
+impl From<BorrowLendingErrorCode> for ErrorCode {
+    fn from(e: BorrowLendingErrorCode) -> Self {
         match e {
-            BorrowLendingError::ProgramError(program_err) => {
-                Self::ProgramError(program_err)
+            BorrowLendingErrorCode::MathOverflow => Self::MathOverflow,
+            other => {
+                msg!("[BorrowLending] {}", other);
+                Self::BorrowLendingRethrow
             }
-            BorrowLendingError::ErrorCode(err_code) => match err_code {
-                BorrowLendingErrorCode::MathOverflow => {
-                    ErrorCode::MathOverflow.into()
-                }
-                other => Self::ProgramError(other.into()),
-            },
         }
     }
 }
 
-pub fn admin_mismatch() -> ProgramError {
-    msg!("[IllegalOwner] Stable coin's admin mismatches signer");
+pub fn acc(msg: impl AsRef<str>) -> ErrorCode {
+    msg!("[InvalidAccountInput] {}", msg.as_ref());
 
-    ProgramError::IllegalOwner
+    ErrorCode::InvalidAccountInput
 }
 
-pub fn stable_coin_mismatch() -> ProgramError {
+pub fn admin_mismatch() -> ErrorCode {
+    acc("[IllegalOwner] Stable coin's admin mismatches signer")
+}
+
+pub fn stable_coin_mismatch() -> ErrorCode {
     acc("[InvalidAccountInput] Stable coin's key doesn't match expected one")
 }
 
-pub fn stable_coin_mint_mismatch() -> ProgramError {
+pub fn stable_coin_mint_mismatch() -> ErrorCode {
     acc("[InvalidAccountInput] Stable coin's mint doesn't match expected one")
 }
 
-pub fn acc(msg: impl AsRef<str>) -> ProgramError {
-    msg!("[InvalidAccountInput] {}", msg.as_ref());
-
-    ErrorCode::InvalidAccountInput.into()
-}
-
-pub fn reserve_mismatch() -> ProgramError {
+pub fn reserve_mismatch() -> ErrorCode {
     acc("Reserve account does not match component's config")
 }
 
-pub fn freeze_wallet_mismatch() -> ProgramError {
+pub fn freeze_wallet_mismatch() -> ErrorCode {
     acc("Freeze wallet doesn't match component's configuration")
 }
 
-pub fn aldrin_amm_program_mismatch() -> ProgramError {
+pub fn aldrin_amm_program_mismatch() -> ErrorCode {
     acc("Market's AMM program ID must match provided account id")
 }

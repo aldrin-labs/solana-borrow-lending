@@ -125,7 +125,7 @@ impl Component {
 }
 
 impl ComponentConfig {
-    fn validate(&self) -> ProgramResult {
+    fn validate(&self) -> Result<()> {
         let interest = self.interest.to_dec();
         if interest.try_floor_u64()? != 0 {
             msg!("Interest must be in range [0; 1)");

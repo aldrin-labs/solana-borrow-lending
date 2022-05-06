@@ -18,18 +18,21 @@ pub struct RepayStableCoin<'info> {
     /// We need to mutate mint allowance in config.
     #[account(mut)]
     pub component: Box<Account<'info, Component>>,
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(
         mut,
         constraint = interest_wallet.key() == component.interest_wallet
             @ err::acc("Interest wallet must match component's config"),
     )]
     pub interest_wallet: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(
         mut,
         constraint = borrow_fee_wallet.key() == component.borrow_fee_wallet
             @ err::acc("Borrow fee wallet must match component's config"),
     )]
     pub borrow_fee_wallet: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(mut)]
     pub stable_coin_mint: AccountInfo<'info>,
     #[account(
@@ -41,6 +44,8 @@ pub struct RepayStableCoin<'info> {
     )]
     pub receipt: Account<'info, Receipt>,
     /// Some tokens in this wallet are burned.
+    ///
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(mut)]
     pub borrower_stable_coin_wallet: AccountInfo<'info>,
     pub token_program: Program<'info, Token>,
@@ -54,7 +59,7 @@ pub struct RepayStableCoin<'info> {
 pub fn handle(
     ctx: Context<RepayStableCoin>,
     max_amount_to_repay: u64,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     if max_amount_to_repay == 0 {
@@ -88,7 +93,7 @@ impl<'info> RepayStableCoin<'info> {
     ) -> CpiContext<'_, '_, '_, 'info, token::Burn<'info>> {
         let cpi_accounts = token::Burn {
             mint: self.stable_coin_mint.to_account_info(),
-            to: self.borrower_stable_coin_wallet.to_account_info(),
+            from: self.borrower_stable_coin_wallet.to_account_info(),
             authority: self.borrower.to_account_info(),
         };
         let cpi_program = self.token_program.to_account_info();

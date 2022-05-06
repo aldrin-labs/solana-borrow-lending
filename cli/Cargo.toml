@@ -1,11 +1,11 @@
 [package]
 name = "cli"
-version = "3.1.0"
+version = "4.0.0"
 edition = "2018"
 
 [dependencies]
-anchor-client = "0.21"
-anchor-spl = "0.21"
+anchor-client = "0.24.2"
+anchor-spl = "0.24.2"
 clap = "3.0.0-beta.5"
 dotenv = "0.15"
 solana-sdk = "1.7"

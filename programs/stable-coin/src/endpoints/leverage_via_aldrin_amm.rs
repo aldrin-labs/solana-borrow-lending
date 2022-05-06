@@ -71,6 +71,7 @@ pub struct LeverageViaAldrinAmm<'info> {
             @ err::stable_coin_mint_mismatch(),
     )]
     pub stable_coin: Box<Account<'info, StableCoin>>,
+    /// CHECK: UNSAFE_CODES#signer
     #[account(
         seeds = [component.stable_coin.as_ref()],
         bump = stable_coin_bump_seed,
@@ -87,6 +88,8 @@ pub struct LeverageViaAldrinAmm<'info> {
     )]
     pub reserve: Box<Account<'info, borrow_lending::models::Reserve>>,
     /// The swapped collateral is eventually transferred here
+    ///
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(
         mut,
         constraint = freeze_wallet.key() == component.freeze_wallet
@@ -94,6 +97,8 @@ pub struct LeverageViaAldrinAmm<'info> {
     )]
     pub freeze_wallet: AccountInfo<'info>,
     /// Needed to mint new stable coin tokens
+    ///
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(mut)]
     pub stable_coin_mint: AccountInfo<'info>,
     #[account(
@@ -106,6 +111,8 @@ pub struct LeverageViaAldrinAmm<'info> {
     pub receipt: Box<Account<'info, Receipt>>,
     /// Stable coin is minted here, but then swapped so in the end there're no
     /// extra tokens remaining (i.e. same amount as in the beginning)
+    ///
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(mut)]
     pub borrower_stable_coin_wallet: AccountInfo<'info>,
     /// Intermediary token (e.g. USDC) is swapped for collateral wallet, so in
@@ -119,6 +126,7 @@ pub struct LeverageViaAldrinAmm<'info> {
     #[account(mut)]
     pub borrower_collateral_wallet: Box<Account<'info, TokenAccount>>,
     // -------------- AMM Accounts ----------------
+    /// CHECK: UNSAFE_CODES#constraints
     #[account(
         executable,
         constraint = stable_coin.aldrin_amm == amm_program.key()
@@ -126,25 +134,37 @@ pub struct LeverageViaAldrinAmm<'info> {
     )]
     pub amm_program: AccountInfo<'info>,
     /// This is pool which gets us from stable coin token to intermediary token
+    ///
+    /// CHECK: UNSAFE_CODES#amm
     pub pool_1: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES#amm
     pub pool_signer_1: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES#amm
     #[account(mut)]
     pub pool_mint_1: AccountInfo<'info>,
     #[account(mut)]
     pub base_token_vault_1: Box<Account<'info, TokenAccount>>,
+    /// CHECK: UNSAFE_CODES#amm
     #[account(mut)]
     pub quote_token_vault_1: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES#amm
     #[account(mut)]
     pub fee_pool_wallet_1: AccountInfo<'info>,
     /// This is pool which gets us from intermediary token to collateral token
+    ///
+    /// CHECK: UNSAFE_CODES#amm
     pub pool_2: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES#amm
     pub pool_signer_2: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES#amm
     #[account(mut)]
     pub pool_mint_2: AccountInfo<'info>,
     #[account(mut)]
     pub base_token_vault_2: Box<Account<'info, TokenAccount>>,
+    /// CHECK: UNSAFE_CODES#amm
     #[account(mut)]
     pub quote_token_vault_2: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES#amm
     #[account(mut)]
     pub fee_pool_wallet_2: AccountInfo<'info>,
     // -------------- Other ----------------
@@ -159,7 +179,7 @@ pub fn handle(
     initial_stable_coin_amount: u64,
     min_intermediary_swap_return: u64,
     min_collateral_swap_return: u64,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     //
@@ -307,7 +327,7 @@ impl<'info> LeverageViaAldrinAmm<'info> {
         &self,
         amount_to_swap: u64,
         min_swap_return: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let side = if self.base_token_vault_1.mint
             == self.borrower_intermediary_wallet.mint
         {
@@ -348,7 +368,7 @@ impl<'info> LeverageViaAldrinAmm<'info> {
         &self,
         amount_to_swap: u64,
         min_swap_return: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let side = if self.base_token_vault_2.mint
             == self.borrower_collateral_wallet.mint
         {

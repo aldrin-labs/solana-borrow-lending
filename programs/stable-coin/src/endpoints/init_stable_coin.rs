@@ -27,11 +27,13 @@ pub struct InitStableCoin<'info> {
     /// The account holding state and configuration.
     #[account(zero)]
     pub stable_coin: Box<Account<'info, StableCoin>>,
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         seeds = [stable_coin.key().as_ref()],
         bump = stable_coin_bump_seed,
     )]
     pub stable_coin_pda: AccountInfo<'info>,
+    /// CHECK: Admin provides correct AMM program
     #[account(executable)]
     pub aldrin_amm: AccountInfo<'info>,
 }
@@ -39,7 +41,7 @@ pub struct InitStableCoin<'info> {
 pub fn handle(
     ctx: Context<InitStableCoin>,
     _stable_coin_bump_seed: u8,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     accounts.stable_coin.mint = accounts.mint.key();

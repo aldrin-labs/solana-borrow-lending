@@ -7,8 +7,7 @@ use crate::prelude::*;
 
 #[derive(Accounts)]
 pub struct TakeReserveCapSnapshot<'info> {
-    #[account(signer)]
-    pub caller: AccountInfo<'info>,
+    pub caller: Signer<'info>,
     #[account(
         constraint = lending_market.admin_bot == *caller.key
             @ err::acc("Only designated bot account can call compound"),
@@ -27,7 +26,7 @@ pub struct TakeReserveCapSnapshot<'info> {
     pub clock: Sysvar<'info, Clock>,
 }
 
-pub fn handle(ctx: Context<TakeReserveCapSnapshot>) -> ProgramResult {
+pub fn handle(ctx: Context<TakeReserveCapSnapshot>) -> Result<()> {
     let accounts = ctx.accounts;
 
     let mut snapshots = accounts.snapshots.load_mut()?;
@@ -40,9 +39,9 @@ pub fn handle(ctx: Context<TakeReserveCapSnapshot>) -> ProgramResult {
     // associated with exactly one `ReserveCapSnapshots`, both accounts have
     // the other one's pubkey stored on them.
     if snapshots.reserve != accounts.reserve.key() {
-        return Err(err::acc(
+        return Err(error!(err::acc(
             "Snapshot reserve setting must match reserve account",
-        ));
+        )));
     }
 
     // first, let's prepare the data to write into the ring buffer

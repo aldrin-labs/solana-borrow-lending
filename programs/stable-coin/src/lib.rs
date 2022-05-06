@@ -15,7 +15,7 @@ pub mod stable_coin {
     pub fn init_stable_coin(
         ctx: Context<InitStableCoin>,
         stable_coin_bump_seed: u8,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::init_stable_coin::handle(ctx, stable_coin_bump_seed)
     }
 
@@ -23,25 +23,25 @@ pub mod stable_coin {
         ctx: Context<InitComponent>,
         component_bump_seed: u8,
         config: InputComponentConfig,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::init_component::handle(ctx, component_bump_seed, config)
     }
 
     pub fn update_component_config(
         ctx: Context<UpdateComponentConfig>,
         config: InputComponentConfig,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::update_component_config::handle(ctx, config)
     }
 
-    pub fn init_receipt(ctx: Context<InitReceipt>) -> ProgramResult {
+    pub fn init_receipt(ctx: Context<InitReceipt>) -> Result<()> {
         endpoints::init_receipt::handle(ctx)
     }
 
     pub fn deposit_collateral(
         ctx: Context<DepositCollateral>,
         amount: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::deposit_collateral::handle(ctx, amount)
     }
 
@@ -49,7 +49,7 @@ pub mod stable_coin {
         ctx: Context<WithdrawCollateral>,
         component_bump_seed: u8,
         amount: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::withdraw_collateral::handle(ctx, component_bump_seed, amount)
     }
 
@@ -57,7 +57,7 @@ pub mod stable_coin {
         ctx: Context<BorrowStableCoin>,
         stable_coin_bump_seed: u8,
         amount: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::borrow_stable_coin::handle(
             ctx,
             stable_coin_bump_seed,
@@ -68,14 +68,14 @@ pub mod stable_coin {
     pub fn repay_stable_coin(
         ctx: Context<RepayStableCoin>,
         max_amount_to_repay: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::repay_stable_coin::handle(ctx, max_amount_to_repay)
     }
 
     pub fn liquidate_position(
         ctx: Context<LiquidatePosition>,
         component_bump_seed: u8,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::liquidate_position::handle(ctx, component_bump_seed)
     }
 
@@ -89,7 +89,7 @@ pub mod stable_coin {
         initial_stable_coin_amount: u64,
         min_intermediary_swap_return: u64,
         min_collateral_swap_return: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::leverage_via_aldrin_amm::handle(
             ctx,
             stable_coin_bump_seed,
@@ -106,7 +106,7 @@ pub mod stable_coin {
         collateral_amount: u64,
         min_intermediary_swap_return: u64,
         min_stable_coin_swap_return: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         endpoints::deleverage_via_aldrin_amm::handle(
             ctx,
             component_bump_seed,

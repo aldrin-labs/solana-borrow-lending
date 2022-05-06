@@ -1,7 +1,7 @@
 mod sdecimal;
 
 use crate::prelude::*;
-pub use decimal::*;
+pub use decimal::{Decimal, TryAdd, TryDiv, TryMul, TryPow, TrySub};
 pub use sdecimal::*;
 
 /// Number in range [0; 100]

@@ -147,7 +147,7 @@ impl Receipt {
         slot: u64,
         amount: u64,
         market_price: Decimal,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         self.accrue_interest(slot, config.interest.into())?;
 
         if amount > config.mint_allowance {
@@ -316,7 +316,7 @@ impl Receipt {
         &mut self,
         slot: u64,
         interest_rate: Decimal,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         if self.last_interest_accrual_slot == 0 {
             self.last_interest_accrual_slot = slot;
             return Ok(());

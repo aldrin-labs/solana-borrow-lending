@@ -1,6 +1,6 @@
 [package]
 name = "borrow-lending"
-version = "3.2.0"
+version = "4.0.0"
 description = "Aldrin implementation of borrow-lending inspired by Compound"
 edition = "2018"
 
@@ -17,11 +17,11 @@ default = []
 serde = ["serde_crate", "serde_json"]
 
 [dependencies]
-anchor-lang = "0.21"
-anchor-spl = "0.21"
+anchor-lang = "0.24.2"
+anchor-spl = "0.24.2"
 borsh = "*" # any anchor_lang compatible version will do
 bytemuck = "*"
-decimal = { path = "../../decimal" }
+decimal = { git = "ssh://git@gitlab.com/crypto_project/defi/decimal.git", tag = "0.1.0" }
 cpis = { path = "../../cpis" }
 pyth-client = "0.2"
 serde_json = { version = "1.0", optional = true }

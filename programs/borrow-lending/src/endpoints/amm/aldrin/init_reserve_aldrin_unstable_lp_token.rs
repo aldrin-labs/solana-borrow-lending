@@ -19,12 +19,11 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 #[instruction(lending_market_bump_seed: u8, liquidity_amount: u64)]
 pub struct InitReserveAldrinUnstableLpToken<'info> {
     /// The entity which created the [`LendingMarket`].
-    #[account(signer)]
-    pub owner: AccountInfo<'info>,
+    pub owner: Signer<'info>,
     /// The entity which owns the source liquidity wallet, can be the same as
     /// owner.
-    #[account(signer)]
-    pub funder: AccountInfo<'info>,
+    pub funder: Signer<'info>,
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [lending_market.to_account_info().key.as_ref()],
         bump = lending_market_bump_seed,
@@ -35,16 +34,19 @@ pub struct InitReserveAldrinUnstableLpToken<'info> {
     /// Create a new reserve config which is linked to a lending market.
     #[account(zero)]
     pub reserve: Box<Account<'info, Reserve>>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(
         constraint = lending_market.aldrin_amm == *pool.owner
             @ err::acc("Pool must be owned Aldrin's AMM program"),
     )]
     pub pool: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#constraints
     #[account(
         constraint = oracle_product.owner == oracle_price.owner
             @ err::oracle("Product's owner must be prices's owner"),
     )]
     pub oracle_product: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#constraints
     pub oracle_price: AccountInfo<'info>,
     /// From what wallet will liquidity tokens be transferred to the reserve
     /// wallet for the initial liquidity amount.
@@ -62,6 +64,8 @@ pub struct InitReserveAldrinUnstableLpToken<'info> {
     /// In exchange for the deposited initial liquidity, the owner gets
     /// collateral tokens into this wallet. A new token account will be
     /// initialized on this address first.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(zero)]
     pub destination_collateral_wallet: AccountInfo<'info>,
     /// The reserve wallet in which liquidity tokens will be stored. The
@@ -70,6 +74,8 @@ pub struct InitReserveAldrinUnstableLpToken<'info> {
     /// Since `reserve_liquidity_wallet` requires an uninitialized account
     /// while `source_liquidity_wallet` requires an initialized account,
     /// they can never be the same.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         zero,
         constraint = source_liquidity_wallet.key() !=
@@ -79,12 +85,17 @@ pub struct InitReserveAldrinUnstableLpToken<'info> {
     pub reserve_liquidity_wallet: AccountInfo<'info>,
     /// This is the AMM LP mint.
     pub reserve_liquidity_mint: Account<'info, Mint>,
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(zero)]
     pub reserve_liquidity_fee_recv_wallet: AccountInfo<'info>,
     /// We will create a new mint on this account.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(zero)]
     pub reserve_collateral_mint: AccountInfo<'info>,
     /// We will create a new token wallet on this account.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(zero)]
     pub reserve_collateral_wallet: AccountInfo<'info>,
     /// Here's where we store recent history of the reserve funds.
@@ -96,6 +107,7 @@ pub struct InitReserveAldrinUnstableLpToken<'info> {
     pub token_program: Program<'info, Token>,
     /// Helps us determine freshness of the oracle price estimate.
     pub clock: Sysvar<'info, Clock>,
+    /// CHECK: UNSAFE_CODES.md#constraints
     pub rent: AccountInfo<'info>,
 }
 
@@ -105,7 +117,7 @@ pub fn handle(
     liquidity_amount: u64,
     config: InputReserveConfig,
     is_oracle_for_base_vault: bool,
-) -> ProgramResult {
+) -> Result<()> {
     let mut accounts = ctx.accounts;
 
     let config = config.validate()?;
@@ -127,7 +139,9 @@ pub fn handle(
     let pool_data = accounts.pool.try_borrow_data()?;
     let pool = aldrin_amm::Pool::load(&pool_data)?;
     if pool.pool_mint != accounts.reserve_liquidity_mint.key() {
-        return Err(err::acc("AMM pool mint doesn't match liquidity mint"));
+        return Err(error!(err::acc(
+            "AMM pool mint doesn't match liquidity mint"
+        )));
     }
 
     let oracle = Oracle::AldrinAmmLpPyth {
@@ -192,7 +206,7 @@ impl<'info> InitReserveOps<'info>
     }
 
     fn funder(&self) -> AccountInfo<'info> {
-        self.funder.clone()
+        self.funder.to_account_info()
     }
 
     fn collateral_mint(&self) -> AccountInfo<'info> {

@@ -4,8 +4,7 @@ use anchor_spl::token::{self, Token, TokenAccount};
 #[derive(Accounts)]
 #[instruction(lending_market_bump_seed: u8, liquidity_amount: u64)]
 pub struct DepositReserveLiquidity<'info> {
-    #[account(signer)]
-    pub funder: AccountInfo<'info>,
+    pub funder: Signer<'info>,
     #[account(
         mut,
         constraint = reserve_liquidity_wallet.key() !=
@@ -20,6 +19,7 @@ pub struct DepositReserveLiquidity<'info> {
             @ err::acc("Source liq. wallet musn't be reserve liq. wallet"),
     )]
     pub source_liquidity_wallet: Account<'info, TokenAccount>,
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [reserve.lending_market.as_ref()],
         bump = lending_market_bump_seed,
@@ -30,12 +30,14 @@ pub struct DepositReserveLiquidity<'info> {
         constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
     pub reserve: Account<'info, Reserve>,
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = reserve.collateral.mint == reserve_collateral_mint.key()
             @ err::acc("Reserve col. mint must match reserve conf"),
     )]
     pub reserve_collateral_mint: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = destination_collateral_wallet.key() !=
@@ -43,6 +45,7 @@ pub struct DepositReserveLiquidity<'info> {
             @ err::acc("Dest. col. wallet mustn't eq. reserve's col. supply")
     )]
     pub destination_collateral_wallet: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = reserve_liquidity_wallet.key() == reserve.liquidity.supply
@@ -57,7 +60,7 @@ pub fn handle(
     ctx: Context<DepositReserveLiquidity>,
     lending_market_bump_seed: u8,
     liquidity_amount: u64,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     if liquidity_amount == 0 {
@@ -104,7 +107,7 @@ impl<'info> DepositReserveLiquidity<'info> {
         let cpi_accounts = token::Transfer {
             from: self.source_liquidity_wallet.to_account_info(),
             to: self.reserve_liquidity_wallet.to_account_info(),
-            authority: self.funder.clone(),
+            authority: self.funder.to_account_info(),
         };
         let cpi_program = self.token_program.to_account_info();
         CpiContext::new(cpi_program, cpi_accounts)

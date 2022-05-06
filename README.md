@@ -1,5 +1,5 @@
 * Solana v1.7.17
-* Anchor v0.21.0
+* Anchor v0.24.2
 * [Code coverage][project-code-coverage]
 * [Rust docs][project-rust-docs]
 * [USP docs](#usp)

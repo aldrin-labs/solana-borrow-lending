@@ -12,12 +12,11 @@ use std::convert::TryFrom;
 #[instruction(lending_market_bump_seed: u8, liquidity_amount: u64)]
 pub struct InitReserve<'info> {
     /// The entity which created the [`LendingMarket`].
-    #[account(signer)]
-    pub owner: AccountInfo<'info>,
+    pub owner: Signer<'info>,
     /// The entity which owns the source liquidity wallet, can be the same as
     /// owner.
-    #[account(signer)]
-    pub funder: AccountInfo<'info>,
+    pub funder: Signer<'info>,
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [lending_market.to_account_info().key.as_ref()],
         bump = lending_market_bump_seed,
@@ -28,11 +27,13 @@ pub struct InitReserve<'info> {
     /// Create a new reserve config which is linked to a lending market.
     #[account(zero)]
     pub reserve: Box<Account<'info, Reserve>>,
+    /// CHECK: UNSAFE_CODES.md#constraints
     #[account(
         constraint = oracle_product.owner == oracle_price.owner
             @ err::oracle("Product's owner must be prices's owner"),
     )]
     pub oracle_product: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#constraints
     pub oracle_price: AccountInfo<'info>,
     /// From what wallet will liquidity tokens be transferred to the reserve
     /// wallet for the initial liquidity amount.
@@ -48,6 +49,8 @@ pub struct InitReserve<'info> {
     /// In exchange for the deposited initial liquidity, the owner gets
     /// collateral tokens into this wallet. A new token account will be
     /// initialized on this address first.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(zero)]
     pub destination_collateral_wallet: AccountInfo<'info>,
     /// The reserve wallet in which liquidity tokens will be stored. The
@@ -56,6 +59,8 @@ pub struct InitReserve<'info> {
     /// Since `reserve_liquidity_wallet` requires an uninitialized account
     /// while `source_liquidity_wallet` requires an initialized account,
     /// they can never be the same.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         zero,
         constraint = source_liquidity_wallet.key() !=
@@ -64,12 +69,17 @@ pub struct InitReserve<'info> {
     )]
     pub reserve_liquidity_wallet: AccountInfo<'info>,
     pub reserve_liquidity_mint: Account<'info, Mint>,
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(zero)]
     pub reserve_liquidity_fee_recv_wallet: AccountInfo<'info>,
     /// We will create a new mint on this account.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(zero)]
     pub reserve_collateral_mint: AccountInfo<'info>,
     /// We will create a new token wallet on this account.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(zero)]
     pub reserve_collateral_wallet: AccountInfo<'info>,
     /// Here's where we store recent history of the reserve funds.
@@ -81,6 +91,7 @@ pub struct InitReserve<'info> {
     pub token_program: Program<'info, Token>,
     /// Helps us determine freshness of the oracle price estimate.
     pub clock: Sysvar<'info, Clock>,
+    /// CHECK: UNSAFE_CODES.md#wallet
     pub rent: AccountInfo<'info>,
 }
 
@@ -89,7 +100,7 @@ pub fn handle(
     lending_market_bump_seed: u8,
     liquidity_amount: u64,
     config: InputReserveConfig,
-) -> ProgramResult {
+) -> Result<()> {
     let mut accounts = ctx.accounts;
 
     let config = config.validate()?;
@@ -103,17 +114,17 @@ pub fn handle(
     let oracle_product =
         pyth::Product::load(&oracle_product_data)?.validate()?;
     if oracle_product.px_acc.val != accounts.oracle_price.key().to_bytes() {
-        return Err(err::oracle(
+        return Err(error!(err::oracle(
             "Pyth product price account does not match the Pyth price provided",
-        ));
+        )));
     }
 
     let currency = UniversalAssetCurrency::try_from(oracle_product)?;
     if currency != accounts.lending_market.currency {
-        return Err(err::oracle(
+        return Err(error!(err::oracle(
             "Lending market quote currency does not match \
             the oracle quote currency",
-        ));
+        )));
     }
 
     let oracle_price_data = accounts.oracle_price.try_borrow_data()?;
@@ -173,7 +184,7 @@ impl<'info> InitReserveOps<'info> for &mut InitReserve<'info> {
     }
 
     fn funder(&self) -> AccountInfo<'info> {
-        self.funder.clone()
+        self.funder.to_account_info()
     }
 
     fn collateral_mint(&self) -> AccountInfo<'info> {
@@ -273,7 +284,7 @@ impl<'info> InitReserve<'info> {
     ) -> CpiContext<'_, '_, '_, 'info, token::InitializeAccount<'info>> {
         let cpi_accounts = token::InitializeAccount {
             mint: self.reserve_collateral_mint.to_account_info(),
-            authority: self.funder.clone(),
+            authority: self.funder.to_account_info(),
             account: self.destination_collateral_wallet.clone(),
             rent: self.rent.clone(),
         };
@@ -287,7 +298,7 @@ impl<'info> InitReserve<'info> {
         let cpi_accounts = token::Transfer {
             from: self.source_liquidity_wallet.to_account_info(),
             to: self.reserve_liquidity_wallet.to_account_info(),
-            authority: self.funder.clone(),
+            authority: self.funder.to_account_info(),
         };
         let cpi_program = self.token_program.to_account_info();
         CpiContext::new(cpi_program, cpi_accounts)
