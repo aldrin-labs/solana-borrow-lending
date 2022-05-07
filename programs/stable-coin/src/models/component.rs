@@ -179,8 +179,10 @@ mod tests {
         };
 
         assert_eq!(
-            Ok(valid_config),
-            InputComponentConfig { conf: valid_config }.validate()
+            valid_config,
+            InputComponentConfig { conf: valid_config }
+                .validate()
+                .unwrap()
         );
 
         assert!(ComponentConfig {
@@ -260,8 +262,8 @@ mod tests {
         };
 
         assert_eq!(
-            component.smallest_unit_market_price(&reserve),
-            Ok(Decimal::from(20u64 * 5 / 10))
+            component.smallest_unit_market_price(&reserve).unwrap(),
+            Decimal::from(20u64 * 5 / 10)
         );
     }
 
@@ -284,8 +286,8 @@ mod tests {
         };
 
         assert_eq!(
-            component.smallest_unit_market_price(&reserve),
-            Ok(Decimal::one())
+            component.smallest_unit_market_price(&reserve).unwrap(),
+            Decimal::one()
         );
     }
 

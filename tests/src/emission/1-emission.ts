@@ -5,9 +5,8 @@ import { Reserve } from "../reserve";
 import { Obligation } from "../obligation";
 import { LendingMarket } from "../lending-market";
 import { expect } from "chai";
-import { CaptureStdoutAndStderr } from "../helpers";
+import { CaptureStdoutAndStderr, sleep } from "../helpers";
 import { EmissionStrategy } from "../emission";
-import { sleep } from "@project-serum/common";
 import { globalContainer } from "../global-container";
 
 export function test(owner: Keypair) {

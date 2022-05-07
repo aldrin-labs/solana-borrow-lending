@@ -1,4 +1,3 @@
-import { createMint } from "@project-serum/common";
 import { Program, BN } from "@project-serum/anchor";
 import { Token, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import {
@@ -60,12 +59,13 @@ export class AmmPool {
       amm.programId
     );
 
-    const poolMintKey = await createMint(market.program.provider, vaultSigner);
-    const poolMint = new Token(
+    const poolMint = await Token.createMint(
       market.connection,
-      poolMintKey,
-      TOKEN_PROGRAM_ID,
-      market.owner
+      market.owner,
+      vaultSigner,
+      null,
+      9,
+      TOKEN_PROGRAM_ID
     );
 
     const lpWallet = await poolMint.createAccount(market.owner.publicKey);
@@ -103,7 +103,7 @@ export class AmmPool {
         lpTokenFreezeVault: lpTokenFreeze,
         pool: poolKeypair.publicKey,
         poolAuthority: poolAuthority.publicKey,
-        poolMint: poolMintKey,
+        poolMint: poolMint.publicKey,
         poolSigner: vaultSigner,
         quoteTokenMint: quoteToken.id,
         quoteTokenVault: vaultQuote,
@@ -127,7 +127,7 @@ export class AmmPool {
       {
         accounts: {
           pool: poolKeypair.publicKey,
-          poolMint: poolMintKey,
+          poolMint: poolMint.publicKey,
           poolSigner: vaultSigner,
           userBaseTokenAccount: baseWallet,
           userQuoteTokenAccount: quoteWallet,
