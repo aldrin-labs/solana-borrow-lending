@@ -15,6 +15,13 @@ unit:
     key: unit-cache-2
     paths:
       - target
+  before_script:
+    # Add SSH key which is stored in gitlab variables and allows us to access
+    # dependency crates in different repos.
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "$SSH_PRIVATE_KEY")
+    - mkdir -p ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
   script:
     - cargo test --lib
 
@@ -33,6 +40,13 @@ program:
       - target/idl/borrow_lending.json
       - target/types/borrow_lending.ts
   before_script:
+    # Add SSH key which is stored in gitlab variables and allows us to access
+    # dependency crates in different repos.
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "$SSH_PRIVATE_KEY")
+    - mkdir -p ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+
     - yarn
   script:
     # both builds the program and tests it
@@ -50,6 +64,13 @@ cli:
   artifacts:
     paths:
       - target/release/cli
+  before_script:
+    # Add SSH key which is stored in gitlab variables and allows us to access
+    # dependency crates in different repos.
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "$SSH_PRIVATE_KEY")
+    - mkdir -p ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
   script:
     - cargo build --bin cli --release
     - ./target/release/cli help
@@ -69,6 +90,13 @@ cli:
   artifacts:
     paths:
       - public
+  before_script:
+    # Add SSH key which is stored in gitlab variables and allows us to access
+    # dependency crates in different repos.
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "$SSH_PRIVATE_KEY")
+    - mkdir -p ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
   script:
     - rustup override set nightly
 
