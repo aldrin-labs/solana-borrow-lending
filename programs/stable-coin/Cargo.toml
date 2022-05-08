@@ -2,7 +2,7 @@
 name = "stable-coin"
 version = "1.0.0"
 description = ""
-edition = "2018"
+edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]

@@ -2,7 +2,7 @@
 name = "borrow-lending"
 version = "4.0.0"
 description = "Aldrin implementation of borrow-lending inspired by Compound"
-edition = "2018"
+edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]

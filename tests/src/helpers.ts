@@ -170,16 +170,16 @@ export async function transact(
 ) {
   const tx = instructions.reduce((tx, i) => tx.add(i), new Transaction());
   tx.recentBlockhash = (
-    await globalContainer.blp.provider.connection.getRecentBlockhash()
+    await globalContainer.blp.provider.connection.getLatestBlockhash()
   ).blockhash;
   if (signers.length) {
     tx.sign(...signers);
   }
 
   try {
-    await globalContainer.blp.provider.send(tx, signers);
+    await globalContainer.blp.provider.sendAndConfirm(tx, signers);
   } catch (error) {
-    console.error(error);
+    console.error("Transact error:", error);
     throw error;
   }
 }

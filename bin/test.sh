@@ -1,11 +1,9 @@
 #!/bin/bash
 
-# pin solana and anchor versions
-SOLANA_VERSION="1.7.17"
-ANCHOR_VERSION="0.21"
+# pin solana version
+SOLANA_VERSION="1.9.18"
 solana --version 2>&1 1>/dev/null || sh -c "$(curl -sSfL https://release.solana.com/${SOLANA_VERSION}/install)"
 solana --version |grep "${SOLANA_VERSION}" || solana-install init "${SOLANA_VERSION}"
-anchor --version 2>&1 1>/dev/null || cargo install anchor-cli --git https://github.com/project-serum/anchor --vers "^${ANCHOR_VERSION}" --locked
 
 if [ -f .env ]
 then
