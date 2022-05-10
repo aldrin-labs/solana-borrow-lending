@@ -17,6 +17,7 @@ pub struct LiquidatePosition<'info> {
             @ err::stable_coin_mint_mismatch(),
     )]
     pub stable_coin: Box<Account<'info, StableCoin>>,
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(mut)]
     pub stable_coin_mint: AccountInfo<'info>,
     /// We need to mutate mint allowance in config.
@@ -27,6 +28,8 @@ pub struct LiquidatePosition<'info> {
     )]
     pub component: Box<Account<'info, Component>>,
     /// Authorizes transfer from freeze wallet.
+    ///
+    /// CHECK: UNSAFE_CODES#signer
     #[account(
         seeds = [component.to_account_info().key.as_ref()],
         bump = component_bump_seed,
@@ -40,10 +43,14 @@ pub struct LiquidatePosition<'info> {
     )]
     pub reserve: Box<Account<'info, borrow_lending::models::Reserve>>,
     /// Gives user's collateral away to liquidator at a discount price.
+    ///
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(mut)]
     pub freeze_wallet: AccountInfo<'info>,
     /// We store collateral tokens which are taken from liquidators bonus as
     /// admin fee.
+    ///
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(
         mut,
         constraint = liquidation_fee_wallet.key() == component.liquidation_fee_wallet
@@ -51,6 +58,8 @@ pub struct LiquidatePosition<'info> {
     )]
     pub liquidation_fee_wallet: AccountInfo<'info>,
     /// Whatever has been repaid as interest goes here.
+    ///
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(
         mut,
         constraint = interest_wallet.key() == component.interest_wallet
@@ -58,6 +67,8 @@ pub struct LiquidatePosition<'info> {
     )]
     pub interest_wallet: AccountInfo<'info>,
     /// Whatever has been repaid as borrow fee goes here.
+    ///
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(
         mut,
         constraint = borrow_fee_wallet.key() == component.borrow_fee_wallet
@@ -71,10 +82,14 @@ pub struct LiquidatePosition<'info> {
     )]
     pub receipt: Account<'info, Receipt>,
     /// Some tokens in this wallet are burned.
+    ///
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(mut)]
     pub liquidator_stable_coin_wallet: AccountInfo<'info>,
     /// And in return the liquidator gets tokens from freeze wallet into this
     /// one.
+    ///
+    /// CHECK: UNSAFE_CODES#wallet
     #[account(mut)]
     pub liquidator_collateral_wallet: AccountInfo<'info>,
     pub token_program: Program<'info, Token>,
@@ -84,7 +99,7 @@ pub struct LiquidatePosition<'info> {
 pub fn handle(
     ctx: Context<LiquidatePosition>,
     component_bump_seed: u8,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     let token_market_price = accounts
@@ -144,7 +159,7 @@ impl<'info> LiquidatePosition<'info> {
     ) -> CpiContext<'_, '_, '_, 'info, token::Burn<'info>> {
         let cpi_accounts = token::Burn {
             mint: self.stable_coin_mint.to_account_info(),
-            to: self.liquidator_stable_coin_wallet.to_account_info(),
+            from: self.liquidator_stable_coin_wallet.to_account_info(),
             authority: self.liquidator.to_account_info(),
         };
         let cpi_program = self.token_program.to_account_info();

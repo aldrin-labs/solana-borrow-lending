@@ -49,7 +49,7 @@ export function test(owner: Keypair) {
 
       obligation.borrower = originalBorrower;
 
-      expect(stdCapture.restore()).to.contain("owner is not allowed");
+      expect(stdCapture.restore()).to.contain("IllegalOwner");
     });
 
     it("fails if obligation and reserve market mismatch", async () => {

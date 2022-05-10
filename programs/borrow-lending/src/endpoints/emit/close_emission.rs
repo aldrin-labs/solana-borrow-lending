@@ -10,10 +10,10 @@ use spl_token::instruction::AuthorityType;
 #[derive(Accounts)]
 #[instruction(lending_market_bump_seed: u8)]
 pub struct CloseEmission<'info> {
-    #[account(signer)]
-    pub owner: AccountInfo<'info>,
+    pub owner: Signer<'info>,
     #[account(has_one = owner @ ErrorCode::InvalidMarketOwner)]
     pub lending_market: Account<'info, LendingMarket>,
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [lending_market.key().as_ref()],
         bump = lending_market_bump_seed,
@@ -28,7 +28,7 @@ pub struct CloseEmission<'info> {
 pub fn handle<'info>(
     ctx: Context<'_, '_, '_, 'info, CloseEmission<'info>>,
     _lending_market_bump_seed: u8,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     let ends_at = accounts.emissions.ends_at_slot;
@@ -48,7 +48,7 @@ pub fn handle<'info>(
             "The number of remaining accounts must equal to the number \
             of different emitted token mints"
         );
-        return Err(ProgramError::InvalidArgument);
+        return Err(error!(ErrorCode::InvalidArgument));
     }
 
     // transfers all wallets from the BLp PDA back to the owner
@@ -60,7 +60,7 @@ pub fn handle<'info>(
                 "Order of wallets in remaining accounts must follow the order \
                 in the emission's mints"
             );
-            return Err(ProgramError::InvalidArgument);
+            return Err(error!(ErrorCode::InvalidArgument));
         }
 
         token::set_authority(

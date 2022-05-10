@@ -50,8 +50,8 @@ pub struct CloseLeveragedPositionOnAldrin<'info> {
     /// Liquidator can call this with difference farming tickets until the loan
     /// is repaid, and gets to keep the difference plus the lamports which
     /// were used to pay the rent on the [`FarmingReceipt`].
-    #[account(mut, signer)]
-    pub caller: AccountInfo<'info>,
+    #[account(mut)]
+    pub caller: Signer<'info>,
     #[account(mut)]
     pub obligation: AccountLoader<'info, Obligation>,
     #[account(
@@ -61,7 +61,9 @@ pub struct CloseLeveragedPositionOnAldrin<'info> {
             @ err::acc("Lending market doesn't match reserve's config")
     )]
     pub reserve: Box<Account<'info, Reserve>>,
-    /// Loan in repaid into this wallet.
+    /// Loan is repaid into this wallet.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = reserve_liquidity_wallet.key() == reserve.liquidity.supply
@@ -71,6 +73,8 @@ pub struct CloseLeveragedPositionOnAldrin<'info> {
     /// See the [`crate::endpoints::amm::aldrin::
     /// open_leveraged_position_on_aldrin`] module for documentation on the
     /// rational behind these seeds, or the README.
+    ///
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [
             reserve.lending_market.as_ref(), obligation.key().as_ref(),
@@ -89,15 +93,23 @@ pub struct CloseLeveragedPositionOnAldrin<'info> {
     )]
     pub farming_receipt: Account<'info, AldrinFarmingReceipt>,
     // -------------- AMM Accounts ----------------
-    #[account(executable)]
+    /// CHECK: UNSAFE_CODES.md#constraints
+    #[account(
+        executable,
+        constraint = lending_market.aldrin_amm == amm_program.key()
+            @ err::aldrin_amm_program_mismatch(),
+    )]
     pub amm_program: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(
         constraint = *pool.owner == amm_program.key()
             @ err::illegal_owner("Amm pool account \
             must be owned by amm program"),
     )]
     pub pool: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub pool_signer: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub pool_mint: AccountInfo<'info>,
     #[account(mut)]
@@ -111,23 +123,32 @@ pub struct CloseLeveragedPositionOnAldrin<'info> {
     #[account(mut)]
     pub caller_lp_wallet: Box<Account<'info, TokenAccount>>,
     /// This is not used in the AMM but still required as an input by the AMM.
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub caller_sol_wallet: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub fee_base_wallet: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub fee_quote_wallet: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub farming_state: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub farming_ticket: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub farming_snapshots: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub lp_token_freeze_vault: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub fee_pool_wallet: AccountInfo<'info>,
     // -------------- Other ----------------
     pub token_program: Program<'info, Token>,
     pub clock: Sysvar<'info, Clock>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub rent: AccountInfo<'info>,
 }
 
@@ -135,7 +156,7 @@ pub fn handle(
     ctx: Context<CloseLeveragedPositionOnAldrin>,
     market_obligation_bump_seed: u8,
     leverage: Leverage,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     // whether user borrowed base or quote
@@ -219,7 +240,7 @@ impl<'info> CloseLeveragedPositionOnAldrin<'info> {
         market_obligation_bump_seed: u8,
         leverage: Leverage,
         unstake_lp_amount: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let redeem_basket_instruction_accounts = vec![
             AccountMeta::new_readonly(*self.pool.key, false),
             AccountMeta::new(self.pool_mint.key(), false),
@@ -248,7 +269,7 @@ impl<'info> CloseLeveragedPositionOnAldrin<'info> {
             self.caller_lp_wallet.to_account_info(),
             self.fee_base_wallet.to_account_info(),
             self.fee_quote_wallet.to_account_info(),
-            self.caller.clone(),
+            self.caller.to_account_info(),
             self.token_program.to_account_info(),
             self.clock.to_account_info(),
         ];
@@ -282,7 +303,7 @@ impl<'info> CloseLeveragedPositionOnAldrin<'info> {
         leverage: Leverage,
         side: Side,
         token_amount_before_withdraw: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let mut obligation = self.obligation.load_mut()?;
 
         // Checks whether this loan exists. If it doesn't that means the loan
@@ -303,14 +324,14 @@ impl<'info> CloseLeveragedPositionOnAldrin<'info> {
         // then we allow liquidators (i.e. not the borrower, owner of
         // obligation) to call this action which will repay the loan
         if !is_being_liquidated && self.caller.key() != obligation.owner {
-            return Err(ProgramError::IllegalOwner);
+            return Err(error!(ErrorCode::IllegalOwner));
         }
 
         if obligation.is_stale_for_leverage(&self.clock) {
-            return Err(err::obligation_stale());
+            return Err(error!(err::obligation_stale()));
         }
         if self.reserve.lending_market != obligation.lending_market {
-            return Err(err::market_mismatch());
+            return Err(error!(err::market_mismatch()));
         }
 
         if let Some((liquidity_index, liquidity)) = loan_info {

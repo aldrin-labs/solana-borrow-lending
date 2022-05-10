@@ -13,8 +13,7 @@ use anchor_spl::token::{self, Token};
 #[derive(Accounts)]
 #[instruction(lending_market_bump_seed: u8)]
 pub struct BorrowObligationLiquidity<'info> {
-    #[account(signer)]
-    pub borrower: AccountInfo<'info>,
+    pub borrower: Signer<'info>,
     /// Must be refreshed and deposited with some collateral.
     #[account(mut)]
     pub obligation: AccountLoader<'info, Obligation>,
@@ -23,12 +22,15 @@ pub struct BorrowObligationLiquidity<'info> {
         constraint = !reserve.is_stale(&clock) @ err::reserve_stale(),
     )]
     pub reserve: Box<Account<'info, Reserve>>,
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [reserve.lending_market.as_ref()],
         bump = lending_market_bump_seed,
     )]
     pub lending_market_pda: AccountInfo<'info>,
     /// The program's wallet where it stores all funded liquidity.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = source_liquidity_wallet.key() == reserve.liquidity.supply
@@ -36,6 +38,8 @@ pub struct BorrowObligationLiquidity<'info> {
     )]
     pub source_liquidity_wallet: AccountInfo<'info>,
     /// Where would the borrower like to receive their loan?
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = destination_liquidity_wallet.key() !=
@@ -46,6 +50,8 @@ pub struct BorrowObligationLiquidity<'info> {
     /// The fee receiver was set up when the reserve was initialized. However,
     /// there's an option to add one more receiver wallet to the remaining
     /// accounts. That wallet can be anything as long as the liquidity matches.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = fee_receiver.key() == reserve.liquidity.fee_receiver
@@ -60,7 +66,7 @@ pub fn handle<'info>(
     ctx: Context<'_, '_, '_, 'info, BorrowObligationLiquidity<'info>>,
     lending_market_bump_seed: u8,
     liquidity_amount: u64,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
     msg!(
         "borrow liquidity from reserve {} at slot {}",
@@ -76,21 +82,21 @@ pub fn handle<'info>(
     let mut obligation = accounts.obligation.load_mut()?;
 
     if accounts.borrower.key() != obligation.owner {
-        return Err(ProgramError::IllegalOwner);
+        return Err(error!(ErrorCode::IllegalOwner));
     }
     if obligation.is_stale(&accounts.clock) {
-        return Err(err::obligation_stale());
+        return Err(error!(err::obligation_stale()));
     }
     if !obligation.has_deposits() {
-        return Err(err::empty_collateral("No collateral deposited"));
+        return Err(error!(err::empty_collateral("No collateral deposited")));
     }
     if obligation.is_deposited_value_zero() {
-        return Err(err::empty_collateral(
+        return Err(error!(err::empty_collateral(
             "Collateral deposited value is zero",
-        ));
+        )));
     }
     if accounts.reserve.lending_market != obligation.lending_market {
-        return Err(err::market_mismatch());
+        return Err(error!(err::market_mismatch()));
     }
 
     let remaining_borrow_value =

@@ -25,8 +25,7 @@ use anchor_spl::token::{self, Token};
 #[instruction(lending_market_bump_seed: u8)]
 pub struct ClaimEmission<'info> {
     /// Owner of the obligation
-    #[account(signer)]
-    pub caller: AccountInfo<'info>,
+    pub caller: Signer<'info>,
     pub lending_market: Account<'info, LendingMarket>,
     #[account(
         constraint = reserve.lending_market == lending_market.key()
@@ -40,6 +39,7 @@ pub struct ClaimEmission<'info> {
     pub snapshots: AccountLoader<'info, ReserveCapSnapshots>,
     #[account(mut)]
     pub obligation: AccountLoader<'info, Obligation>,
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [lending_market.key().as_ref()],
         bump = lending_market_bump_seed,
@@ -54,7 +54,7 @@ pub fn handle<'info>(
     ctx: Context<'_, '_, '_, 'info, ClaimEmission<'info>>,
     lending_market_bump_seed: u8,
     reserve_index: u8,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     msg!("Claiming emissions at slot {}", accounts.clock.slot);
@@ -71,7 +71,7 @@ pub fn handle<'info>(
     let mut obligation = accounts.obligation.load_mut()?;
 
     if accounts.caller.key() != obligation.owner {
-        return Err(ProgramError::IllegalOwner);
+        return Err(error!(ErrorCode::IllegalOwner));
     }
 
     // we know that the index is less than array size, so it's safe
@@ -118,9 +118,9 @@ pub fn handle<'info>(
             reserve_index,
             accounts.emission.reserve
         );
-        return Err(err::acc(
+        return Err(error!(err::acc(
             "Obligation reserve doesn't match emission reserve",
-        ));
+        )));
     }
 
     let claim_from_slot =
@@ -178,9 +178,9 @@ pub fn handle<'info>(
                 wallets[0].key,
                 emission_token.wallet
             );
-            return Err(err::acc(
+            return Err(error!(err::acc(
                 "Invalid remaining accounts list, wallet mismatch",
-            ));
+            )));
         }
 
         let amount = if is_loan {

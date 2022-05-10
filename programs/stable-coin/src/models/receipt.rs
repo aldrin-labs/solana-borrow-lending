@@ -147,7 +147,7 @@ impl Receipt {
         slot: u64,
         amount: u64,
         market_price: Decimal,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         self.accrue_interest(slot, config.interest.into())?;
 
         if amount > config.mint_allowance {
@@ -316,7 +316,7 @@ impl Receipt {
         &mut self,
         slot: u64,
         interest_rate: Decimal,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         if self.last_interest_accrual_slot == 0 {
             self.last_interest_accrual_slot = slot;
             return Ok(());
@@ -364,29 +364,26 @@ mod tests {
         };
 
         assert_eq!(
-            receipt.owed_amount(),
-            Ok(Decimal::from(3u64)
+            receipt.owed_amount().unwrap(),
+            Decimal::from(3u64)
                 .try_div(smallest_stable_coin_unit_market_price())
-                .unwrap())
+                .unwrap()
         );
 
         // (5 * 2) * 0.9 > 3
-        assert_eq!(
-            Ok(true),
-            receipt.is_healthy(5u64.into(), Decimal::from_percent(90u64))
-        );
+        assert!(receipt
+            .is_healthy(5u64.into(), Decimal::from_percent(90u64))
+            .unwrap());
 
         // (5 * 2) * 0.1 < 3
-        assert_eq!(
-            Ok(false),
-            receipt.is_healthy(5u64.into(), Decimal::from_percent(10u64))
-        );
+        assert!(!receipt
+            .is_healthy(5u64.into(), Decimal::from_percent(10u64))
+            .unwrap());
 
         // (100 * 2) * 0.1 > 3
-        assert_eq!(
-            Ok(true),
-            receipt.is_healthy(100u64.into(), Decimal::from_percent(10u64))
-        );
+        assert!(receipt
+            .is_healthy(100u64.into(), Decimal::from_percent(10u64))
+            .unwrap());
     }
 
     #[test]
@@ -461,7 +458,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(
-            receipt.owed_amount().unwrap().try_round_u64(),
+            receipt.owed_amount().unwrap().try_round_u64().unwrap(),
             Decimal::from(
                 borrow_amount // borrow amount
                 + 5 // borrow fee
@@ -469,6 +466,7 @@ mod tests {
                 + owed_before
             )
             .try_round_u64()
+            .unwrap()
         );
         assert_eq!(
             receipt.last_interest_accrual_slot,
@@ -495,15 +493,16 @@ mod tests {
             last_interest_accrual_slot,
             ..Default::default()
         };
-        assert_eq!(
-            receipt.borrow(
+        assert!(receipt
+            .borrow(
                 &mut config,
                 receipt.last_interest_accrual_slot,
                 150_000000,
                 Decimal::from(1u64),
-            ),
-            Err(ErrorCode::BorrowTooLarge.into())
-        );
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("BorrowTooLarge"),);
     }
 
     #[test]
@@ -523,15 +522,16 @@ mod tests {
             last_interest_accrual_slot,
             ..Default::default()
         };
-        assert_eq!(
-            receipt.borrow(
+        assert!(receipt
+            .borrow(
                 &mut config,
                 receipt.last_interest_accrual_slot,
                 1_000000,
                 Decimal::from(1u64),
-            ),
-            Err(ErrorCode::MintAllowanceTooSmall.into())
-        );
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("MintAllowanceTooSmall"));
     }
 
     #[test]
@@ -553,69 +553,89 @@ mod tests {
         };
 
         assert_eq!(
-            receipt.repay(
-                &mut config,
-                last_interest_accrual_slot,
-                75u64.into()
-            ),
-            Ok(RepaidShares {
+            receipt
+                .repay(&mut config, last_interest_accrual_slot, 75u64.into())
+                .unwrap(),
+            RepaidShares {
                 repaid_borrow_fee: 0,
                 repaid_interest: 75,
                 repaid_borrow: 0,
-            })
+            }
         );
-        assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(15));
-        assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(10));
+        assert_eq!(
+            receipt.interest_amount.to_dec().try_round_u64().unwrap(),
+            15
+        );
+        assert_eq!(
+            receipt.borrowed_amount.to_dec().try_round_u64().unwrap(),
+            10
+        );
         assert_eq!(config.mint_allowance, 0);
 
         assert_eq!(
-            receipt.repay(
-                &mut config,
-                last_interest_accrual_slot,
-                20u64.into()
-            ),
-            Ok(RepaidShares {
+            receipt
+                .repay(&mut config, last_interest_accrual_slot, 20u64.into())
+                .unwrap(),
+            RepaidShares {
                 repaid_borrow_fee: 0,
                 repaid_interest: 15,
                 repaid_borrow: 5,
-            })
+            }
         );
-        assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(5));
-        assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(0));
+        assert_eq!(
+            receipt.borrowed_amount.to_dec().try_round_u64().unwrap(),
+            5
+        );
+        assert_eq!(
+            receipt.interest_amount.to_dec().try_round_u64().unwrap(),
+            0
+        );
         assert_eq!(config.mint_allowance, 5);
 
         assert_eq!(
-            receipt.repay(
-                &mut config,
-                last_interest_accrual_slot,
-                u64::MAX.into()
-            ),
-            Ok(RepaidShares {
+            receipt
+                .repay(&mut config, last_interest_accrual_slot, u64::MAX.into())
+                .unwrap(),
+            RepaidShares {
                 repaid_borrow_fee: 0,
                 repaid_interest: 0,
                 repaid_borrow: 5,
-            })
+            }
         );
-        assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(0));
-        assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(0));
+        assert_eq!(
+            receipt.interest_amount.to_dec().try_round_u64().unwrap(),
+            0
+        );
+        assert_eq!(
+            receipt.borrowed_amount.to_dec().try_round_u64().unwrap(),
+            0
+        );
 
         receipt.borrowed_amount = Decimal::from(100u64).into();
         receipt.interest_amount = Decimal::from(1u64).into();
         assert_eq!(
-            receipt.repay(
-                &mut config,
-                last_interest_accrual_slot
-                    + borrow_lending::prelude::consts::SLOTS_PER_YEAR,
-                1_000u64.into()
-            ),
-            Ok(RepaidShares {
+            receipt
+                .repay(
+                    &mut config,
+                    last_interest_accrual_slot
+                        + borrow_lending::prelude::consts::SLOTS_PER_YEAR,
+                    1_000u64.into()
+                )
+                .unwrap(),
+            RepaidShares {
                 repaid_borrow_fee: 0,
                 repaid_interest: 51,
                 repaid_borrow: 100,
-            })
+            }
         );
-        assert_eq!(receipt.interest_amount.to_dec().try_round_u64(), Ok(0));
-        assert_eq!(receipt.borrowed_amount.to_dec().try_round_u64(), Ok(0));
+        assert_eq!(
+            receipt.interest_amount.to_dec().try_round_u64().unwrap(),
+            0
+        );
+        assert_eq!(
+            receipt.borrowed_amount.to_dec().try_round_u64().unwrap(),
+            0
+        );
     }
 
     #[test]
@@ -638,16 +658,14 @@ mod tests {
         };
 
         assert_eq!(
-            receipt.repay(
-                &mut config,
-                last_interest_accrual_slot,
-                1_000u64.into()
-            ),
-            Ok(RepaidShares {
+            receipt
+                .repay(&mut config, last_interest_accrual_slot, 1_000u64.into())
+                .unwrap(),
+            RepaidShares {
                 repaid_borrow_fee: 5,
                 repaid_interest: 90,
                 repaid_borrow: 5,
-            })
+            },
         );
     }
 
@@ -673,7 +691,7 @@ mod tests {
         let market_price = Decimal::from(2u64);
 
         assert_eq!(
-            Ok(Liquidate {
+            Liquidate {
                 // interest + borrowed
                 repaid_shares: RepaidShares {
                     repaid_borrow_fee: 0,
@@ -683,12 +701,14 @@ mod tests {
                 // (interest + borrow) / market_price * fee
                 liquidator_collateral_tokens: 52,
                 platform_collateral_tokens: 3,
-            }),
-            receipt.liquidate(
-                &mut config,
-                last_interest_accrual_slot,
-                market_price
-            )
+            },
+            receipt
+                .liquidate(
+                    &mut config,
+                    last_interest_accrual_slot,
+                    market_price
+                )
+                .unwrap()
         );
         assert_eq!(receipt.collateral_amount, 45);
         assert_eq!(receipt.borrowed_amount.to_dec(), Decimal::zero());
@@ -716,7 +736,7 @@ mod tests {
         let market_price = Decimal::from(2u64);
 
         assert_eq!(
-            Ok(Liquidate {
+            Liquidate {
                 // collateral amount * fee
                 repaid_shares: RepaidShares {
                     repaid_borrow_fee: 0,
@@ -726,12 +746,14 @@ mod tests {
                 // collateral amount
                 liquidator_collateral_tokens: 9,
                 platform_collateral_tokens: 1,
-            }),
-            receipt.liquidate(
-                &mut config,
-                last_interest_accrual_slot,
-                market_price
-            )
+            },
+            receipt
+                .liquidate(
+                    &mut config,
+                    last_interest_accrual_slot,
+                    market_price
+                )
+                .unwrap()
         );
         assert_eq!(receipt.collateral_amount, 0);
         assert_eq!(receipt.interest_amount.to_dec(), Decimal::zero());
@@ -773,14 +795,14 @@ mod tests {
                     // (collateral_amount * market_price) * col_to_loan >
                     // borrowed
                     assert_eq!(
-                        Ok(total_collateral_market_price
+                        total_collateral_market_price
                             .try_mul(Decimal::from_percent(ratio))
                             .unwrap()
-                            >= owed),
+                            >= owed,
                         receipt.is_healthy(
                             collateral_market_price,
                             Decimal::from_percent(ratio)
-                        )
+                        ).unwrap()
                     );
                 }
             }

@@ -6,9 +6,13 @@ use crate::prelude::*;
 
 #[derive(Accounts)]
 pub struct InitLendingMarket<'info> {
-    #[account(signer)]
-    pub owner: AccountInfo<'info>,
+    pub owner: Signer<'info>,
+    /// Will be used to authorize admin only endpoints, such as
+    /// [`crate::endpoints::compound_position_on_aldrin`].
+    ///
+    /// CHECK: UNSAFE_CODES.md#signer
     pub admin_bot: AccountInfo<'info>,
+    /// CHECK: The admin must provide correct id.
     #[account(executable)]
     pub aldrin_amm: AccountInfo<'info>,
     #[account(zero)]
@@ -21,7 +25,7 @@ pub fn handle(
     leveraged_compound_fee: PercentageInt,
     vault_compound_fee: PercentageInt,
     min_collateral_uac_value_for_leverage: SDecimal,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
     msg!("init lending market '{}'", accounts.lending_market.key());
 

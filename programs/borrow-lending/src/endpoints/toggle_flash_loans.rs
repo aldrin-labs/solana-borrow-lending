@@ -5,13 +5,12 @@ use crate::prelude::*;
 
 #[derive(Accounts)]
 pub struct ToggleFlashLoans<'info> {
-    #[account(signer)]
-    pub owner: AccountInfo<'info>,
+    pub owner: Signer<'info>,
     #[account(mut, has_one = owner @ ErrorCode::InvalidMarketOwner)]
     pub lending_market: Account<'info, LendingMarket>,
 }
 
-pub fn handle(ctx: Context<ToggleFlashLoans>) -> ProgramResult {
+pub fn handle(ctx: Context<ToggleFlashLoans>) -> Result<()> {
     let accounts = ctx.accounts;
 
     accounts.lending_market.enable_flash_loans =

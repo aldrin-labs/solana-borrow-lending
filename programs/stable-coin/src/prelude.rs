@@ -1,4 +1,4 @@
-pub use crate::err::{self, Error, ErrorCode, Result};
+pub use crate::err::{self, ErrorCode};
 pub use crate::models::*;
 pub use anchor_lang::prelude::*;
 pub use decimal::{Decimal, TryAdd, TryDiv, TryMul, TryPow, TrySub};

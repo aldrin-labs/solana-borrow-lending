@@ -37,12 +37,16 @@ pub struct DeleverageViaAldrinAmm<'info> {
     #[account(mut)]
     pub component: Box<Account<'info, Component>>,
     /// Used to transfer tokens from the component to the borrower's wallet.
+    ///
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [component.key().as_ref()],
         bump = component_bump_seed,
     )]
     pub component_pda: AccountInfo<'info>,
     /// The borrower repays what's owed in interest here.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = interest_wallet.key() == component.interest_wallet
@@ -50,6 +54,8 @@ pub struct DeleverageViaAldrinAmm<'info> {
     )]
     pub interest_wallet: AccountInfo<'info>,
     /// The borrower repays what's owed in borrow fees here.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = borrow_fee_wallet.key() == component.borrow_fee_wallet
@@ -58,6 +64,8 @@ pub struct DeleverageViaAldrinAmm<'info> {
     pub borrow_fee_wallet: AccountInfo<'info>,
     /// We transfer given amount of collateral from here to the borrower's
     /// wallet.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = freeze_wallet.key() == component.freeze_wallet
@@ -65,6 +73,8 @@ pub struct DeleverageViaAldrinAmm<'info> {
     )]
     pub freeze_wallet: AccountInfo<'info>,
     /// Needs to be mutable because we burn tokens.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(mut)]
     pub stable_coin_mint: AccountInfo<'info>,
     #[account(
@@ -78,18 +88,25 @@ pub struct DeleverageViaAldrinAmm<'info> {
     /// We transfer from freeze wallet to this wallet, and then do the swap
     /// from collateral to intermediary. The user doesn't end up with any more
     /// tokens in this wallet.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(mut)]
     pub borrower_collateral_wallet: AccountInfo<'info>,
     /// The borrower might end up with more stable coin than they started with
     /// if the collateral value is higher than the borrowed amount.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(mut)]
     pub borrower_stable_coin_wallet: Box<Account<'info, TokenAccount>>,
     /// We swap collateral to intermediary token and all those tokens are again
     /// swapped into collateral. So in the end, no extra tokens are left in
     /// this wallet.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(mut)]
     pub borrower_intermediary_wallet: Box<Account<'info, TokenAccount>>,
     // -------------- AMM Accounts ----------------
+    /// CHECK: UNSAFE_CODES.md#constraints
     #[account(
         executable,
         constraint = stable_coin.aldrin_amm == amm_program.key()
@@ -97,25 +114,38 @@ pub struct DeleverageViaAldrinAmm<'info> {
     )]
     pub amm_program: AccountInfo<'info>,
     /// Collateral into intermediary swap
+    ///
+    /// CHECK: UNSAFE_CODES.md#amm
     pub pool_1: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub pool_signer_1: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub pool_mint_1: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub base_token_vault_1: Box<Account<'info, TokenAccount>>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub quote_token_vault_1: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub fee_pool_wallet_1: AccountInfo<'info>,
     /// Intermediary into stable coin swap
+    ///
+    /// CHECK: UNSAFE_CODES.md#amm
     pub pool_2: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub pool_signer_2: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub pool_mint_2: AccountInfo<'info>,
     #[account(mut)]
     pub base_token_vault_2: Box<Account<'info, TokenAccount>>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub quote_token_vault_2: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub fee_pool_wallet_2: AccountInfo<'info>,
     // -------------- Other ----------------
@@ -129,7 +159,7 @@ pub fn handle(
     collateral_amount: u64,
     min_intermediary_swap_return: u64,
     min_stable_coin_swap_return: u64,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     accounts.receipt.accrue_interest(
@@ -249,7 +279,7 @@ impl<'info> DeleverageViaAldrinAmm<'info> {
     ) -> CpiContext<'_, '_, '_, 'info, token::Burn<'info>> {
         let cpi_accounts = token::Burn {
             mint: self.stable_coin_mint.to_account_info(),
-            to: self.borrower_stable_coin_wallet.to_account_info(),
+            from: self.borrower_stable_coin_wallet.to_account_info(),
             authority: self.borrower.to_account_info(),
         };
         let cpi_program = self.token_program.to_account_info();
@@ -286,7 +316,7 @@ impl<'info> DeleverageViaAldrinAmm<'info> {
         &self,
         amount_to_swap: u64,
         min_swap_return: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let side = if self.base_token_vault_1.mint
             == self.borrower_intermediary_wallet.mint
         {
@@ -327,7 +357,7 @@ impl<'info> DeleverageViaAldrinAmm<'info> {
         &self,
         amount_to_swap: u64,
         min_swap_return: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let side = if self.base_token_vault_2.mint
             == self.borrower_stable_coin_wallet.mint
         {

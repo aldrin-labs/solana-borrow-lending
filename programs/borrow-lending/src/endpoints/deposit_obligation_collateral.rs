@@ -12,8 +12,7 @@ use anchor_spl::token::{self, Token};
 
 #[derive(Accounts)]
 pub struct DepositObligationCollateral<'info> {
-    #[account(signer)]
-    pub borrower: AccountInfo<'info>,
+    pub borrower: Signer<'info>,
     #[account(mut)]
     pub obligation: AccountLoader<'info, Obligation>,
     #[account(
@@ -21,8 +20,10 @@ pub struct DepositObligationCollateral<'info> {
             @ err::cannot_use_as_collateral(),
     )]
     pub reserve: Box<Account<'info, Reserve>>,
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(mut)]
     pub source_collateral_wallet: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = destination_collateral_wallet.key() !=
@@ -40,7 +41,7 @@ pub struct DepositObligationCollateral<'info> {
 pub fn handle(
     ctx: Context<DepositObligationCollateral>,
     collateral_amount: u64,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     if collateral_amount == 0 {
@@ -51,10 +52,10 @@ pub fn handle(
     let mut obligation = accounts.obligation.load_mut()?;
 
     if accounts.borrower.key() != obligation.owner {
-        return Err(ProgramError::IllegalOwner);
+        return Err(error!(ErrorCode::IllegalOwner));
     }
     if accounts.reserve.lending_market != obligation.lending_market {
-        return Err(err::market_mismatch());
+        return Err(error!(err::market_mismatch()));
     }
 
     obligation.deposit(
@@ -79,7 +80,7 @@ impl<'info> DepositObligationCollateral<'info> {
         let cpi_accounts = token::Transfer {
             from: self.source_collateral_wallet.to_account_info(),
             to: self.destination_collateral_wallet.to_account_info(),
-            authority: self.borrower.clone(),
+            authority: self.borrower.to_account_info(),
         };
         let cpi_program = self.token_program.to_account_info();
         CpiContext::new(cpi_program, cpi_accounts)

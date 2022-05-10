@@ -160,7 +160,7 @@ impl Obligation {
                     "Expected a collateral at index {}, aborting",
                     collateral_index
                 );
-                Err(ProgramError::InvalidArgument.into())
+                Err(ErrorCode::InvalidArgument.into())
             }
         }
     }
@@ -229,7 +229,7 @@ impl Obligation {
             })
             .ok_or_else(|| {
                 msg!("Obligation has no such reserve collateral");
-                ProgramError::InvalidArgument.into()
+                ErrorCode::InvalidArgument.into()
             })
     }
 
@@ -252,7 +252,7 @@ impl Obligation {
             })
             .ok_or_else(|| {
                 msg!("Obligation has no such reserve liquidity");
-                ProgramError::InvalidArgument.into()
+                ErrorCode::InvalidArgument.into()
             })
     }
 
@@ -344,7 +344,7 @@ impl Obligation {
         settle_amount: Decimal,
         liquidity_index: usize,
         slot: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         match &mut self.reserves[liquidity_index] {
             ObligationReserve::Liquidity { inner: liquidity }
                 if liquidity.borrowed_amount.to_dec() == settle_amount =>
@@ -363,7 +363,7 @@ impl Obligation {
                     "Expected a liquidity at index {}, aborting",
                     liquidity_index
                 );
-                Err(ProgramError::InvalidArgument)
+                Err(error!(ErrorCode::InvalidArgument))
             }
         }
     }

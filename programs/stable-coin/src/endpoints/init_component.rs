@@ -58,6 +58,8 @@ pub struct InitComponent<'info> {
     )]
     pub interest_wallet: Account<'info, TokenAccount>,
     /// The owner of wallets associated with this component.
+    ///
+    /// CHECK: UNSAFE_CODES#signer
     #[account(
         seeds = [component.to_account_info().key.as_ref()],
         bump = component_bump_seed,
@@ -69,7 +71,7 @@ pub fn handle(
     ctx: Context<InitComponent>,
     _component_bump_seed: u8,
     config: InputComponentConfig,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     let config = config.validate()?;

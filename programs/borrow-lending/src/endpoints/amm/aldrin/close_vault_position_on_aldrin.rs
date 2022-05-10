@@ -7,11 +7,13 @@ use cpis::aldrin::UnstakeCpi;
 pub struct CloseVaultPositionOnAldrin<'info> {
     /// It's mut because we are closing farming receipt account and returning
     /// lamports to caller.
-    #[account(mut, signer)]
-    pub caller: AccountInfo<'info>,
+    #[account(mut)]
+    pub caller: Signer<'info>,
     /// See the [`crate::endpoints::amm::aldrin::
     /// open_leveraged_position_on_aldrin`] module for documentation on the
     /// rational behind these seeds, or the README.
+    ///
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [caller.key().as_ref(), pool.key().as_ref()],
         bump = bump_seed,
@@ -27,33 +29,44 @@ pub struct CloseVaultPositionOnAldrin<'info> {
     )]
     pub farming_receipt: Account<'info, AldrinFarmingReceipt>,
     // -------------- AMM Accounts ----------------
+    /// CHECK: If the user provides wrong AMM program, the CPI call will fail.
+    /// If they try to spoof the AMM program, it's on them because we're
+    /// unstaking from a farming ticket into their account.
     #[account(executable)]
     pub amm_program: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(
         constraint = *pool.owner == amm_program.key()
             @ err::illegal_owner("Amm pool account \
             must be owned by amm program"),
     )]
     pub pool: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub pool_signer: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub caller_lp_wallet: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub farming_state: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub farming_ticket: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub farming_snapshots: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub lp_token_freeze_vault: AccountInfo<'info>,
     // -------------- Other ----------------
     pub token_program: Program<'info, Token>,
     pub clock: Sysvar<'info, Clock>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub rent: AccountInfo<'info>,
 }
 
 pub fn handle(
     ctx: Context<CloseVaultPositionOnAldrin>,
     bump_seed: u8,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     UnstakeCpi::from(&accounts).unstake(&[

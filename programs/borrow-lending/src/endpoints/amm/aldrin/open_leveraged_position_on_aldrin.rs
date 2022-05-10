@@ -46,8 +46,7 @@ pub const LEVERAGED_POSITION_PDA_SEEDS_LEN: usize = 5;
 )]
 pub struct OpenLeveragedPositionOnAldrin<'info> {
     pub lending_market: Box<Account<'info, LendingMarket>>,
-    #[account(signer)]
-    pub borrower: AccountInfo<'info>,
+    pub borrower: Signer<'info>,
     #[account(mut)]
     pub obligation: AccountLoader<'info, Obligation>,
     #[account(
@@ -57,6 +56,7 @@ pub struct OpenLeveragedPositionOnAldrin<'info> {
             @ err::acc("Lending market doesn't match reserve's config")
     )]
     pub reserve: Box<Account<'info, Reserve>>,
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [reserve.lending_market.as_ref()],
         bump = lending_market_bump_seed,
@@ -65,6 +65,8 @@ pub struct OpenLeveragedPositionOnAldrin<'info> {
     /// The reserve which is going to be borrowed with leverage. Half of the
     /// borrowed funds are going to be swapped for the other constituent
     /// liquidity token.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = reserve_liquidity_wallet.key() == reserve.liquidity.supply
@@ -82,6 +84,8 @@ pub struct OpenLeveragedPositionOnAldrin<'info> {
     /// position with the farming ticket from the large one, thereby running
     /// away with the difference. Using this PDA helps us associate the
     /// specific loan ([`ObligationLiquidity`]) exactly.
+    ///
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [
             reserve.lending_market.as_ref(), obligation.key().as_ref(),
@@ -95,20 +99,25 @@ pub struct OpenLeveragedPositionOnAldrin<'info> {
     #[account(zero)]
     pub farming_receipt: Box<Account<'info, AldrinFarmingReceipt>>,
     // -------------- AMM Accounts ----------------
+    /// CHECK: UNSAFE_CODES.md#constraints
     #[account(
         executable,
         constraint = lending_market.aldrin_amm == amm_program.key()
             @ err::aldrin_amm_program_mismatch(),
     )]
     pub amm_program: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub pool: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub pool_signer: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub pool_mint: AccountInfo<'info>,
     #[account(mut)]
     pub base_token_vault: Box<Account<'info, TokenAccount>>,
     #[account(mut)]
     pub quote_token_vault: Box<Account<'info, TokenAccount>>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub fee_pool_wallet: AccountInfo<'info>,
     #[account(mut)]
@@ -117,14 +126,18 @@ pub struct OpenLeveragedPositionOnAldrin<'info> {
     pub borrower_quote_wallet: Box<Account<'info, TokenAccount>>,
     #[account(mut)]
     pub borrower_lp_wallet: Box<Account<'info, TokenAccount>>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub farming_state: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub farming_ticket: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#amm
     #[account(mut)]
     pub lp_token_freeze_vault: AccountInfo<'info>,
     // -------------- Other ----------------
     pub token_program: Program<'info, Token>,
     pub clock: Sysvar<'info, Clock>,
+    /// CHECK: UNSAFE_CODES.md#amm
     pub rent: AccountInfo<'info>,
 }
 
@@ -138,7 +151,7 @@ pub fn handle(
     swap_amount: u64,
     min_swap_return: u64,
     leverage: Leverage,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     if stake_lp_amount == 0 {
@@ -185,13 +198,13 @@ pub fn handle(
         return Err(ErrorCode::ObligationCollateralTooLow.into());
     }
     if accounts.borrower.key() != obligation.owner {
-        return Err(ProgramError::IllegalOwner);
+        return Err(error!(ErrorCode::IllegalOwner));
     }
     if obligation.is_stale_for_leverage(&accounts.clock) {
-        return Err(err::obligation_stale());
+        return Err(error!(err::obligation_stale()));
     }
     if accounts.reserve.lending_market != obligation.lending_market {
-        return Err(err::market_mismatch());
+        return Err(error!(err::market_mismatch()));
     }
 
     let remaining_borrow_value =

@@ -1,5 +1,5 @@
 pub use crate::accounts::*;
-pub use crate::err::{self, Error, ErrorCode, Result};
+pub use crate::err::{self, ErrorCode};
 pub use crate::math::{self, *};
 pub use crate::models::{self, *};
 pub use anchor_lang::prelude::*;
@@ -66,9 +66,7 @@ pub mod consts {
     /// Obligation borrow amount that is small enough to close out.
     pub const LIQUIDATION_CLOSE_AMOUNT: u64 = 2;
 
-    /// > The minimum slot time is 400ms.
-    ///   \
-    ///   From: <https://solanabeach.io/glossary>
+    /// > The minimum slot time is 400ms. \ From: <https://solanabeach.io/glossary>
     ///
     /// # Opening
     /// While having as fresh prices as possible for vanilla borrowing is vital,

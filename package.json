@@ -4,24 +4,25 @@
     "fmt": "prettier --write package.json tests/src",
     "test": "anchor test",
     "test-skip-build": "anchor test --skip-build",
+    "build": "anchor build",
     "init-amm-idl": "anchor idl init --filepath bin/amm/idl/mm_farming_pool_product_only.json",
     "check": "tsc --build"
   },
   "dependencies": {
-    "@project-serum/anchor": "^0.21",
-    "@project-serum/anchor-cli": "^0.21",
-    "@project-serum/common": "^0.0.1-beta.3",
+    "@project-serum/anchor": "^0.24.2",
+    "@project-serum/anchor-cli": "^0.24.2",
     "@solana/spl-token": "^0.1.8",
-    "@solana/web3.js": "^1.31.0",
+    "@solana/web3.js": "^1.36.0",
+    "@types/bn.js": "^5.1.0",
     "@types/chai": "^4.2.22",
     "@types/chai-as-promised": "^7.1.4",
-    "@types/mocha": "^9.0.0",
+    "@types/mocha": "^9.1.1",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
-    "mocha": "^8.0.0",
-    "node-fetch": "^2.6.1",
+    "mocha": "^10.0.0",
+    "node-fetch": "^3.2.4",
     "prettier": "^2.4.1",
-    "ts-mocha": "^8.0.0",
+    "ts-mocha": "^10.0.0",
     "typescript": "^4.3.5"
   }
 }

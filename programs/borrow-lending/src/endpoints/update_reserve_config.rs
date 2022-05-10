@@ -3,8 +3,7 @@ use crate::prelude::*;
 #[derive(Accounts)]
 pub struct UpdateReserveConfig<'info> {
     /// The entity which created the [`LendingMarket`].
-    #[account(signer)]
-    pub owner: AccountInfo<'info>,
+    pub owner: Signer<'info>,
     #[account(has_one = owner @ ErrorCode::InvalidMarketOwner)]
     pub lending_market: Account<'info, LendingMarket>,
     #[account(mut)]
@@ -14,7 +13,7 @@ pub struct UpdateReserveConfig<'info> {
 pub fn handle(
     ctx: Context<UpdateReserveConfig>,
     config: InputReserveConfig,
-) -> ProgramResult {
+) -> Result<()> {
     ctx.accounts.reserve.config = config.validate()?;
 
     Ok(())

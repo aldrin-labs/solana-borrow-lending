@@ -4,8 +4,8 @@ use crate::prelude::*;
 
 #[derive(Accounts)]
 pub struct UpdateLendingMarket<'info> {
-    #[account(signer)]
-    pub owner: AccountInfo<'info>,
+    pub owner: Signer<'info>,
+    /// CHECK: UNSAFE_CODES.md#signer
     pub admin_bot: AccountInfo<'info>,
     #[account(mut, has_one = owner @ ErrorCode::InvalidMarketOwner)]
     pub lending_market: Account<'info, LendingMarket>,
@@ -16,7 +16,7 @@ pub fn handle(
     leveraged_compound_fee: PercentageInt,
     vault_compound_fee: PercentageInt,
     min_collateral_uac_value_for_leverage: SDecimal,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
     msg!("update lending market '{}'", accounts.lending_market.key());
 

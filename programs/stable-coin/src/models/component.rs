@@ -125,7 +125,7 @@ impl Component {
 }
 
 impl ComponentConfig {
-    fn validate(&self) -> ProgramResult {
+    fn validate(&self) -> Result<()> {
         let interest = self.interest.to_dec();
         if interest.try_floor_u64()? != 0 {
             msg!("Interest must be in range [0; 1)");
@@ -179,8 +179,10 @@ mod tests {
         };
 
         assert_eq!(
-            Ok(valid_config),
-            InputComponentConfig { conf: valid_config }.validate()
+            valid_config,
+            InputComponentConfig { conf: valid_config }
+                .validate()
+                .unwrap()
         );
 
         assert!(ComponentConfig {
@@ -260,8 +262,8 @@ mod tests {
         };
 
         assert_eq!(
-            component.smallest_unit_market_price(&reserve),
-            Ok(Decimal::from(20u64 * 5 / 10))
+            component.smallest_unit_market_price(&reserve).unwrap(),
+            Decimal::from(20u64 * 5 / 10)
         );
     }
 
@@ -284,8 +286,8 @@ mod tests {
         };
 
         assert_eq!(
-            component.smallest_unit_market_price(&reserve),
-            Ok(Decimal::one())
+            component.smallest_unit_market_price(&reserve).unwrap(),
+            Decimal::one()
         );
     }
 

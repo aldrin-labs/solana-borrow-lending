@@ -12,7 +12,7 @@ import {
   PublicKey,
 } from "@solana/web3.js";
 import * as anchor from "@project-serum/anchor";
-import { Program, Provider } from "@project-serum/anchor";
+import { Program, AnchorProvider } from "@project-serum/anchor";
 import { globalContainer } from "./global-container";
 import { StableCoin } from "../../target/types/stable_coin";
 import { BorrowLending } from "../../target/types/borrow_lending";
@@ -61,7 +61,7 @@ describe("borrow-lending", function () {
     })
   );
 
-  const provider = Provider.local();
+  const provider = AnchorProvider.local();
   anchor.setProvider(provider);
 
   const blp = anchor.workspace.BorrowLending as Program<BorrowLending>;

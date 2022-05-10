@@ -15,6 +15,8 @@ pub struct DepositCollateral<'info> {
     )]
     pub component: Account<'info, Component>,
     /// Freezes user's collateral tokens.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(mut)]
     pub freeze_wallet: AccountInfo<'info>,
     #[account(
@@ -26,12 +28,14 @@ pub struct DepositCollateral<'info> {
     )]
     pub receipt: Account<'info, Receipt>,
     /// Tokens from here are sent to freeze wallet.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(mut)]
     pub borrower_collateral_wallet: AccountInfo<'info>,
     pub token_program: Program<'info, Token>,
 }
 
-pub fn handle(ctx: Context<DepositCollateral>, amount: u64) -> ProgramResult {
+pub fn handle(ctx: Context<DepositCollateral>, amount: u64) -> Result<()> {
     let accounts = ctx.accounts;
 
     if amount == 0 {

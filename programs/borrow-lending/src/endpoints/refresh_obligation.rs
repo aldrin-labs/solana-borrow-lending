@@ -8,7 +8,7 @@ pub struct RefreshObligation<'info> {
     pub clock: Sysvar<'info, Clock>,
 }
 
-pub fn handle(ctx: Context<RefreshObligation>) -> ProgramResult {
+pub fn handle(ctx: Context<RefreshObligation>) -> Result<()> {
     msg!(
         "refresh obligation '{}' at slot {}",
         ctx.accounts.obligation.key(),
@@ -23,7 +23,7 @@ pub fn handle(ctx: Context<RefreshObligation>) -> ProgramResult {
         .map(|acc| {
             if acc.owner != ctx.program_id {
                 msg!("Owner of account '{}' must be this program", acc.key);
-                return Err(ProgramError::IllegalOwner.into());
+                return Err(ErrorCode::IllegalOwner.into());
             }
 
             let mut data: &[u8] = &acc.try_borrow_data()?;

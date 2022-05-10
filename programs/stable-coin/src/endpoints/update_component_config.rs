@@ -24,7 +24,7 @@ pub struct UpdateComponentConfig<'info> {
 pub fn handle(
     ctx: Context<UpdateComponentConfig>,
     config: InputComponentConfig,
-) -> ProgramResult {
+) -> Result<()> {
     ctx.accounts.component.config = config.validate()?;
 
     Ok(())

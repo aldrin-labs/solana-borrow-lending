@@ -5,6 +5,7 @@ use pyth::Load;
 pub struct RefreshReserve<'info> {
     #[account(mut)]
     pub reserve: Account<'info, Reserve>,
+    /// CHECK: UNSAFE_CODES.md#constrains
     #[account(
         constraint = reserve
             .liquidity
@@ -16,7 +17,7 @@ pub struct RefreshReserve<'info> {
     pub clock: Sysvar<'info, Clock>,
 }
 
-pub fn handle(ctx: Context<RefreshReserve>) -> ProgramResult {
+pub fn handle(ctx: Context<RefreshReserve>) -> Result<()> {
     let accounts = ctx.accounts;
     msg!("refresh reserve '{}'", accounts.reserve.key(),);
 

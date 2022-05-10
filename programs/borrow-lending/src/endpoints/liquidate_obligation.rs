@@ -16,12 +16,13 @@ use std::cmp::Ordering;
 #[instruction(lending_market_bump_seed: u8)]
 pub struct LiquidateObligation<'info> {
     /// Any user can call this endpoint.
-    #[account(signer)]
-    pub liquidator: AccountInfo<'info>,
+    pub liquidator: Signer<'info>,
     /// Liquidator's wallet from which they repay.
     ///
     /// We're sure it belongs to the correct token program because otherwise
     /// token transfer CPI fails.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = source_liquidity_wallet.key() !=
@@ -36,6 +37,8 @@ pub struct LiquidateObligation<'info> {
     ///
     /// We're sure it belongs to the correct token program because otherwise
     /// token transfer CPI fails.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = destination_collateral_wallet.key() !=
@@ -61,6 +64,8 @@ pub struct LiquidateObligation<'info> {
     ///
     /// We're sure it belongs to correct token program because it's defined in
     /// reserve's config.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = reserve_liquidity_wallet.key() ==
@@ -82,6 +87,8 @@ pub struct LiquidateObligation<'info> {
     ///
     /// We're sure it belongs to correct token program because it's defined in
     /// reserve's config.
+    ///
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = reserve_collateral_wallet.key() ==
@@ -89,6 +96,7 @@ pub struct LiquidateObligation<'info> {
             must match supply config"),
     )]
     pub reserve_collateral_wallet: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [withdraw_reserve.lending_market.as_ref()],
         bump = lending_market_bump_seed,
@@ -103,7 +111,7 @@ pub fn handle(
     lending_market_bump_seed: u8,
     liquidity_amount: u64,
     loan_kind: LoanKind,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
     msg!(
         "liquidate obligation '{}' amount {} at slot {}",
@@ -119,24 +127,26 @@ pub fn handle(
 
     let mut obligation = accounts.obligation.load_mut()?;
     if accounts.withdraw_reserve.lending_market != obligation.lending_market {
-        return Err(err::market_mismatch());
+        return Err(error!(err::market_mismatch()));
     }
     if accounts.repay_reserve.lending_market != obligation.lending_market {
-        return Err(err::market_mismatch());
+        return Err(error!(err::market_mismatch()));
     }
     if obligation.is_stale(&accounts.clock) {
-        return Err(err::obligation_stale());
+        return Err(error!(err::obligation_stale()));
     }
     if obligation.is_deposited_value_zero() {
-        return Err(err::empty_collateral(
+        return Err(error!(err::empty_collateral(
             "Collateral deposited value is zero",
-        ));
+        )));
     }
     if obligation.is_borrowed_value_zero() {
-        return Err(err::empty_liquidity("Liquidity deposited value is zero"));
+        return Err(error!(err::empty_liquidity(
+            "Liquidity deposited value is zero"
+        )));
     }
     if obligation.is_healthy() {
-        return Err(err::obligation_healthy());
+        return Err(error!(err::obligation_healthy()));
     }
 
     let ConcernedReserves {
@@ -363,9 +373,9 @@ impl<'info> LiquidateObligation<'info> {
         &self,
     ) -> CpiContext<'_, '_, '_, 'info, token::Transfer<'info>> {
         let cpi_accounts = token::Transfer {
-            from: self.source_liquidity_wallet.clone(),
-            to: self.reserve_liquidity_wallet.clone(),
-            authority: self.liquidator.clone(),
+            from: self.source_liquidity_wallet.to_account_info(),
+            to: self.reserve_liquidity_wallet.to_account_info(),
+            authority: self.liquidator.to_account_info(),
         };
         let cpi_program = self.token_program.to_account_info();
         CpiContext::new(cpi_program, cpi_accounts)

@@ -23,6 +23,7 @@ pub struct FlashLoan<'info> {
             @ err::flash_loans_disabled(),
     )]
     pub lending_market: Box<Account<'info, LendingMarket>>,
+    /// CHECK: UNSAFE_CODES.md#signer
     #[account(
         seeds = [reserve.lending_market.as_ref()],
         bump = lending_market_bump_seed,
@@ -39,14 +40,18 @@ pub struct FlashLoan<'info> {
             @ err::acc("Source liq. wallet must eq. reserve's liq. supply"),
     )]
     pub source_liquidity_wallet: Box<Account<'info, TokenAccount>>,
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(mut)]
     pub destination_liquidity_wallet: AccountInfo<'info>,
+    /// CHECK: UNSAFE_CODES.md#wallet
     #[account(
         mut,
         constraint = fee_receiver.key() == reserve.liquidity.fee_receiver
             @ err::acc("Fee receiver doesn't match reserve's config"),
     )]
     pub fee_receiver: AccountInfo<'info>,
+    /// CHECK: Can be anything as long as it's a program and not this program.
+    /// We check that it's not this program in the handle function.
     #[account(executable)]
     pub target_program: AccountInfo<'info>,
     pub token_program: Program<'info, Token>,
@@ -58,7 +63,7 @@ pub fn handle(
     lending_market_bump_seed: u8,
     liquidity_amount: u64,
     target_data_prefix: Vec<u8>,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     if liquidity_amount == 0 {
@@ -137,7 +142,7 @@ pub fn handle(
             expected_balance_after_flash_loan,
             actual_balance_after_flash_loan
         );
-        return Err(ProgramError::InsufficientFunds);
+        return Err(error!(ErrorCode::InsufficientFunds));
     }
 
     if fee > 0 {
@@ -158,7 +163,7 @@ fn invoke_with_remaining_accounts(
     target_data_prefix: Vec<u8>,
     returned_amount_required: u64,
     remaining_accounts: &[AccountInfo<'_>],
-) -> ProgramResult {
+) -> Result<()> {
     let mut flash_loan_instruction_accounts = vec![];
     let mut flash_loan_instruction_account_infos = vec![];
     for account_info in remaining_accounts {
