@@ -32,7 +32,7 @@ pub fn handle(
     ctx: Context<TransferDegenStrategyFunds>,
     degen_strategy_bump_seed: u8,
     amount: u64,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     let pda_seeds = &[

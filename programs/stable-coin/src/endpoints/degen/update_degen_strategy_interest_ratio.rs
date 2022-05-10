@@ -15,7 +15,7 @@ pub struct UpdateDegenStrategyInterestRatio<'info> {
 pub fn handle(
     ctx: Context<UpdateDegenStrategyInterestRatio>,
     aust_ratio: SDecimal,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     accounts.degen_strategy.aust_ratio = aust_ratio;

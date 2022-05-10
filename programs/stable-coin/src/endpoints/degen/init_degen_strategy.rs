@@ -34,7 +34,7 @@ pub fn handle(
     aust_ratio: SDecimal,
     max_leverage: SDecimal,
     earned_interest_penalty: SDecimal,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     accounts.degen_strategy.ust_wallet = accounts.ust_wallet.key();

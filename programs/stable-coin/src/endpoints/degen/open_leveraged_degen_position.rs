@@ -36,7 +36,7 @@ pub fn handle(
     stable_coin_bump_seed: u8,
     initial_ust_amount: u64,
     leverage: SDecimal,
-) -> ProgramResult {
+) -> Result<()> {
     let accounts = ctx.accounts;
 
     Ok(())
