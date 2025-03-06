@@ -1,0 +1,13 @@
+[programs.localnet]
+borrow_lending = "HH6BiQtvsL6mh7En2knBeTDqmGjYCJFiXiqixrG8nndB"
+stable_coin = "9oiokTQXJSgbzLcmvsGXMvw8SM2a6vRTnthYhRycnP18"
+
+[registry]
+url = "https://anchor.projectserum.com"
+
+[provider]
+cluster = "localnet"
+wallet = "tests/localnet-keypair.json"
+
+[scripts]
+test = "ts-mocha --bail -p ./tsconfig.json -t 1000000 tests/src/**/*.ts"

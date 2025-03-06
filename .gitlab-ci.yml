@@ -1,0 +1,145 @@
+stages:
+  - build
+  - pages
+
+
+variables:
+  KATEX_VERSION: "0.13.9"
+
+
+# runs unit tests in parallel with other build stage jobs
+unit:
+  stage: build
+  image: registry.gitlab.com/crypto_project/defi/infra/rust-solana:latest
+  cache:
+    key: unit-cache-2
+    paths:
+      - target
+  before_script:
+    # Add SSH key which is stored in gitlab variables and allows us to access
+    # dependency crates in different repos.
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "$SSH_PRIVATE_KEY")
+    - mkdir -p ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+  script:
+    - cargo test --lib
+
+
+# builds program and idl in parallel with other build stage jobs
+program:
+  stage: build
+  image: registry.gitlab.com/crypto_project/defi/infra/rust-solana:latest
+  cache:
+    key: program-cache-2
+    paths:
+      - target
+  artifacts:
+    paths:
+      - target/deploy/borrow_lending.so
+      - target/idl/borrow_lending.json
+      - target/types/borrow_lending.ts
+  before_script:
+    # Add SSH key which is stored in gitlab variables and allows us to access
+    # dependency crates in different repos.
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "$SSH_PRIVATE_KEY")
+    - mkdir -p ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+
+    - yarn
+  script:
+    # both builds the program and tests it
+    - ./bin/test.sh --token "$(echo ${INFRA_API_TOKEN} | tr -d '\n')"
+
+
+# builds CLI bin in parallel with other build stage jobs
+cli:
+  stage: build
+  image: registry.gitlab.com/crypto_project/defi/infra/rust-solana:latest
+  cache:
+    key: cli-cache-2
+    paths:
+      - target
+  artifacts:
+    paths:
+      - target/release/cli
+  before_script:
+    # Add SSH key which is stored in gitlab variables and allows us to access
+    # dependency crates in different repos.
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "$SSH_PRIVATE_KEY")
+    - mkdir -p ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+  script:
+    - cargo build --bin cli --release
+    - ./target/release/cli help
+
+
+# We generate docs.rs style documentation for the codebase and publish it as
+# gitlab pages for the repository.
+#
+# This runs automatically on develop branch, or can be manually triggered on
+# any other branch.
+.pages_job:
+  image: registry.gitlab.com/crypto_project/defi/infra/rust-solana:latest
+  cache:
+    key: pages-cache-1
+    paths:
+      - target
+  artifacts:
+    paths:
+      - public
+  before_script:
+    # Add SSH key which is stored in gitlab variables and allows us to access
+    # dependency crates in different repos.
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "$SSH_PRIVATE_KEY")
+    - mkdir -p ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+  script:
+    - rustup override set nightly
+
+    # generates docs.rs style page
+    - cargo doc --lib --no-deps --document-private-items
+    - cp -r target/doc public
+    - cp -r docs public/docs
+
+    # generate code coverage report
+    - ./bin/codecov.sh
+    - cp -r target/debug/coverage public
+
+    # generates public index html file from README
+    - node /scripts/prepareReadme.js |
+      pandoc -t html --standalone --filter pandoc-katex
+      --css "https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.css"
+      --css https://pandoc.org/demo/pandoc.css
+      --metadata title="Program borrow-lending"
+      -o public/index.html
+
+    # builds changelogs as static web pages
+    - cat programs/borrow-lending/CHANGELOG.md |
+      pandoc -t html --standalone
+      --metadata title="Borrow-lending program"
+      -o public/blp.changelog.html
+    - cat programs/stable-coin/CHANGELOG.md |
+      pandoc -t html --standalone
+      --metadata title="Stable coin program"
+      -o public/scp.changelog.html
+
+# This job publishes pages to
+# https://crypto_project.gitlab.io/defi/borrow-lending
+pages:
+  extends: .pages_job
+  stage: pages
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+
+# This job creates artifacts which can be browsed as static website, but does
+# _not_ update https://crypto_project.gitlab.io/defi/borrow-lending
+pages_manual:
+  extends: .pages_job
+  stage: pages
+  when: manual
+  except:
+    - develop
