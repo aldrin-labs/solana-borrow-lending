@@ -30,5 +30,3 @@ log = "0.4.20"
 env_logger = "0.10.0"
 async-trait = "0.1.74"
 futures = "0.3.28"
-
-[workspace]
