@@ -63,10 +63,12 @@ async fn run_app<B: ratatui::backend::Backend>(
 ) -> Result<()> {
     loop {
         // Draw UI
-        terminal.draw(|f| ui(f, app))?;
+        terminal.draw(|f| ui(f, app))
+            .map_err(|e| AppError::Io(e))?;
 
         // Handle events
-        match event_handler.next()? {
+        match event_handler.next()
+            .map_err(|e| AppError::Unknown(e.to_string()))? {
             Event::Tick => {
                 app.on_tick().await;
             }

@@ -31,18 +31,18 @@ impl SolanaClient {
             "mainnet" => Cluster::Mainnet,
             "devnet" => Cluster::Devnet,
             "localnet" => Cluster::Localnet,
-            _ => return Err(anyhow!("Invalid cluster: {}", cluster)),
+            _ => return Err(AppError::SolanaClient(format!("Invalid cluster: {}", cluster))),
         };
 
         // Load keypair
         let payer = Rc::new(
             read_keypair_file(keypair_path)
-                .map_err(|_| anyhow!("Failed to read keypair file: {}", keypair_path))?
+                .map_err(|_| AppError::SolanaClient(format!("Failed to read keypair file: {}", keypair_path)))?
         );
 
         // Parse program ID
         let program_id = Pubkey::from_str(program_id)
-            .map_err(|_| anyhow!("Invalid program ID: {}", program_id))?;
+            .map_err(|_| AppError::SolanaClient(format!("Invalid program ID: {}", program_id)))?;
 
         // Create client
         let client = Client::new_with_options(

@@ -38,14 +38,18 @@ impl Config {
 
     /// Save configuration to file
     pub fn save(&self, path: &Path) -> Result<()> {
-        let content = serde_json::to_string_pretty(self)?;
+        let content = serde_json::to_string_pretty(self)
+            .map_err(|e| AppError::Config(format!("Failed to serialize config: {}", e)))?;
         
         // Create parent directories if they don't exist
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
+            fs::create_dir_all(parent)
+                .map_err(|e| AppError::Config(format!("Failed to create config directory: {}", e)))?;
         }
         
-        fs::write(path, content)?;
+        fs::write(path, content)
+            .map_err(|e| AppError::Config(format!("Failed to write config file: {}", e)))?;
+        
         Ok(())
     }
 }

@@ -404,7 +404,7 @@ impl App {
         amount: u64,
         target_program: &solana_sdk::pubkey::Pubkey,
         data: Vec<u8>,
-    ) {
+    ) -> Result<()> {
         if let Some(client) = &self.solana_client {
             match client.flash_loan(
                 reserve,
@@ -414,11 +414,50 @@ impl App {
             ).await {
                 Ok(signature) => {
                     self.add_message(format!("Flash loan successful: {}", signature));
+                    Ok(())
                 }
                 Err(err) => {
-                    self.add_message(format!("Failed to execute flash loan: {}", err));
+                    let msg = format!("Failed to execute flash loan: {}", err);
+                    self.add_message(msg.clone());
+                    Err(AppError::SolanaClient(msg))
                 }
             }
+        } else {
+            let msg = "Solana client not initialized".to_string();
+            self.add_message(msg.clone());
+            Err(AppError::SolanaClient(msg))
         }
+    }
+    
+    /// Set up input fields for deposit
+    pub fn setup_deposit_inputs(&mut self) {
+        self.input_handler = InputHandler::new();
+        self.input_handler.add_input("Amount");
+        self.input_handler.activate(0);
+        self.input_mode = InputMode::Editing;
+    }
+    
+    /// Set up input fields for withdraw
+    pub fn setup_withdraw_inputs(&mut self) {
+        self.input_handler = InputHandler::new();
+        self.input_handler.add_input("Amount");
+        self.input_handler.activate(0);
+        self.input_mode = InputMode::Editing;
+    }
+    
+    /// Set up input fields for borrow
+    pub fn setup_borrow_inputs(&mut self) {
+        self.input_handler = InputHandler::new();
+        self.input_handler.add_input("Amount");
+        self.input_handler.activate(0);
+        self.input_mode = InputMode::Editing;
+    }
+    
+    /// Set up input fields for repay
+    pub fn setup_repay_inputs(&mut self) {
+        self.input_handler = InputHandler::new();
+        self.input_handler.add_input("Amount");
+        self.input_handler.activate(0);
+        self.input_mode = InputMode::Editing;
     }
 }

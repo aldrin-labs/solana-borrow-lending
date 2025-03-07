@@ -318,6 +318,50 @@ fn render_settings<B: Backend>(frame: &mut Frame<B>, _app: &App, area: Rect) {
     frame.render_widget(paragraph, area);
 }
 
+/// Renders the message log.
+fn render_message_log<B: Backend>(frame: &mut Frame<B>, app: &App, area: Rect) {
+    let messages: Vec<ListItem> = app
+        .messages
+        .iter()
+        .rev() // Show most recent messages first
+        .take(4) // Only show the last 4 messages
+        .map(|m| {
+            ListItem::new(Spans::from(vec![Span::styled(
+                m,
+                Style::default().fg(Color::White),
+            )]))
+        })
+        .collect();
+
+    let messages_list = List::new(messages)
+        .block(Block::default().borders(Borders::ALL).title("Messages"))
+        .style(Style::default().fg(Color::White));
+
+    frame.render_widget(messages_list, area);
+}
+
+/// Renders an input field.
+fn render_input_field<B: Backend>(frame: &mut Frame<B>, input: &InputState, area: Rect) {
+    let input_text = input.value();
+    let cursor_position = input.input.visual_cursor();
+
+    let input_paragraph = Paragraph::new(input_text)
+        .style(Style::default().fg(if input.active { Color::Yellow } else { Color::White }))
+        .block(Block::default().borders(Borders::ALL).title(input.label.clone()));
+
+    frame.render_widget(input_paragraph, area);
+
+    if input.active {
+        // Make the cursor visible and ask ratatui to put it at the specified coordinates after rendering
+        frame.set_cursor(
+            // Put cursor past the end of the input text
+            area.x + cursor_position as u16 + 1,
+            // Move one line down, from the border to the input line
+            area.y + 1,
+        );
+    }
+}
+
 /// Renders the help screen.
 fn render_help<B: Backend>(frame: &mut Frame<B>, app: &App, area: Rect) {
     let mut text = vec![
