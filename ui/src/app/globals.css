@@ -1,0 +1,126 @@
+/* Add custom scrollbar for the entire app */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-rgb: 18, 18, 18;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+  font-family: 'Inter', system-ui, sans-serif;
+  background-image: 
+    radial-gradient(circle at 25% 25%, rgba(61, 133, 198, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(0, 194, 255, 0.05) 0%, transparent 50%);
+}
+
+@layer components {
+  .card {
+    @apply bg-surface rounded-lg shadow-card p-6 border border-border transition-all duration-300 hover:border-border-light;
+  }
+  
+  .stats-card {
+    @apply bg-surface rounded-lg shadow-card p-4 border border-border hover:border-border-light transition-colors backdrop-blur-sm bg-opacity-90;
+  }
+  
+  .btn-primary {
+    @apply bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary hover:bg-secondary-dark text-white font-bold py-2 px-4 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-accent {
+    @apply bg-accent hover:bg-accent/90 text-white font-bold py-2 px-4 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-connect {
+    @apply bg-white text-background font-bold py-2 px-4 rounded transition-colors hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .input {
+    @apply bg-surface border border-border rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-all;
+  }
+  
+  .token-selector {
+    @apply bg-surface border border-border rounded px-4 py-2 flex items-center justify-between cursor-pointer hover:border-border-light transition-colors;
+  }
+  
+  .table-container {
+    @apply rounded-lg overflow-hidden border border-border transition-all;
+  }
+  
+  .table-header {
+    @apply bg-surface text-text-secondary py-3 px-4;
+  }
+  
+  .table-row {
+    @apply border-t border-border hover:bg-surface/80 transition-colors;
+  }
+  
+  .table-cell {
+    @apply py-3 px-4;
+  }
+  
+  .section-title {
+    @apply text-2xl font-bold mb-4 text-text-primary;
+  }
+  
+  .section-subtitle {
+    @apply text-lg font-medium mb-2 text-text-secondary;
+  }
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Add subtle animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+/* Add glass morphism effect for cards */
+.glass-card {
+  backdrop-filter: blur(10px);
+  background: rgba(30, 30, 30, 0.7);
+}
+
+/* Add gradient text for important values */
+.gradient-text {
+  background: linear-gradient(90deg, #3D85C6, #00C2FF);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Add focus styles for accessibility */
+*:focus-visible {
+  outline: 2px solid #00C2FF;
+  outline-offset: 2px;
+}
