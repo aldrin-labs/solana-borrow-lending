@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { FC, useState } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { TokenIcon } from './TokenIcon';
-import { MarketActionModal } from './MarketActionModal';
-import { StatsCard } from './StatsCard';
-import { useBorrowLending } from '@/hooks/useBorrowLending';
+import { FC, useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { TokenIcon } from "./TokenIcon";
+import { MarketActionModal } from "./MarketActionModal";
+import { StatsCard } from "./StatsCard";
+import { useBorrowLending } from "@/hooks/useBorrowLending";
 
 export const LendingDashboard: FC = () => {
   const { connected } = useWallet();
@@ -23,61 +23,67 @@ export const LendingDashboard: FC = () => {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+      <h1 className="text-3xl font-bold text-white mb-6">Lending</h1>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatsCard 
-          title="Total Supply" 
-          value="$78,901,234" 
-          change="+2.8%" 
-          isPositive={true} 
+        <StatsCard
+          title="Total Supply"
+          value="$78,901,234"
+          change="+2.8%"
+          isPositive={true}
         />
-        <StatsCard 
-          title="Your Supply" 
-          value={connected ? "$1,550.00" : "$0.00"} 
-          change={connected ? "+3.5%" : "0%"} 
-          isPositive={true} 
+        <StatsCard
+          title="Your Supply"
+          value={connected ? "$1,550.00" : "$0.00"}
+          change={connected ? "+3.5%" : "0%"}
+          isPositive={true}
         />
-        <StatsCard 
-          title="Supply APY (avg)" 
-          value="2.65%" 
-          change="+0.2%" 
-          isPositive={true} 
+        <StatsCard
+          title="Supply APY (avg)"
+          value="2.65%"
+          change="+0.2%"
+          isPositive={true}
         />
       </div>
 
       <div className="card">
-        <h2 className="text-xl font-bold mb-6">Supply Markets</h2>
-        <div className="overflow-x-auto">
+        <h2 className="section-title">Supply Markets</h2>
+        <div className="table-container overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="text-left text-text-secondary">
-                <th className="pb-4 font-medium">Asset</th>
-                <th className="pb-4 font-medium">Total Supply</th>
-                <th className="pb-4 font-medium">Supply APY</th>
-                <th className="pb-4 font-medium">Can Be Collateral</th>
-                <th className="pb-4 font-medium">Actions</th>
+              <tr className="text-left">
+                <th className="table-header font-medium">Asset</th>
+                <th className="table-header font-medium">Total Supply</th>
+                <th className="table-header font-medium">Supply APY</th>
+                <th className="table-header font-medium">Can Be Collateral</th>
+                <th className="table-header font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {markets.map((market) => (
-                <tr key={market.id} className="border-t border-gray-700">
-                  <td className="py-4">
+                <tr key={market.id} className="table-row">
+                  <td className="table-cell">
                     <div className="flex items-center space-x-3">
                       <TokenIcon token={market.token} />
-                      <span className="font-medium">{market.token}</span>
+                      <span className="font-medium text-white">
+                        {market.token}
+                      </span>
                     </div>
                   </td>
-                  <td className="py-4">{market.totalSupply}</td>
-                  <td className="py-4 text-green-500">{market.supplyApy}</td>
-                  <td className="py-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900 text-green-300">
+                  <td className="table-cell">{market.totalSupply}</td>
+                  <td className="table-cell text-success">
+                    {market.supplyApy}
+                  </td>
+                  <td className="table-cell">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/20 text-success">
                       Yes
                     </span>
                   </td>
-                  <td className="py-4">
+                  <td className="table-cell">
                     <button
                       onClick={() => handleSupply(market)}
-                      className="btn-primary text-sm py-1"
+                      className="btn-primary text-sm py-1 px-3"
                       disabled={!connected}
                     >
                       Supply
@@ -92,47 +98,51 @@ export const LendingDashboard: FC = () => {
 
       {connected && suppliedPositions.length > 0 && (
         <div className="card">
-          <h2 className="text-xl font-bold mb-6">Your Supplies</h2>
-          <div className="overflow-x-auto">
+          <h2 className="section-title">Your Supplies</h2>
+          <div className="table-container overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="text-left text-text-secondary">
-                  <th className="pb-4 font-medium">Asset</th>
-                  <th className="pb-4 font-medium">Amount</th>
-                  <th className="pb-4 font-medium">Value</th>
-                  <th className="pb-4 font-medium">APY</th>
-                  <th className="pb-4 font-medium">Collateral</th>
-                  <th className="pb-4 font-medium">Actions</th>
+                <tr className="text-left">
+                  <th className="table-header font-medium">Asset</th>
+                  <th className="table-header font-medium">Amount</th>
+                  <th className="table-header font-medium">Value</th>
+                  <th className="table-header font-medium">APY</th>
+                  <th className="table-header font-medium">Collateral</th>
+                  <th className="table-header font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {suppliedPositions.map((position) => (
-                  <tr key={position.id} className="border-t border-gray-700">
-                    <td className="py-4">
+                  <tr key={position.id} className="table-row">
+                    <td className="table-cell">
                       <div className="flex items-center space-x-3">
                         <TokenIcon token={position.token} />
-                        <span className="font-medium">{position.token}</span>
+                        <span className="font-medium text-white">
+                          {position.token}
+                        </span>
                       </div>
                     </td>
-                    <td className="py-4">{position.amount}</td>
-                    <td className="py-4">{position.value}</td>
-                    <td className="py-4 text-green-500">{position.apy}</td>
-                    <td className="py-4">
+                    <td className="table-cell">{position.amount}</td>
+                    <td className="table-cell">{position.value}</td>
+                    <td className="table-cell text-success">{position.apy}</td>
+                    <td className="table-cell">
                       {position.collateral ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900 text-green-300">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/20 text-success">
                           Yes
                         </span>
                       ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-700 text-gray-300">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-border text-text-secondary">
                           No
                         </span>
                       )}
                     </td>
-                    <td className="py-4">
+                    <td className="table-cell">
                       <div className="flex space-x-2">
-                        <button className="btn-primary text-sm py-1">Withdraw</button>
+                        <button className="btn-primary text-sm py-1 px-3">
+                          Withdraw
+                        </button>
                         {position.collateral && (
-                          <button className="btn-secondary text-sm py-1">
+                          <button className="btn-secondary text-sm py-1 px-3">
                             Disable as Collateral
                           </button>
                         )}
@@ -152,6 +162,9 @@ export const LendingDashboard: FC = () => {
           <p className="text-text-secondary mb-6">
             Connect your wallet to view your supplies and start lending
           </p>
+          <button className="btn-connect py-2 px-6 rounded font-medium">
+            Connect Wallet
+          </button>
         </div>
       )}
 

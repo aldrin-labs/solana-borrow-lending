@@ -1,15 +1,13 @@
-'use client';
-
-import { FC, useState } from 'react';
-import { TokenIcon } from './TokenIcon';
+import { FC, useState } from "react";
+import { Card } from "./Card";
+import { Button } from "./Button";
+import { Input } from "./Input";
+import { TokenSelector } from "./TokenSelector";
+import { TokenIcon } from "./TokenIcon";
 
 interface MarketActionModalProps {
-  market: {
-    token: string;
-    supplyApy?: string;
-    borrowApy?: string;
-  };
-  actionType: 'supply' | 'borrow';
+  market: any;
+  actionType: "supply" | "borrow";
   onClose: () => void;
 }
 
@@ -18,43 +16,46 @@ export const MarketActionModal: FC<MarketActionModalProps> = ({
   actionType,
   onClose,
 }) => {
-  const [amount, setAmount] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [amount, setAmount] = useState("");
+  const [error, setError] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!amount || parseFloat(amount) <= 0) {
-      return;
-    }
-    
-    setIsLoading(true);
-    
-    try {
-      // Here you would integrate with the Solana program
-      console.log(`${actionType === 'supply' ? 'Supplying' : 'Borrowing'} ${amount} ${market.token}`);
-      
-      // Simulate a transaction delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      onClose();
-    } catch (error) {
-      console.error('Transaction failed:', error);
-    } finally {
-      setIsLoading(false);
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setAmount(value);
+
+    // Basic validation
+    if (value && isNaN(Number(value))) {
+      setError("Please enter a valid number");
+    } else if (Number(value) <= 0) {
+      setError("Amount must be greater than 0");
+    } else {
+      setError("");
     }
   };
 
+  const handleSubmit = async () => {
+    if (!amount || error) return;
+
+    setIsProcessing(true);
+
+    // Simulate transaction processing
+    setTimeout(() => {
+      setIsProcessing(false);
+      onClose();
+    }, 1500);
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-surface rounded-lg shadow-xl max-w-md w-full p-6">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-md animate-fadeIn" glassEffect={true}>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold">
-            {actionType === 'supply' ? 'Supply' : 'Borrow'} {market.token}
+            {actionType === "supply" ? "Supply" : "Borrow"} {market.token}
           </h2>
           <button
             onClick={onClose}
-            className="text-text-secondary hover:text-text-primary"
+            className="text-text-secondary hover:text-white transition-colors"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -73,91 +74,65 @@ export const MarketActionModal: FC<MarketActionModalProps> = ({
           </button>
         </div>
 
-        <div className="flex items-center space-x-3 mb-6">
-          <TokenIcon token={market.token} size="lg" />
-          <div>
-            <p className="font-medium">{market.token}</p>
-            <p className="text-text-secondary text-sm">
-              {actionType === 'supply'
-                ? `Supply APY: ${market.supplyApy}`
-                : `Borrow APY: ${market.borrowApy}`}
-            </p>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="mb-6">
-            <label
-              htmlFor="amount"
-              className="block text-text-secondary text-sm font-medium mb-2"
-            >
-              Amount
-            </label>
-            <div className="relative">
-              <input
-                type="number"
-                id="amount"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-                className="input w-full pr-16"
-                step="any"
-                min="0"
-                required
-              />
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                <span className="text-text-secondary">{market.token}</span>
-              </div>
+        <div className="mb-6">
+          <div className="flex items-center mb-4">
+            <TokenIcon token={market.token} size="lg" />
+            <div className="ml-3">
+              <h3 className="font-bold">{market.token}</h3>
+              <p className="text-text-secondary text-sm">
+                {actionType === "supply" ? "Supply APY:" : "Borrow APY:"}{" "}
+                <span
+                  className={
+                    actionType === "supply" ? "text-success" : "text-error"
+                  }
+                >
+                  {actionType === "supply"
+                    ? market.supplyApy
+                    : market.borrowApy}
+                </span>
+              </p>
             </div>
           </div>
 
-          <div className="flex space-x-4">
+          <Input
+            label="Amount"
+            type="text"
+            value={amount}
+            onChange={handleAmountChange}
+            placeholder="0.00"
+            error={error}
+            fullWidth
+          />
+
+          <div className="flex justify-between text-sm text-text-secondary mb-2">
+            <span>Available: 100.00 {market.token}</span>
             <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2 px-4 border border-gray-700 rounded font-medium text-text-primary hover:bg-gray-800 transition-colors"
-              disabled={isLoading}
+              className="text-primary hover:text-primary-light transition-colors"
+              onClick={() => setAmount("100")}
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className={`flex-1 ${
-                actionType === 'supply' ? 'btn-primary' : 'btn-secondary'
-              }`}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <span className="flex items-center justify-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Processing...
-                </span>
-              ) : (
-                `${actionType === 'supply' ? 'Supply' : 'Borrow'} ${market.token}`
-              )}
+              MAX
             </button>
           </div>
-        </form>
-      </div>
+        </div>
+
+        <div className="flex space-x-3">
+          <Button variant="secondary" className="flex-1" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant={actionType === "supply" ? "primary" : "secondary"}
+            className="flex-1"
+            onClick={handleSubmit}
+            disabled={!amount || !!error || isProcessing}
+          >
+            {isProcessing
+              ? "Processing..."
+              : actionType === "supply"
+                ? "Supply"
+                : "Borrow"}
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 };

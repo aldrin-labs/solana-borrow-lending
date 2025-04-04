@@ -9,21 +9,39 @@ module.exports = {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#512da8',
-          dark: '#311b92',
-          light: '#7e57c2',
+          DEFAULT: '#3D85C6', // Aldrin blue
+          dark: '#2D6DA8',
+          light: '#5A9AD6',
         },
         secondary: {
-          DEFAULT: '#ff9800',
-          dark: '#f57c00',
-          light: '#ffb74d',
+          DEFAULT: '#00C2FF', // OpenSVM accent blue
+          dark: '#00A3D9',
+          light: '#33CFFF',
         },
-        background: '#121212',
-        surface: '#1e1e1e',
+        background: '#121212', // Dark background matching both platforms
+        surface: '#1E1E1E', // Card/component background
+        accent: '#FF5722', // Accent color for important actions
+        success: '#4CAF50', // Success indicators
+        warning: '#FFC107', // Warning indicators
+        error: '#F44336', // Error indicators
         text: {
-          primary: '#ffffff',
-          secondary: '#b0bec5',
+          primary: '#FFFFFF', // Primary text
+          secondary: '#B0BEC5', // Secondary/muted text
+          muted: '#6B7280', // Very muted text
         },
+        border: {
+          DEFAULT: '#2D3748', // Default border color
+          light: '#4A5568', // Lighter border for hover states
+        },
+      },
+      borderRadius: {
+        DEFAULT: '0.5rem',
+      },
+      boxShadow: {
+        card: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1)',
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
       },
     },
   },
