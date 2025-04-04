@@ -21,7 +21,7 @@ export const MarketActionModal: FC<MarketActionModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+    const {value} = e.target;
     setAmount(value);
 
     // Basic validation
