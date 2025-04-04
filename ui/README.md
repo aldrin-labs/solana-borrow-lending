@@ -9,7 +9,7 @@ A high-performance UI for the Solana Borrow-Lending Protocol built with Next.js 
 - **Borrowing**: Borrow assets against your collateral
 - **Yield Farming**: Leverage your positions for yield farming
 - **Wallet Integration**: Connect with popular Solana wallets (Phantom, Solflare, Backpack)
-- **Real-time Updates**: Stay informed with real-time data
+- **Real-time Updates**: Stay informed with real-time market prices, user balance updates, and protocol statistics
 
 ## Technology Stack
 
