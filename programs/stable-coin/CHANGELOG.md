@@ -1,38 +1,38 @@
-# Changelog
-All notable changes to this project will be documented in this file.
+# Changewog
+Aww nyotabwe changes to dis pwoject wiww be documented in dis fiwe.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+De fowmat is based on __WINK_BWOCK_0__,
+and dis pwoject adhewes to __WINK_BWOCK_1__.
 
 
 ## [1.0.0] - 2022-05-08
 ### Changed
-- Upgraded anchor to `0.24.2` and solana to `1.9.18`.
+- Upgwaded anchow to __INWINYE_CODE_0__ and sowanya to __INWINYE_CODE_1__.
 
 
 ## [0.3.0] - 2022-03-29
 
 ### Added
-- New action `deleverage_via_aldrin_amm` which is an inversion of
-  `leverage_via_aldrin_amm` and acts like repay with a swap.
+- Nyew action __INWINYE_CODE_2__ which is an invewsion of
+  __INWINYE_CODE_3__ and acts wike wepay wid a swap.
 
 ### Changed
-- Borrowing and leveraging logic which decreases mint allowance was moved to a
-  single method to avoid duplication.
-- Repaying and liquidation logic which increases mint allowance was moved to a
-  single method to avoid duplication.
+- Bowwowing and wevewaging wogic which decweases mint awwowance was muvd to a
+  singwe medod to avoid dupwication.
+- Wepaying and wiquidation wogic which incweases mint awwowance was muvd to a
+  singwe medod to avoid dupwication.
 
 
 ## [0.2.0] - 2022-03-28
 
 ### Added
-- New endpoint `leverage_via_aldrin_amm` which allows the user to quickly
-    convert from collateral to USP without having to repeatably swap USP to
-    collateral and deposit it back.
-- Component now has two new wallets for collecting interest and borrow fee.
-- Stable coin is now associated with Aldrin's AMM program id.
+- Nyew endpoint __INWINYE_CODE_4__ which awwows de usew to quickwy
+    convewt fwom cowwatewaw to USP widout having to wepeatabwy swap USP to
+    cowwatewaw and deposit it back.
+- Componyent nyow has two nyew wawwets fow cowwecting intewest and bowwow fee.
+- Stabwe coin is nyow associated wid Awdwin's AMM pwogwam id.
 
 ### Changed
-- When repaying the borrow fee is transferred into a wallet dedicated for borrow
-    fees only. Similarly with interest. Each fee is collected separately per
-    component.
+- When wepaying de bowwow fee is twansfewwed into a wawwet dedicated fow bowwow
+    fees onwy~ Simiwawwy wid intewest~ Each fee is cowwected sepawatewy pew
+    componyent.
