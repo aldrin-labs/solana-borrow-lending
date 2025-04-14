@@ -1,2174 +1,1190 @@
-# Solana Borrow-Lending Platform Documentation
-
-## 1. Introduction
-
-### 1.1 Overview
-
-The Solana Borrow-Lending Platform (BLp) is a decentralized finance (DeFi) protocol built on the Solana blockchain that enables users to lend and borrow digital assets. The platform implements a sophisticated tokenomics model that governs the economic interactions between lenders, borrowers, and liquidators, while providing advanced features such as flash loans and leveraged yield farming.
-
-The platform is designed to maximize capital efficiency while maintaining system solvency through a carefully calibrated risk management framework. It utilizes Pyth Network oracles for price feeds, integrates with Aldrin AMM for swaps and liquidity provision, and implements a dynamic interest rate model that adjusts based on utilization rates.
-
-### 1.2 Purpose and Goals
-
-The primary purpose of the Solana Borrow-Lending Platform is to create an efficient capital market on Solana that allows:
-
-1. **Lenders** to earn interest on their deposited assets
-2. **Borrowers** to access liquidity while maintaining exposure to their collateral assets
-3. **Liquidators** to help maintain system solvency by liquidating unhealthy positions
-4. **Yield farmers** to leverage their positions for enhanced returns
-
-The platform aims to achieve these goals while maintaining:
-
-- **Security**: Protecting user funds through robust code and economic design
-- **Efficiency**: Minimizing transaction costs and maximizing capital utilization
-- **Flexibility**: Supporting various assets and use cases
-- **Scalability**: Leveraging Solana's high throughput and low fees
-
-### 1.3 Key Features
-
-The Solana Borrow-Lending Platform offers several key features:
-
-1. **Lending and Borrowing**: Users can deposit assets to earn interest or borrow against their collateral
-2. **Dynamic Interest Rates**: Interest rates adjust based on utilization to balance capital efficiency and liquidity
-3. **Multi-Asset Support**: The platform supports multiple assets with configurable risk parameters
-4. **Flash Loans**: Uncollateralized loans that must be repaid within the same transaction
-5. **Leveraged Yield Farming**: Integrated with Aldrin AMM to enable leveraged liquidity provision
-6. **Liquidation Mechanism**: Ensures system solvency by incentivizing the liquidation of unhealthy positions
-7. **Emissions System**: Distributes rewards to lenders and borrowers based on their participation
-
-### 1.4 Target Audience
-
-This documentation is intended for:
-
-- **Developers** integrating with or building on top of the platform
-- **Auditors** reviewing the codebase for security vulnerabilities
-- **Protocol Operators** managing and upgrading the platform
-- **Advanced Users** seeking to understand the platform's mechanics
-- **Researchers** studying DeFi protocols and tokenomics
-
-### 1.5 Documentation Organization
-
-This documentation is organized into the following sections:
-
-1. **Introduction**: Overview, purpose, and key features
-2. **System Architecture**: High-level architecture, core components, and data models
-3. **Key Processes**: Lending, borrowing, liquidation, flash loans, and leveraged yield farming
-4. **Tokenomics**: Interest rate model, fee structure, collateralization, and emissions
-5. **Security Considerations**: Identified vulnerabilities and security best practices
-6. **Developer Guide**: Environment setup, program structure, and key interfaces
-7. **Mathematical Models**: Interest calculation, exchange rates, liquidation, and leverage
-8. **Integration Guide**: Oracle, AMM, and token integrations
-9. **Operational Considerations**: Performance, governance, and risk management
-10. **Appendices**: Glossary, references, and changelog
-
-## 2. System Architecture
-
-### 2.1 High-Level Architecture
-
-The Solana Borrow-Lending Platform is built as a Solana program (smart contract) that interacts with various on-chain accounts and other programs. The platform follows a modular design with clear separation of concerns between different components.
-
-```mermaid
-graph TD
-    User[User] --> |Interacts with| BLp[Borrow-Lending Program]
-    BLp --> |Manages| LM[Lending Market]
-    LM --> |Contains| R[Reserves]
-    LM --> |Tracks| O[Obligations]
-    BLp --> |Uses| TP[Token Program]
-    BLp --> |Queries| Oracle[Pyth Oracle]
-    BLp --> |Integrates with| AMM[Aldrin AMM]
-    
-    subgraph "Core Components"
-        LM
-        R
-        O
-    end
-    
-    subgraph "External Dependencies"
-        TP
-        Oracle
-        AMM
-    end
-    
-    R --> |Stores| LS[Liquidity Supply]
-    R --> |Mints| CS[Collateral Supply]
-    O --> |References| OC[Obligation Collateral]
-    O --> |References| OL[Obligation Liquidity]
-    
-    classDef core fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef external fill:#bbf,stroke:#333,stroke-width:1px;
-    classDef data fill:#bfb,stroke:#333,stroke-width:1px;
-    
-    class LM,R,O core;
-    class TP,Oracle,AMM external;
-    class LS,CS,OC,OL data;
-```
-
-The architecture consists of the following key elements:
-
-1. **Borrow-Lending Program (BLp)**: The main Solana program that implements the lending protocol logic
-2. **Lending Market**: The top-level account that defines global parameters and contains references to reserves
-3. **Reserves**: Accounts that manage specific asset pools, including their liquidity and collateral
-4. **Obligations**: Accounts that track user positions, including deposited collateral and borrowed liquidity
-5. **External Dependencies**:
-   - **Token Program**: Solana's SPL Token program for token transfers and management
-   - **Pyth Oracle**: Provides price feeds for assets
-   - **Aldrin AMM**: Used for token swaps and liquidity provision in leveraged yield farming
-
-The platform uses a PDA (Program Derived Address) system to manage authority over various accounts, ensuring that only authorized entities can perform specific actions.
-
-### 2.2 Core Components
-
-The core components of the platform work together to provide the lending and borrowing functionality:
-
-```mermaid
-graph TD
-    LM[Lending Market] --> |Contains| R[Reserves]
-    LM --> |Tracks| O[Obligations]
-    
-    R --> |Has| RC[Reserve Config]
-    R --> |Has| RL[Reserve Liquidity]
-    R --> |Has| RColl[Reserve Collateral]
-    
-    RL --> |Has| AvailableAmount[Available Amount]
-    RL --> |Has| BorrowedAmount[Borrowed Amount]
-    RL --> |Has| CumulativeBorrowRate[Cumulative Borrow Rate]
-    RL --> |Has| MarketPrice[Market Price]
-    
-    RColl --> |Has| Mint[Collateral Mint]
-    RColl --> |Has| Supply[Collateral Supply]
-    
-    RC --> |Defines| Fees[Fee Structure]
-    RC --> |Defines| LTV[Loan-to-Value Ratio]
-    RC --> |Defines| LT[Liquidation Threshold]
-    RC --> |Defines| ML[Max Leverage]
-    RC --> |Defines| IR[Interest Rate Params]
-    
-    O --> |Contains| OC[Obligation Collateral]
-    O --> |Contains| OL[Obligation Liquidity]
-    
-    OC --> |References| R
-    OL --> |References| R
-    
-    classDef main fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef sub fill:#bbf,stroke:#333,stroke-width:1px;
-    classDef param fill:#bfb,stroke:#333,stroke-width:1px;
-    
-    class LM,R,O main;
-    class RC,RL,RColl,OC,OL sub;
-    class AvailableAmount,BorrowedAmount,CumulativeBorrowRate,MarketPrice,Mint,Supply,Fees,LTV,LT,ML,IR param;
-```
-
-#### 2.2.1 Lending Market
-
-The Lending Market is the top-level account that defines global parameters for the protocol. It includes:
-
-- **Owner**: The authority that can update market parameters
-- **Quote Currency**: The universal asset currency (UAC) used for value calculations (typically USD)
-- **Pyth Oracle Program**: The address of the oracle program used for price feeds
-- **Aldrin AMM**: The address of the AMM program used for swaps and liquidity provision
-- **Flash Loan Settings**: Configuration for enabling/disabling flash loans
-- **Minimum Collateral Value**: The minimum collateral value required for leveraged positions
-
-#### 2.2.2 Reserves
-
-Reserves are accounts that manage specific asset pools. Each reserve includes:
-
-- **Reserve Liquidity**: Manages the liquidity side of the reserve
-  - **Available Amount**: The amount of liquidity available for borrowing
-  - **Borrowed Amount**: The amount of liquidity currently borrowed
-  - **Cumulative Borrow Rate**: The accumulated interest rate used for interest calculations
-  - **Market Price**: The current price of the asset in the quote currency
-  - **Mint**: The token mint address
-  - **Supply**: The token account holding the liquidity
-  - **Fee Receiver**: The account that receives fees
-
-- **Reserve Collateral**: Manages the collateral side of the reserve
-  - **Mint**: The collateral token mint address
-  - **Supply**: The token account holding the collateral tokens
-
-- **Reserve Config**: Defines the risk parameters for the reserve
-  - **Optimal Utilization Rate**: The target utilization rate for optimal interest rates
-  - **Loan-to-Value Ratio**: The maximum borrow amount relative to collateral value
-  - **Liquidation Threshold**: The point at which a position becomes eligible for liquidation
-  - **Liquidation Bonus**: The incentive for liquidators
-  - **Interest Rate Parameters**: Min, optimal, and max borrow rates
-  - **Fee Structure**: Borrow fees, flash loan fees, and host fees
-  - **Max Leverage**: The maximum leverage allowed for yield farming
-
-#### 2.2.3 Obligations
-
-Obligations are accounts that track user positions, including:
-
-- **Owner**: The user who owns the obligation
-- **Lending Market**: The lending market the obligation belongs to
-- **Reserves**: An array of obligation reserves, which can be either:
-  - **Obligation Collateral**: Tracks deposited collateral
-    - **Deposit Reserve**: The reserve the collateral was deposited to
-    - **Deposited Amount**: The amount of collateral tokens deposited
-    - **Market Value**: The value of the collateral in the quote currency
-  - **Obligation Liquidity**: Tracks borrowed liquidity
-    - **Borrow Reserve**: The reserve the liquidity was borrowed from
-    - **Borrowed Amount**: The amount of liquidity tokens borrowed
-    - **Market Value**: The value of the borrowed liquidity in the quote currency
-    - **Cumulative Borrow Rate Snapshot**: The cumulative borrow rate at the time of borrowing
-    - **Loan Kind**: The type of loan (standard or yield farming)
-
-- **Value Calculations**:
-  - **Deposited Value**: The total value of deposited collateral
-  - **Borrowed Value**: The total value of borrowed liquidity
-  - **Allowed Borrow Value**: The maximum value that can be borrowed based on collateral
-  - **Unhealthy Borrow Value**: The threshold at which the obligation becomes unhealthy
-
-### 2.3 Data Models
-
-The platform uses a structured data model to represent the various components and their relationships:
-
-```mermaid
-classDiagram
-    class LendingMarket {
-        +Pubkey owner
-        +Pubkey quote_currency
-        +Pubkey pyth_oracle_program
-        +Pubkey aldrin_amm
-        +bool enable_flash_loans
-        +Decimal min_collateral_uac_value_for_leverage
-    }
-    
-    class Reserve {
-        +Pubkey lending_market
-        +ReserveLiquidity liquidity
-        +ReserveCollateral collateral
-        +ReserveConfig config
-        +LastUpdate last_update
-        +deposit_liquidity()
-        +redeem_collateral()
-        +borrow_liquidity()
-        +repay_loan()
-        +accrue_interest()
-    }
-    
-    class ReserveLiquidity {
-        +u64 available_amount
-        +SDecimal borrowed_amount
-        +Pubkey mint
-        +u8 mint_decimals
-        +Pubkey supply
-        +Pubkey fee_receiver
-        +Oracle oracle
-        +SDecimal cumulative_borrow_rate
-        +SDecimal market_price
-        +SDecimal accrued_interest
-    }
-    
-    class ReserveCollateral {
-        +Pubkey mint
-        +u64 mint_total_supply
-        +Pubkey supply
-    }
-    
-    class ReserveConfig {
-        +PercentageInt optimal_utilization_rate
-        +PercentageInt loan_to_value_ratio
-        +PercentageInt liquidation_threshold
-        +PercentageInt liquidation_bonus
-        +PercentageInt min_borrow_rate
-        +PercentageInt optimal_borrow_rate
-        +PercentageInt max_borrow_rate
-        +ReserveFees fees
-        +Leverage max_leverage
-    }
-    
-    class Obligation {
-        +Pubkey lending_market
-        +Pubkey owner
-        +ObligationReserve[] reserves
-        +SDecimal deposited_value
-        +SDecimal borrowed_value
-        +SDecimal allowed_borrow_value
-        +SDecimal unhealthy_borrow_value
-        +LastUpdate last_update
-        +deposit()
-        +withdraw()
-        +borrow()
-        +repay()
-    }
-    
-    class ObligationReserve {
-        +ObligationCollateral collateral
-        +ObligationLiquidity liquidity
-    }
-    
-    class ObligationCollateral {
-        +Pubkey deposit_reserve
-        +u64 deposited_amount
-        +SDecimal market_value
-    }
-    
-    class ObligationLiquidity {
-        +Pubkey borrow_reserve
-        +SDecimal borrowed_amount
-        +SDecimal market_value
-        +SDecimal cumulative_borrow_rate_snapshot
-        +LoanKind loan_kind
-    }
-    
-    LendingMarket "1" -- "many" Reserve : contains
-    Reserve "1" -- "1" ReserveLiquidity : has
-    Reserve "1" -- "1" ReserveCollateral : has
-    Reserve "1" -- "1" ReserveConfig : has
-    LendingMarket "1" -- "many" Obligation : tracks
-    Obligation "1" -- "many" ObligationReserve : contains
-    ObligationReserve <|-- ObligationCollateral : variant
-    ObligationReserve <|-- ObligationLiquidity : variant
-    ObligationCollateral "many" -- "1" Reserve : references
-    ObligationLiquidity "many" -- "1" Reserve : references
-```
-
-The data model is implemented using Anchor, a framework for Solana program development that provides a more ergonomic experience for developers. The model uses various Rust types and traits to ensure type safety and proper serialization/deserialization.
-
-Key data types include:
-
-- **Decimal**: A fixed-point decimal type used for financial calculations
-- **SDecimal**: A signed decimal type for calculations that may result in negative values
-- **PercentageInt**: A type representing percentages as integers (0-100)
-- **Leverage**: A type representing leverage as a percentage (e.g., 300% for 3x leverage)
-- **LoanKind**: An enum representing different types of loans (Standard or YieldFarming)
-- **LastUpdate**: A struct tracking when an account was last updated
-
-## 3. Key Processes
-
-### 3.1 Lending and Borrowing
-
-The core functionality of the platform revolves around lending and borrowing operations:
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant BLp as Borrow-Lending Program
-    participant Reserve
-    participant TokenProgram
-    participant Oracle
-    
-    %% Deposit Flow
-    User->>BLp: Deposit Liquidity
-    BLp->>Oracle: Get Market Price
-    Oracle-->>BLp: Return Price
-    BLp->>Reserve: Calculate Collateral Amount
-    Reserve-->>BLp: Return Collateral Amount
-    BLp->>TokenProgram: Transfer Liquidity from User to Reserve
-    BLp->>TokenProgram: Mint Collateral Tokens to User
-    BLp-->>User: Confirm Deposit
-    
-    %% Borrow Flow
-    User->>BLp: Borrow Liquidity
-    BLp->>Oracle: Get Market Price
-    Oracle-->>BLp: Return Price
-    BLp->>Reserve: Check Borrow Limit
-    Reserve-->>BLp: Confirm Borrow Allowed
-    BLp->>Reserve: Update Borrowed Amount
-    BLp->>TokenProgram: Transfer Liquidity from Reserve to User
-    BLp-->>User: Confirm Borrow
-    
-    %% Repay Flow
-    User->>BLp: Repay Loan
-    BLp->>Reserve: Calculate Repayment with Interest
-    Reserve-->>BLp: Return Repayment Amount
-    BLp->>TokenProgram: Transfer Liquidity from User to Reserve
-    BLp->>Reserve: Update Borrowed Amount
-    BLp-->>User: Confirm Repayment
-    
-    %% Withdraw Flow
-    User->>BLp: Withdraw Collateral
-    BLp->>Oracle: Get Market Price
-    Oracle-->>BLp: Return Price
-    BLp->>Reserve: Check Withdrawal Limit
-    Reserve-->>BLp: Confirm Withdrawal Allowed
-    BLp->>TokenProgram: Burn Collateral Tokens
-    BLp->>TokenProgram: Transfer Liquidity from Reserve to User
-    BLp-->>User: Confirm Withdrawal
-```
-
-#### 3.1.1 Deposit Liquidity
-
-The deposit process allows users to provide liquidity to the platform and receive collateral tokens in return:
-
-1. User initiates a deposit by calling the `deposit_reserve_liquidity` endpoint
-2. The program fetches the current market price from the oracle
-3. The reserve calculates the amount of collateral tokens to mint based on the exchange rate
-4. The program transfers the liquidity tokens from the user to the reserve's liquidity supply
-5. The program mints collateral tokens to the user's wallet
-6. The reserve updates its state to reflect the new deposit
-
-The exchange rate between liquidity and collateral tokens is determined by the ratio of total collateral supply to total liquidity supply:
-
-```
-R_x = C_s / L_s
-```
-
-Where:
-- `R_x` is the exchange rate
-- `C_s` is the total minted collateral supply
-- `L_s` is the total deposited liquidity supply
-
-#### 3.1.2 Borrow Liquidity
-
-The borrow process allows users to borrow liquidity against their deposited collateral:
-
-1. User initiates a borrow by calling the `borrow_obligation_liquidity` endpoint
-2. The program fetches current market prices from the oracle
-3. The program calculates the user's borrow limit based on their collateral value and the reserve's loan-to-value ratio
-4. If the requested borrow amount is within the limit, the program:
-   - Updates the obligation to record the new borrow
-   - Updates the reserve to record the borrowed amount
-   - Transfers the liquidity tokens from the reserve to the user
-5. The program applies any borrow fees, which are added to the borrowed amount
-
-The maximum amount a user can borrow is determined by their collateral value and the loan-to-value ratio:
-
-```
-V_maxb = V_d * LTV
-```
-
-Where:
-- `V_maxb` is the maximum borrowable value
-- `V_d` is the deposited collateral value
-- `LTV` is the loan-to-value ratio
-
-#### 3.1.3 Repay Loan
-
-The repay process allows users to repay their borrowed liquidity:
-
-1. User initiates a repayment by calling the `repay_obligation_liquidity` endpoint
-2. The program calculates the repayment amount, including accrued interest
-3. The program transfers the liquidity tokens from the user to the reserve
-4. The program updates the obligation to reflect the repayment
-5. The program updates the reserve to reflect the repaid amount
-
-Interest accrues continuously based on the borrow rate and is calculated using the compound interest formula:
-
-```
-L'_o = (R'_c / R_c) * L_o
-```
-
-Where:
-- `L'_o` is the new borrowed amount
-- `R'_c` is the latest cumulative borrow rate
-- `R_c` is the cumulative borrow rate at the time of the last interest accrual
-- `L_o` is the borrowed amount
-
-#### 3.1.4 Withdraw Collateral
-
-The withdraw process allows users to redeem their collateral tokens for the underlying liquidity:
-
-1. User initiates a withdrawal by calling the `withdraw_obligation_collateral` endpoint
-2. The program fetches current market prices from the oracle
-3. The program calculates the maximum withdrawable amount based on the user's borrowed value and collateral value
-4. If the requested withdrawal is within the limit, the program:
-   - Burns the collateral tokens
-   - Transfers the liquidity tokens from the reserve to the user
-   - Updates the obligation to reflect the withdrawal
-   - Updates the reserve to reflect the withdrawn amount
-
-The maximum withdrawable value is calculated as:
-
-```
-V_maxw = V_d - (V_b / V_maxb) * V_d
-```
-
-Where:
-- `V_maxw` is the maximum withdrawable value
-- `V_d` is the deposited collateral value
-- `V_b` is the borrowed value
-- `V_maxb` is the maximum borrowable value
-
-### 3.2 Liquidation
-
-The liquidation process is a critical component of the platform's risk management system:
-
-```mermaid
-sequenceDiagram
-    participant Liquidator
-    participant BLp as Borrow-Lending Program
-    participant Obligation
-    participant RepayReserve
-    participant WithdrawReserve
-    participant TokenProgram
-    participant Oracle
-    
-    Liquidator->>BLp: Liquidate Obligation
-    BLp->>Oracle: Get Market Prices
-    Oracle-->>BLp: Return Prices
-    BLp->>Obligation: Check Health
-    
-    alt Obligation is Unhealthy
-        Obligation-->>BLp: Confirm Unhealthy Status
-        BLp->>Obligation: Calculate Liquidation Amounts
-        Obligation-->>BLp: Return Liquidation Amounts
-        BLp->>TokenProgram: Transfer Liquidity from Liquidator to RepayReserve
-        BLp->>RepayReserve: Update Borrowed Amount
-        BLp->>WithdrawReserve: Update Collateral Amount
-        BLp->>TokenProgram: Transfer Collateral from WithdrawReserve to Liquidator
-        BLp-->>Liquidator: Confirm Liquidation (with bonus)
-    else Obligation is Healthy
-        Obligation-->>BLp: Return Healthy Status
-        BLp-->>Liquidator: Reject Liquidation
-    end
-```
-
-#### 3.2.1 Liquidation Triggers
-
-An obligation becomes eligible for liquidation when its health factor falls below 1, which occurs when:
-
-```
-V_b > V_u
-```
-
-Where:
-- `V_b` is the borrowed value
-- `V_u` is the unhealthy borrow value, calculated as the sum of each collateral value multiplied by its liquidation threshold
-
-The unhealthy borrow value is calculated as:
-
-```
-V_u = ∑ C^r_b * ε^r
-```
-
-Where:
-- `C^r_b` is the collateral value for reserve r
-- `ε^r` is the liquidation threshold for reserve r
-
-#### 3.2.2 Liquidation Process
-
-The liquidation process allows any user (liquidator) to repay a portion of an unhealthy obligation's debt in exchange for a portion of its collateral, plus a bonus:
-
-1. Liquidator initiates a liquidation by calling the `liquidate_obligation` endpoint
-2. The program fetches current market prices from the oracle
-3. The program checks if the obligation is unhealthy
-4. If unhealthy, the program calculates the liquidation amounts:
-   - The maximum liquidation amount (limited by the close factor)
-   - The amount of collateral to seize, including the liquidation bonus
-5. The program transfers liquidity tokens from the liquidator to the repay reserve
-6. The program transfers collateral tokens from the withdraw reserve to the liquidator
-7. The program updates the obligation and reserves to reflect the liquidation
-
-#### 3.2.3 Liquidation Incentives
-
-To incentivize liquidators, they receive a bonus when liquidating unhealthy positions. This bonus is configurable per reserve and is typically set between 5-10%.
-
-The liquidation bonus effectively allows liquidators to purchase collateral at a discount:
-
-```
-Discount = Liquidation Bonus / (1 + Liquidation Bonus)
-```
-
-For example, with a 5% liquidation bonus, liquidators effectively get a 4.76% discount on the collateral.
-
-#### 3.2.4 Maximum Liquidation Amount
-
-To prevent excessive liquidations, the protocol limits the amount that can be liquidated in a single transaction:
-
-```
-L_maxl = (min{V_b * κ, L_v} / L_v) * L_b
-```
-
-Where:
-- `L_maxl` is the maximum liquidity amount to liquidate
-- `V_b` is the UAC value of borrowed liquidity
-- `κ` is the constant liquidity close factor (50%)
-- `L_v` is the UAC value of borrowed liquidity
-- `L_b` is the total borrowed liquidity
-
-This ensures that at most 50% of a borrower's debt can be liquidated in a single transaction, giving them an opportunity to add collateral or repay debt before further liquidations.
-
-### 3.3 Flash Loans
-
-Flash loans are uncollateralized loans that must be repaid within the same transaction:
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant BLp as Borrow-Lending Program
-    participant Reserve
-    participant TargetProgram
-    participant TokenProgram
-    
-    User->>BLp: Request Flash Loan
-    
-    alt Flash Loans Enabled
-        BLp->>Reserve: Check Available Liquidity
-        Reserve-->>BLp: Confirm Liquidity Available
-        BLp->>Reserve: Record Loan
-        BLp->>TokenProgram: Transfer Liquidity to User
-        BLp->>TargetProgram: Execute User's Instructions
-        TargetProgram-->>BLp: Complete Execution
-        BLp->>TokenProgram: Transfer Liquidity + Fee from User to Reserve
-        BLp->>Reserve: Record Repayment
-        BLp->>TokenProgram: Transfer Fee to Fee Receiver
-        BLp-->>User: Confirm Flash Loan Complete
-    else Flash Loans Disabled
-        BLp-->>User: Reject Flash Loan
-    end
-```
-
-#### 3.3.1 Flash Loan Mechanism
-
-The flash loan process works as follows:
-
-1. User initiates a flash loan by calling the `flash_loan` endpoint, specifying:
-   - The amount to borrow
-   - The target program to execute
-   - The data to pass to the target program
-2. The program checks if flash loans are enabled for the lending market
-3. The program records the loan in the reserve
-4. The program transfers the borrowed liquidity to the user's wallet
-5. The program calls the target program with the user's data
-6. After the target program executes, the program checks that the borrowed amount plus fees has been returned to the reserve
-7. The program records the repayment and transfers the fee to the fee receiver
-
-#### 3.3.2 Flash Loan Fees
-
-Flash loans incur a fee, which is configurable per reserve. The fee is typically set between 0.1% and 0.3% of the borrowed amount.
-
-The fee is calculated as:
-
-```
-Fee = Flash Loan Amount * Flash Loan Fee Rate
-```
-
-A portion of this fee may go to a host account if provided in the transaction.
-
-#### 3.3.3 Flash Loan Security Measures
-
-To prevent potential exploits, the flash loan implementation includes several security measures:
-
-1. **Reentrancy Protection**: The target program cannot be the lending program itself, preventing direct reentrancy attacks
-2. **Balance Verification**: The program verifies that the borrowed amount plus fees are returned to the reserve
-3. **Disabled by Default**: Flash loans are disabled by default and must be explicitly enabled by the lending market owner
-4. **Fee Enforcement**: The program enforces that the fee is paid, even if the borrowed amount is returned
-
-### 3.4 Leveraged Yield Farming
-
-The platform integrates with Aldrin AMM to enable leveraged yield farming:
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant BLp as Borrow-Lending Program
-    participant Reserve
-    participant Obligation
-    participant AldrinAMM
-    participant TokenProgram
-    
-    User->>BLp: Open Leveraged Position
-    BLp->>Obligation: Check Collateral Value
-    Obligation-->>BLp: Return Collateral Value
-    BLp->>Reserve: Borrow Liquidity with Leverage
-    Reserve-->>BLp: Confirm Borrow
-    BLp->>TokenProgram: Transfer Borrowed Liquidity to User
-    
-    opt Swap Portion of Borrowed Liquidity
-        BLp->>AldrinAMM: Swap Tokens
-        AldrinAMM-->>BLp: Return Swapped Tokens
-    end
-    
-    BLp->>AldrinAMM: Create LP Tokens
-    AldrinAMM-->>BLp: Return LP Tokens
-    BLp->>AldrinAMM: Stake LP Tokens
-    AldrinAMM-->>BLp: Confirm Staking
-    BLp->>BLp: Create Farming Receipt
-    BLp-->>User: Confirm Leveraged Position
-    
-    note over User,TokenProgram: Later - Close Position
-    
-    User->>BLp: Close Leveraged Position
-    BLp->>AldrinAMM: Unstake LP Tokens
-    AldrinAMM-->>BLp: Return LP Tokens
-    BLp->>AldrinAMM: Remove Liquidity
-    AldrinAMM-->>BLp: Return Constituent Tokens
-    
-    opt Swap Back to Original Token
-        BLp->>AldrinAMM: Swap Tokens
-        AldrinAMM-->>BLp: Return Swapped Tokens
-    end
-    
-    BLp->>Reserve: Repay Loan with Interest
-    BLp->>TokenProgram: Transfer Remaining Tokens to User
-    BLp-->>User: Confirm Position Closed
-```
-
-#### 3.4.1 Leverage Mechanism
-
-Leveraged yield farming allows users to borrow additional funds to increase their exposure to a liquidity pool. The leverage is expressed as a percentage, where 100% represents 1x leverage (no borrowing), 200% represents 2x leverage, and so on.
-
-The maximum leverage is configurable per reserve and is calculated based on the loan-to-value ratio:
-
-```
-φ_max = (1 - V_maxb^30) / (1 - V_maxb)
-```
-
-Where:
-- `φ_max` is the maximum leverage
-- `V_maxb` is the maximum borrowable UAC value (LTV)
-
-#### 3.4.2 Position Opening
-
-The process of opening a leveraged position involves:
-
-1. User initiates a leveraged position by calling the `open_leveraged_position_on_aldrin` endpoint, specifying:
-   - The amount of liquidity to borrow
-   - The amount to swap (if any)
-   - The minimum swap return
-   - The leverage factor
-   - The amount of LP tokens to stake
-2. The program checks that the user has sufficient collateral and that the requested leverage is within limits
-3. The program borrows the specified amount of liquidity with leverage
-4. If requested, the program swaps a portion of the borrowed liquidity for the other constituent token
-5. The program creates LP tokens by depositing both constituent tokens into the Aldrin pool
-6. The program stakes the LP tokens in the Aldrin farming program
-7. The program creates a farming receipt to track the position
-
-To ensure that borrowed funds are used for yield farming and not extracted by the user, the program verifies that the user does not end up with more tokens in their wallets than they started with.
-
-#### 3.4.3 Position Closing
-
-The process of closing a leveraged position involves:
-
-1. User initiates closing a position by calling the `close_leveraged_position_on_aldrin` endpoint
-2. The program unstakes the LP tokens from the Aldrin farming program
-3. The program removes liquidity from the Aldrin pool, receiving the constituent tokens
-4. If necessary, the program swaps one constituent token for the other to match the original borrowed token
-5. The program repays the borrowed amount plus interest to the reserve
-6. The program transfers any remaining tokens (profit) to the user
-7. The program closes the farming receipt
-
-## 4. Tokenomics
-
-### 4.1 Interest Rate Model
-
-The platform uses a dynamic interest rate model that adjusts based on the utilization rate of each reserve:
-
-```mermaid
-graph LR
-    subgraph "Interest Rate Model"
-        direction TB
-        
-        U[Utilization Rate] --> |"R_u < R*_u"| L[Low Utilization Formula]
-        U --> |"R_u >= R*_u"| H[High Utilization Formula]
-        
-        L --> BR[Borrow Rate]
-        H --> BR
-        
-        BR --> |"R_d = R_u * R_b"| DR[Deposit Rate]
-    end
-    
-    subgraph "Interest Rate Curve"
-        direction TB
-        
-        style IRGraph fill:#f9f9f9,stroke:#333,stroke-width:1px
-        
-        IRGraph[
-        "
-        ^
-        |                                   /
-        |                                  /
-        |                                 /
-        |                                /
-        |                               /
-        |                              /
-        |                             /
-        |                            /
-        |                           /
-        |                          /
-        |                         /
-        |                        /
-        |                       /
-        |                      /
-        |                     /
-        |                    /
-        |                   /
-        |                  /
-        |                 /
-        |                /
-        |               /
-        |              /
-        |             /
-        |            /
-        |           /
-        |          /
-        |         /
-        |        /
-        |       /
-        |      /
-        |     /
-        |    /
-        |   /
-        |  /
-        | /
-        |/
-        +---------------------------------->
-          0%       R*_u       100%
-          
-          R_minb = Min Borrow Rate
-          R*_b = Optimal Borrow Rate
-          R_maxb = Max Borrow Rate
-          R*_u = Optimal Utilization Rate
-        "
-        ]
-    end
-```
-
-#### 4.1.1 Utilization Rate Calculation
-
-The utilization rate is the ratio of borrowed liquidity to total liquidity in a reserve:
-
-```
-R_u = L_b / L_s
-```
-
-Where:
-- `R_u` is the utilization rate
-- `L_b` is the total borrowed liquidity
-- `L_s` is the total deposited liquidity supply
-
-#### 4.1.2 Borrow Rate Calculation
-
-The borrow rate follows a two-slope model:
-
-```
-R_b = (R_u / R*_u) * (R*_b - R_minb) + R_minb,                if R_u < R*_u
-R_b = ((R_u - R*_u) / (1 - R*_u)) * (R_maxb - R*_b) + R*_b,   otherwise
-```
-
-Where:
-- `R_b` is the borrow rate/APY
-- `R*_u` is the optimal utilization rate (configurable)
-- `R*_b` is the optimal borrow rate (configurable)
-- `R_minb` is the minimum borrow rate (configurable)
-- `R_maxb` is the maximum borrow rate (configurable)
-
-This model creates two distinct slopes:
-- Below optimal utilization: Interest rates increase slowly to encourage borrowing
-- Above optimal utilization: Interest rates increase sharply to discourage borrowing and encourage deposits
-
-#### 4.1.3 Supply Rate Calculation
-
-The supply rate is derived from the borrow rate by scaling it by the utilization rate:
-
-```
-R_d = R_u * R_b
-```
-
-Where:
-- `R_d` is the deposit rate/APY
-- `R_u` is the utilization rate
-- `R_b` is the borrow rate/APY
-
-This ensures that the interest paid by borrowers is distributed to suppliers in proportion to the utilization of the reserve.
-
-#### 4.1.4 Compound Interest
-
-Interest accrues continuously based on the borrow rate and is calculated using the compound interest formula:
-
-```
-R_i = (1 + R_b/S_a)^S_e
-```
-
-Where:
-- `R_i` is the compound interest rate
-- `R_b` is the borrow rate
-- `S_a` is the number of slots in a calendar year
-- `S_e` is the elapsed slots
-
-The reserve's liquidity supply is updated with interest:
-
-```
-L'_s = L_s * R_i
-```
-
-Where:
-- `L'_s` is the new liquidity supply
-- `L_s` is the old liquidity supply
-- `R_i` is the compound interest rate
-
-### 4.2 Fee Structure
-
-The platform implements several types of fees:
-
-```mermaid
-flowchart TD
-    User[User] --> |Pays| BF[Borrow Fee]
-    User --> |Pays| FF[Flash Loan Fee]
-    User --> |Pays| LF[Leverage Fee]
-    
-    BF --> |"(1-Host Fee %)"| Protocol[Protocol Fee Receiver]
-    BF --> |"Host Fee %"| Host[Host Fee Receiver]
-    
-    FF --> |"(1-Host Fee %)"| Protocol
-    FF --> |"Host Fee %"| Host
-    
-    LF --> |"(1-Host Fee %)"| Protocol
-    LF --> |"Host Fee %"| Host
-    
-    Protocol --> Treasury[Protocol Treasury]
-    
-    classDef user fill:#bbf,stroke:#333,stroke-width:1px;
-    classDef fee fill:#bfb,stroke:#333,stroke-width:1px;
-    classDef receiver fill:#f9f,stroke:#333,stroke-width:1px;
-    
-    class User user;
-    class BF,FF,LF fee;
-    class Protocol,Host,Treasury receiver;
-```
-
-#### 4.2.1 Borrow Fee
-
-A percentage fee charged when borrowing assets, expressed as a Wad (10^18 = 1). For example:
+# Sowanya Bowwow-Wending Pwatfowm Documentation
+
+## 1~ Intwoduction
+
+### 1.1 Ovewview
+
+De Sowanya Bowwow-Wending Pwatfowm (BWp) is a decentwawized finyance (DeFi) pwotocow buiwt on de Sowanya bwockchain dat enyabwes usews to wend and bowwow digitaw assets~ De pwatfowm impwements a sophisticated tokenyomics modew dat guvwns de econyomic intewactions between wendews, bowwowews, and wiquidatows, whiwe pwoviding advanced featuwes such as fwash woans and wevewaged yiewd fawming.
+
+De pwatfowm is designyed to maximize capitaw efficiency whiwe maintainying system sowvency dwough a cawefuwwy cawibwated wisk manyagement fwamewowk~ It utiwizes Pyd Nyetwowk owacwes fow pwice feeds, integwates wid Awdwin AMM fow swaps and wiquidity pwovision, and impwements a dynyamic intewest wate modew dat adjusts based on utiwization wates.
+
+### 1.2 Puwpose and Goaws
+
+De pwimawy puwpose of de Sowanya Bowwow-Wending Pwatfowm is to cweate an efficient capitaw mawket on Sowanya dat awwows:
+
+1~ **Wendews** to eawn intewest on deiw deposited assets
+2~ **Bowwowews** to access wiquidity whiwe maintainying exposuwe to deiw cowwatewaw assets
+3~ **Wiquidatows** to hewp maintain system sowvency by wiquidating unheawdy positions
+4~ **Yiewd fawmews** to wevewage deiw positions fow enhanced wetuwns
+
+De pwatfowm aims to achieve dese goaws whiwe maintainying:
+
+- **Secuwity**: Pwotecting usew funds dwough wobust code and econyomic design
+- **Efficiency**: Minyimizing twansaction costs and maximizing capitaw utiwization
+- **Fwexibiwity**: Suppowting vawious assets and use cases
+- **Scawabiwity**: Wevewaging Sowanya's high dwoughput and wow fees
+
+### 1.3 Key Featuwes
+
+De Sowanya Bowwow-Wending Pwatfowm offews sevewaw key featuwes:
+
+1~ **Wending and Bowwowing**: Usews can deposit assets to eawn intewest ow bowwow against deiw cowwatewaw
+2~ **Dynyamic Intewest Wates**: Intewest wates adjust based on utiwization to bawance capitaw efficiency and wiquidity
+3~ **Muwti-Asset Suppowt**: De pwatfowm suppowts muwtipwe assets wid configuwabwe wisk pawametews
+4~ **Fwash Woans**: Uncowwatewawized woans dat must be wepaid widin de same twansaction
+5~ **Wevewaged Yiewd Fawming**: Integwated wid Awdwin AMM to enyabwe wevewaged wiquidity pwovision
+6~ **Wiquidation Mechanyism**: Ensuwes system sowvency by incentivizing de wiquidation of unheawdy positions
+7~ **Emissions System**: Distwibutes wewawds to wendews and bowwowews based on deiw pawticipation
+
+### 1.4 Tawget Audience
+
+Dis documentation is intended fow:
+
+- **Devewopews** integwating wid ow buiwding on top of de pwatfowm
+- **Auditows** weviewing de codebase fow secuwity vuwnyewabiwities
+- **Pwotocow Opewatows** manyaging and upgwading de pwatfowm
+- **Advanced Usews** seeking to undewstand de pwatfowm's mechanyics
+- **Weseawchews** studying DeFi pwotocows and tokenyomics
+
+### 1.5 Documentation Owganyization
+
+Dis documentation is owganyized into de fowwowing sections:
+
+1~ **Intwoduction**: Ovewview, puwpose, and key featuwes
+2~ **System Awchitectuwe**: High-wevew awchitectuwe, cowe componyents, and data modews
+3~ **Key Pwocesses**: Wending, bowwowing, wiquidation, fwash woans, and wevewaged yiewd fawming
+4~ **Tokenyomics**: Intewest wate modew, fee stwuctuwe, cowwatewawization, and emissions
+5~ **Secuwity Considewations**: Identified vuwnyewabiwities and secuwity best pwactices
+6~ **Devewopew Guide**: Enviwonment setup, pwogwam stwuctuwe, and key intewfaces
+7~ **Madematicaw Modews**: Intewest cawcuwation, exchange wates, wiquidation, and wevewage
+8~ **Integwation Guide**: Owacwe, AMM, and token integwations
+9~ **Opewationyaw Considewations**: Pewfowmance, guvwnyance, and wisk manyagement
+10~ **Appendices**: Gwossawy, wefewences, and changewog
+
+## 2~ System Awchitectuwe
+
+### 2.1 High-Wevew Awchitectuwe
+
+De Sowanya Bowwow-Wending Pwatfowm is buiwt as a Sowanya pwogwam (smawt contwact) dat intewacts wid vawious on-chain accounts and odew pwogwams~ De pwatfowm fowwows a moduwaw design wid cweaw sepawation of concewns between diffewent componyents.
+
+__CODE_BWOCK_0__
+
+De awchitectuwe consists of de fowwowing key ewements:
+
+1~ **Bowwow-Wending Pwogwam (BWp)**: De main Sowanya pwogwam dat impwements de wending pwotocow wogic
+2~ **Wending Mawket**: De top-wevew account dat definyes gwobaw pawametews and contains wefewences to wesewves
+3~ **Wesewves**: Accounts dat manyage specific asset poows, incwuding deiw wiquidity and cowwatewaw
+4~ **Obwigations**: Accounts dat twack usew positions, incwuding deposited cowwatewaw and bowwowed wiquidity
+5~ **Extewnyaw Dependencies**:
+   - **Token Pwogwam**: Sowanya's SPW Token pwogwam fow token twansfews and manyagement
+   - **Pyd Owacwe**: Pwovides pwice feeds fow assets
+   - **Awdwin AMM**: Used fow token swaps and wiquidity pwovision in wevewaged yiewd fawming
+
+De pwatfowm uses a PDA (Pwogwam Dewived Addwess) system to manyage audowity uvw vawious accounts, ensuwing dat onwy audowized entities can pewfowm specific actions.
+
+### 2.2 Cowe Componyents
+
+De cowe componyents of de pwatfowm wowk togedew to pwovide de wending and bowwowing functionyawity:
+
+__CODE_BWOCK_1__
+
+#### 2.2.1 Wending Mawket
+
+De Wending Mawket is de top-wevew account dat definyes gwobaw pawametews fow de pwotocow~ It incwudes:
+
+- **Ownyew**: De audowity dat can update mawket pawametews
+- **Quote Cuwwency**: De unyivewsaw asset cuwwency (UAC) used fow vawue cawcuwations (typicawwy USD)
+- **Pyd Owacwe Pwogwam**: De addwess of de owacwe pwogwam used fow pwice feeds
+- **Awdwin AMM**: De addwess of de AMM pwogwam used fow swaps and wiquidity pwovision
+- **Fwash Woan Settings**: Configuwation fow enyabwing/disabwing fwash woans
+- **Minyimum Cowwatewaw Vawue**: De minyimum cowwatewaw vawue wequiwed fow wevewaged positions
+
+#### 2.2.2 Wesewves
+
+Wesewves awe accounts dat manyage specific asset poows~ Each wesewve incwudes:
+
+- **Wesewve Wiquidity**: Manyages de wiquidity side of de wesewve
+  - **Avaiwabwe Amount**: De amount of wiquidity avaiwabwe fow bowwowing
+  - **Bowwowed Amount**: De amount of wiquidity cuwwentwy bowwowed
+  - **Cumuwative Bowwow Wate**: De accumuwated intewest wate used fow intewest cawcuwations
+  - **Mawket Pwice**: De cuwwent pwice of de asset in de quote cuwwency
+  - **Mint**: De token mint addwess
+  - **Suppwy**: De token account howding de wiquidity
+  - **Fee Weceivew**: De account dat weceives fees
+
+- **Wesewve Cowwatewaw**: Manyages de cowwatewaw side of de wesewve
+  - **Mint**: De cowwatewaw token mint addwess
+  - **Suppwy**: De token account howding de cowwatewaw tokens
+
+- **Wesewve Config**: Definyes de wisk pawametews fow de wesewve
+  - **Optimaw Utiwization Wate**: De tawget utiwization wate fow optimaw intewest wates
+  - **Woan-to-Vawue Watio**: De maximum bowwow amount wewative to cowwatewaw vawue
+  - **Wiquidation Dweshowd**: De point at which a position becomes ewigibwe fow wiquidation
+  - **Wiquidation Bonyus**: De incentive fow wiquidatows
+  - **Intewest Wate Pawametews**: Min, optimaw, and max bowwow wates
+  - **Fee Stwuctuwe**: Bowwow fees, fwash woan fees, and host fees
+  - **Max Wevewage**: De maximum wevewage awwowed fow yiewd fawming
+
+#### 2.2.3 Obwigations
+
+Obwigations awe accounts dat twack usew positions, incwuding:
+
+- **Ownyew**: De usew who owns de obwigation
+- **Wending Mawket**: De wending mawket de obwigation bewongs to
+- **Wesewves**: An awway of obwigation wesewves, which can be eidew:
+  - **Obwigation Cowwatewaw**: Twacks deposited cowwatewaw
+    - **Deposit Wesewve**: De wesewve de cowwatewaw was deposited to
+    - **Deposited Amount**: De amount of cowwatewaw tokens deposited
+    - **Mawket Vawue**: De vawue of de cowwatewaw in de quote cuwwency
+  - **Obwigation Wiquidity**: Twacks bowwowed wiquidity
+    - **Bowwow Wesewve**: De wesewve de wiquidity was bowwowed fwom
+    - **Bowwowed Amount**: De amount of wiquidity tokens bowwowed
+    - **Mawket Vawue**: De vawue of de bowwowed wiquidity in de quote cuwwency
+    - **Cumuwative Bowwow Wate Snyapshot**: De cumuwative bowwow wate at de time of bowwowing
+    - **Woan Kind**: De type of woan (standawd ow yiewd fawming)
+
+- **Vawue Cawcuwations**:
+  - **Deposited Vawue**: De totaw vawue of deposited cowwatewaw
+  - **Bowwowed Vawue**: De totaw vawue of bowwowed wiquidity
+  - **Awwowed Bowwow Vawue**: De maximum vawue dat can be bowwowed based on cowwatewaw
+  - **Unheawdy Bowwow Vawue**: De dweshowd at which de obwigation becomes unheawdy
+
+### 2.3 Data Modews
+
+De pwatfowm uses a stwuctuwed data modew to wepwesent de vawious componyents and deiw wewationships:
+
+__CODE_BWOCK_2__
+
+De data modew is impwemented using Anchow, a fwamewowk fow Sowanya pwogwam devewopment dat pwovides a mowe ewgonyomic expewience fow devewopews~ De modew uses vawious Wust types and twaits to ensuwe type safety and pwopew sewiawization/desewiawization.
+
+Key data types incwude:
+
+- **Decimaw**: A fixed-point decimaw type used fow finyanciaw cawcuwations
+- **SDecimaw**: A signyed decimaw type fow cawcuwations dat may wesuwt in nyegative vawues
+- **PewcentageInt**: A type wepwesenting pewcentages as integews (0-100)
+- **Wevewage**: A type wepwesenting wevewage as a pewcentage (e.g., 300% fow 3x wevewage)
+- **WoanKind**: An enyum wepwesenting diffewent types of woans (Standawd ow YiewdFawming)
+- **WastUpdate**: A stwuct twacking when an account was wast updated
+
+## 3~ Key Pwocesses
+
+### 3.1 Wending and Bowwowing
+
+De cowe functionyawity of de pwatfowm wevowves awound wending and bowwowing opewations:
+
+__CODE_BWOCK_3__
+
+#### 3.1.1 Deposit Wiquidity
+
+De deposit pwocess awwows usews to pwovide wiquidity to de pwatfowm and weceive cowwatewaw tokens in wetuwn:
+
+1~ Usew inyitiates a deposit by cawwing de __INWINYE_CODE_0__ endpoint
+2~ De pwogwam fetches de cuwwent mawket pwice fwom de owacwe
+3~ De wesewve cawcuwates de amount of cowwatewaw tokens to mint based on de exchange wate
+4~ De pwogwam twansfews de wiquidity tokens fwom de usew to de wesewve's wiquidity suppwy
+5~ De pwogwam mints cowwatewaw tokens to de usew's wawwet
+6~ De wesewve updates its state to wefwect de nyew deposit
+
+De exchange wate between wiquidity and cowwatewaw tokens is detewminyed by de watio of totaw cowwatewaw suppwy to totaw wiquidity suppwy:
+
+__CODE_BWOCK_4__
+
+Whewe:
+- __INWINYE_CODE_1__ is de exchange wate
+- __INWINYE_CODE_2__ is de totaw minted cowwatewaw suppwy
+- __INWINYE_CODE_3__ is de totaw deposited wiquidity suppwy
+
+#### 3.1.2 Bowwow Wiquidity
+
+De bowwow pwocess awwows usews to bowwow wiquidity against deiw deposited cowwatewaw:
+
+1~ Usew inyitiates a bowwow by cawwing de __INWINYE_CODE_4__ endpoint
+2~ De pwogwam fetches cuwwent mawket pwices fwom de owacwe
+3~ De pwogwam cawcuwates de usew's bowwow wimit based on deiw cowwatewaw vawue and de wesewve's woan-to-vawue watio
+4~ If de wequested bowwow amount is widin de wimit, de pwogwam:
+   - Updates de obwigation to wecowd de nyew bowwow
+   - Updates de wesewve to wecowd de bowwowed amount
+   - Twansfews de wiquidity tokens fwom de wesewve to de usew
+5~ De pwogwam appwies any bowwow fees, which awe added to de bowwowed amount
+
+De maximum amount a usew can bowwow is detewminyed by deiw cowwatewaw vawue and de woan-to-vawue watio:
+
+__CODE_BWOCK_5__
+
+Whewe:
+- __INWINYE_CODE_5__ is de maximum bowwowabwe vawue
+- __INWINYE_CODE_6__ is de deposited cowwatewaw vawue
+- __INWINYE_CODE_7__ is de woan-to-vawue watio
+
+#### 3.1.3 Wepay Woan
+
+De wepay pwocess awwows usews to wepay deiw bowwowed wiquidity:
+
+1~ Usew inyitiates a wepayment by cawwing de __INWINYE_CODE_8__ endpoint
+2~ De pwogwam cawcuwates de wepayment amount, incwuding accwued intewest
+3~ De pwogwam twansfews de wiquidity tokens fwom de usew to de wesewve
+4~ De pwogwam updates de obwigation to wefwect de wepayment
+5~ De pwogwam updates de wesewve to wefwect de wepaid amount
+
+Intewest accwues continyuouswy based on de bowwow wate and is cawcuwated using de compound intewest fowmuwa:
+
+__CODE_BWOCK_6__
+
+Whewe:
+- __INWINYE_CODE_9__ is de nyew bowwowed amount
+- __INWINYE_CODE_10__ is de watest cumuwative bowwow wate
+- __INWINYE_CODE_11__ is de cumuwative bowwow wate at de time of de wast intewest accwuaw
+- __INWINYE_CODE_12__ is de bowwowed amount
+
+#### 3.1.4 Widdwaw Cowwatewaw
+
+De widdwaw pwocess awwows usews to wedeem deiw cowwatewaw tokens fow de undewwying wiquidity:
+
+1~ Usew inyitiates a widdwawaw by cawwing de __INWINYE_CODE_13__ endpoint
+2~ De pwogwam fetches cuwwent mawket pwices fwom de owacwe
+3~ De pwogwam cawcuwates de maximum widdwawabwe amount based on de usew's bowwowed vawue and cowwatewaw vawue
+4~ If de wequested widdwawaw is widin de wimit, de pwogwam:
+   - Buwns de cowwatewaw tokens
+   - Twansfews de wiquidity tokens fwom de wesewve to de usew
+   - Updates de obwigation to wefwect de widdwawaw
+   - Updates de wesewve to wefwect de widdwawn amount
+
+De maximum widdwawabwe vawue is cawcuwated as:
+
+__CODE_BWOCK_7__
+
+Whewe:
+- __INWINYE_CODE_14__ is de maximum widdwawabwe vawue
+- __INWINYE_CODE_15__ is de deposited cowwatewaw vawue
+- __INWINYE_CODE_16__ is de bowwowed vawue
+- __INWINYE_CODE_17__ is de maximum bowwowabwe vawue
+
+### 3.2 Wiquidation
+
+De wiquidation pwocess is a cwiticaw componyent of de pwatfowm's wisk manyagement system:
+
+__CODE_BWOCK_8__
+
+#### 3.2.1 Wiquidation Twiggews
+
+An obwigation becomes ewigibwe fow wiquidation when its heawd factow fawws bewow 1, which occuws when:
+
+__CODE_BWOCK_9__
+
+Whewe:
+- __INWINYE_CODE_18__ is de bowwowed vawue
+- __INWINYE_CODE_19__ is de unheawdy bowwow vawue, cawcuwated as de sum of each cowwatewaw vawue muwtipwied by its wiquidation dweshowd
+
+De unheawdy bowwow vawue is cawcuwated as:
+
+__CODE_BWOCK_10__
+
+Whewe:
+- __INWINYE_CODE_20__ is de cowwatewaw vawue fow wesewve w
+- __INWINYE_CODE_21__ is de wiquidation dweshowd fow wesewve w
+
+#### 3.2.2 Wiquidation Pwocess
+
+De wiquidation pwocess awwows any usew (wiquidatow) to wepay a powtion of an unheawdy obwigation's debt in exchange fow a powtion of its cowwatewaw, pwus a bonyus:
+
+1~ Wiquidatow inyitiates a wiquidation by cawwing de __INWINYE_CODE_22__ endpoint
+2~ De pwogwam fetches cuwwent mawket pwices fwom de owacwe
+3~ De pwogwam checks if de obwigation is unheawdy
+4~ If unheawdy, de pwogwam cawcuwates de wiquidation amounts:
+   - De maximum wiquidation amount (wimited by de cwose factow)
+   - De amount of cowwatewaw to seize, incwuding de wiquidation bonyus
+5~ De pwogwam twansfews wiquidity tokens fwom de wiquidatow to de wepay wesewve
+6~ De pwogwam twansfews cowwatewaw tokens fwom de widdwaw wesewve to de wiquidatow
+7~ De pwogwam updates de obwigation and wesewves to wefwect de wiquidation
+
+#### 3.2.3 Wiquidation Incentives
+
+To incentivize wiquidatows, dey weceive a bonyus when wiquidating unheawdy positions~ Dis bonyus is configuwabwe pew wesewve and is typicawwy set between 5-10%.
+
+De wiquidation bonyus effectivewy awwows wiquidatows to puwchase cowwatewaw at a discount:
+
+__CODE_BWOCK_11__
+
+Fow exampwe, wid a 5% wiquidation bonyus, wiquidatows effectivewy get a 4.76% discount on de cowwatewaw.
+
+#### 3.2.4 Maximum Wiquidation Amount
+
+To pwevent excessive wiquidations, de pwotocow wimits de amount dat can be wiquidated in a singwe twansaction:
+
+__CODE_BWOCK_12__
+
+Whewe:
+- __INWINYE_CODE_23__ is de maximum wiquidity amount to wiquidate
+- __INWINYE_CODE_24__ is de UAC vawue of bowwowed wiquidity
+- __INWINYE_CODE_25__ is de constant wiquidity cwose factow (50%)
+- __INWINYE_CODE_26__ is de UAC vawue of bowwowed wiquidity
+- __INWINYE_CODE_27__ is de totaw bowwowed wiquidity
+
+Dis ensuwes dat at most 50% of a bowwowew's debt can be wiquidated in a singwe twansaction, giving dem an oppowtunyity to add cowwatewaw ow wepay debt befowe fuwdew wiquidations.
+
+### 3.3 Fwash Woans
+
+Fwash woans awe uncowwatewawized woans dat must be wepaid widin de same twansaction:
+
+__CODE_BWOCK_13__
+
+#### 3.3.1 Fwash Woan Mechanyism
+
+De fwash woan pwocess wowks as fowwows:
+
+1~ Usew inyitiates a fwash woan by cawwing de __INWINYE_CODE_28__ endpoint, specifying:
+   - De amount to bowwow
+   - De tawget pwogwam to execute
+   - De data to pass to de tawget pwogwam
+2~ De pwogwam checks if fwash woans awe enyabwed fow de wending mawket
+3~ De pwogwam wecowds de woan in de wesewve
+4~ De pwogwam twansfews de bowwowed wiquidity to de usew's wawwet
+5~ De pwogwam cawws de tawget pwogwam wid de usew's data
+6~ Aftew de tawget pwogwam executes, de pwogwam checks dat de bowwowed amount pwus fees has been wetuwnyed to de wesewve
+7~ De pwogwam wecowds de wepayment and twansfews de fee to de fee weceivew
+
+#### 3.3.2 Fwash Woan Fees
+
+Fwash woans incuw a fee, which is configuwabwe pew wesewve~ De fee is typicawwy set between 0.1% and 0.3% of de bowwowed amount.
+
+De fee is cawcuwated as:
+
+__CODE_BWOCK_14__
+
+A powtion of dis fee may go to a host account if pwovided in de twansaction.
+
+#### 3.3.3 Fwash Woan Secuwity Measuwes
+
+To pwevent potentiaw expwoits, de fwash woan impwementation incwudes sevewaw secuwity measuwes:
+
+1~ **Weentwancy Pwotection**: De tawget pwogwam cannyot be de wending pwogwam itsewf, pweventing diwect weentwancy attacks
+2~ **Bawance Vewification**: De pwogwam vewifies dat de bowwowed amount pwus fees awe wetuwnyed to de wesewve
+3~ **Disabwed by Defauwt**: Fwash woans awe disabwed by defauwt and must be expwicitwy enyabwed by de wending mawket ownyew
+4~ **Fee Enfowcement**: De pwogwam enfowces dat de fee is paid, even if de bowwowed amount is wetuwnyed
+
+### 3.4 Wevewaged Yiewd Fawming
+
+De pwatfowm integwates wid Awdwin AMM to enyabwe wevewaged yiewd fawming:
+
+__CODE_BWOCK_15__
+
+#### 3.4.1 Wevewage Mechanyism
+
+Wevewaged yiewd fawming awwows usews to bowwow additionyaw funds to incwease deiw exposuwe to a wiquidity poow~ De wevewage is expwessed as a pewcentage, whewe 100% wepwesents 1x wevewage (nyo bowwowing), 200% wepwesents 2x wevewage, and so on.
+
+De maximum wevewage is configuwabwe pew wesewve and is cawcuwated based on de woan-to-vawue watio:
+
+__CODE_BWOCK_16__
+
+Whewe:
+- __INWINYE_CODE_29__ is de maximum wevewage
+- __INWINYE_CODE_30__ is de maximum bowwowabwe UAC vawue (WTV)
+
+#### 3.4.2 Position Openying
+
+De pwocess of openying a wevewaged position invowves:
+
+1~ Usew inyitiates a wevewaged position by cawwing de __INWINYE_CODE_31__ endpoint, specifying:
+   - De amount of wiquidity to bowwow
+   - De amount to swap (if any)
+   - De minyimum swap wetuwn
+   - De wevewage factow
+   - De amount of WP tokens to stake
+2~ De pwogwam checks dat de usew has sufficient cowwatewaw and dat de wequested wevewage is widin wimits
+3~ De pwogwam bowwows de specified amount of wiquidity wid wevewage
+4~ If wequested, de pwogwam swaps a powtion of de bowwowed wiquidity fow de odew constituent token
+5~ De pwogwam cweates WP tokens by depositing bod constituent tokens into de Awdwin poow
+6~ De pwogwam stakes de WP tokens in de Awdwin fawming pwogwam
+7~ De pwogwam cweates a fawming weceipt to twack de position
+
+To ensuwe dat bowwowed funds awe used fow yiewd fawming and nyot extwacted by de usew, de pwogwam vewifies dat de usew does nyot end up wid mowe tokens in deiw wawwets dan dey stawted wid.
+
+#### 3.4.3 Position Cwosing
+
+De pwocess of cwosing a wevewaged position invowves:
+
+1~ Usew inyitiates cwosing a position by cawwing de __INWINYE_CODE_32__ endpoint
+2~ De pwogwam unstakes de WP tokens fwom de Awdwin fawming pwogwam
+3~ De pwogwam wemuvs wiquidity fwom de Awdwin poow, weceiving de constituent tokens
+4~ If nyecessawy, de pwogwam swaps onye constituent token fow de odew to match de owiginyaw bowwowed token
+5~ De pwogwam wepays de bowwowed amount pwus intewest to de wesewve
+6~ De pwogwam twansfews any wemainying tokens (pwofit) to de usew
+7~ De pwogwam cwoses de fawming weceipt
+
+## 4~ Tokenyomics
+
+### 4.1 Intewest Wate Modew
+
+De pwatfowm uses a dynyamic intewest wate modew dat adjusts based on de utiwization wate of each wesewve:
+
+__CODE_BWOCK_17__
+
+#### 4.1.1 Utiwization Wate Cawcuwation
+
+De utiwization wate is de watio of bowwowed wiquidity to totaw wiquidity in a wesewve:
+
+__CODE_BWOCK_18__
+
+Whewe:
+- __INWINYE_CODE_33__ is de utiwization wate
+- __INWINYE_CODE_34__ is de totaw bowwowed wiquidity
+- __INWINYE_CODE_35__ is de totaw deposited wiquidity suppwy
+
+#### 4.1.2 Bowwow Wate Cawcuwation
+
+De bowwow wate fowwows a two-swope modew:
+
+__CODE_BWOCK_19__
+
+Whewe:
+- __INWINYE_CODE_36__ is de bowwow wate/APY
+- __INWINYE_CODE_37__ is de optimaw utiwization wate (configuwabwe)
+- __INWINYE_CODE_38__ is de optimaw bowwow wate (configuwabwe)
+- __INWINYE_CODE_39__ is de minyimum bowwow wate (configuwabwe)
+- __INWINYE_CODE_40__ is de maximum bowwow wate (configuwabwe)
+
+Dis modew cweates two distinct swopes:
+- Bewow optimaw utiwization: Intewest wates incwease swowwy to encouwage bowwowing
+- Abuv optimaw utiwization: Intewest wates incwease shawpwy to discouwage bowwowing and encouwage deposits
+
+#### 4.1.3 Suppwy Wate Cawcuwation
+
+De suppwy wate is dewived fwom de bowwow wate by scawing it by de utiwization wate:
+
+__CODE_BWOCK_20__
+
+Whewe:
+- __INWINYE_CODE_41__ is de deposit wate/APY
+- __INWINYE_CODE_42__ is de utiwization wate
+- __INWINYE_CODE_43__ is de bowwow wate/APY
+
+Dis ensuwes dat de intewest paid by bowwowews is distwibuted to suppwiews in pwopowtion to de utiwization of de wesewve.
+
+#### 4.1.4 Compound Intewest
+
+Intewest accwues continyuouswy based on de bowwow wate and is cawcuwated using de compound intewest fowmuwa:
+
+__CODE_BWOCK_21__
+
+Whewe:
+- __INWINYE_CODE_44__ is de compound intewest wate
+- __INWINYE_CODE_45__ is de bowwow wate
+- __INWINYE_CODE_46__ is de nyumbew of swots in a cawendaw yeaw
+- __INWINYE_CODE_47__ is de ewapsed swots
+
+De wesewve's wiquidity suppwy is updated wid intewest:
+
+__CODE_BWOCK_22__
+
+Whewe:
+- __INWINYE_CODE_48__ is de nyew wiquidity suppwy
+- __INWINYE_CODE_49__ is de owd wiquidity suppwy
+- __INWINYE_CODE_50__ is de compound intewest wate
+
+### 4.2 Fee Stwuctuwe
+
+De pwatfowm impwements sevewaw types of fees:
+
+__CODE_BWOCK_23__
+
+#### 4.2.1 Bowwow Fee
+
+A pewcentage fee chawged when bowwowing assets, expwessed as a Wad (10^18 = 1)~ Fow exampwe:
 - 1% = 10_000_000_000_000_000
 - 0.01% (1 basis point) = 100_000_000_000_000
 
-The borrow fee is added to the borrowed amount and must be repaid along with the principal.
+De bowwow fee is added to de bowwowed amount and must be wepaid awong wid de pwincipaw.
 
-#### 4.2.2 Leverage Fee
+#### 4.2.2 Wevewage Fee
 
-Similar to the borrow fee but applies specifically to leverage yield farming operations. This fee may be set differently from the standard borrow fee to account for the different risk profile of leveraged positions.
+Simiwaw to de bowwow fee but appwies specificawwy to wevewage yiewd fawming opewations~ Dis fee may be set diffewentwy fwom de standawd bowwow fee to account fow de diffewent wisk pwofiwe of wevewaged positions.
 
-#### 4.2.3 Flash Loan Fee
+#### 4.2.3 Fwash Woan Fee
 
-Fee for flash loans, expressed as a Wad. For example:
-- 0.3% (Aave flash loan fee) = 3_000_000_000_000_000
+Fee fow fwash woans, expwessed as a Wad~ Fow exampwe:
+- 0.3% (Aave fwash woan fee) = 3_000_000_000_000_000
 
-This fee must be paid when the flash loan is repaid within the same transaction.
+Dis fee must be paid when de fwash woan is wepaid widin de same twansaction.
 
 #### 4.2.4 Host Fee
 
-Amount of fee going to host account, if provided in liquidate and repay operations. This allows third-party integrators to earn a portion of the fees generated by their users.
+Amount of fee going to host account, if pwovided in wiquidate and wepay opewations~ Dis awwows diwd-pawty integwatows to eawn a powtion of de fees genyewated by deiw usews.
 
-The host fee is expressed as a percentage (0-100) of the total fee.
+De host fee is expwessed as a pewcentage (0-100) of de totaw fee.
 
-### 4.3 Collateralization
+### 4.3 Cowwatewawization
 
-The platform uses a collateralization system to ensure loans are backed by sufficient assets:
+De pwatfowm uses a cowwatewawization system to ensuwe woans awe backed by sufficient assets:
 
-```mermaid
-graph TD
-    subgraph "Collateralization Parameters"
-        LTV[Loan-to-Value Ratio]
-        LT[Liquidation Threshold]
-        LB[Liquidation Bonus]
-    end
-    
-    subgraph "Collateralization States"
-        direction TB
-        
-        style CollateralGraph fill:#f9f9f9,stroke:#333,stroke-width:1px
-        
-        CollateralGraph[
-        "
-        Collateral Value
-        ^
-        |
-        |                   Safe Zone
-        |                   (Can borrow more)
-        |                   
-        |------------------+
-        |                  |
-        |                  | Warning Zone
-        |                  | (Cannot borrow more)
-        |                  |
-        |------------------+
-        |                  |
-        |                  | Liquidation Zone
-        |                  | (Can be liquidated)
-        |                  |
-        +------------------+---------------->
-                           Borrowed Value
-                           
-        LTV = Maximum borrow amount relative to collateral
-        LT = Threshold where liquidation becomes possible
-        LB = Bonus liquidators receive (incentive)
-        "
-        ]
-    end
-    
-    LTV --> CollateralGraph
-    LT --> CollateralGraph
-    LB --> CollateralGraph
-```
+__CODE_BWOCK_24__
 
-#### 4.3.1 Loan-to-Value Ratios
+#### 4.3.1 Woan-to-Vawue Watios
 
-Each reserve has a configurable loan-to-value ratio that determines how much can be borrowed against collateral. For example, if SOL has an LTV of 85%, a user depositing $100 worth of SOL can borrow up to $85 worth of assets.
+Each wesewve has a configuwabwe woan-to-vawue watio dat detewminyes how much can be bowwowed against cowwatewaw~ Fow exampwe, if SOW has an WTV of 85%, a usew depositing $100 wowd of SOW can bowwow up to $85 wowd of assets.
 
-The LTV is expressed as a percentage (0-100) and is used to calculate the maximum borrow value:
+De WTV is expwessed as a pewcentage (0-100) and is used to cawcuwate de maximum bowwow vawue:
 
-```
-V_maxb = V_d * LTV / 100
-```
+__CODE_BWOCK_25__
 
-Where:
-- `V_maxb` is the maximum borrowable value
-- `V_d` is the deposited collateral value
-- `LTV` is the loan-to-value ratio
+Whewe:
+- __INWINYE_CODE_51__ is de maximum bowwowabwe vawue
+- __INWINYE_CODE_52__ is de deposited cowwatewaw vawue
+- __INWINYE_CODE_53__ is de woan-to-vawue watio
 
-#### 4.3.2 Liquidation Thresholds
+#### 4.3.2 Wiquidation Dweshowds
 
-Each reserve also has a liquidation threshold that determines when a position becomes unhealthy and eligible for liquidation. This threshold is always higher than the LTV ratio.
+Each wesewve awso has a wiquidation dweshowd dat detewminyes when a position becomes unheawdy and ewigibwe fow wiquidation~ Dis dweshowd is awways highew dan de WTV watio.
 
-The liquidation threshold is expressed as a percentage (0-100) and is used to calculate the unhealthy borrow value:
+De wiquidation dweshowd is expwessed as a pewcentage (0-100) and is used to cawcuwate de unheawdy bowwow vawue:
 
-```
-V_u = V_d * LT / 100
-```
+__CODE_BWOCK_26__
 
-Where:
-- `V_u` is the unhealthy borrow value
-- `V_d` is the deposited collateral value
-- `LT` is the liquidation threshold
+Whewe:
+- __INWINYE_CODE_54__ is de unheawdy bowwow vawue
+- __INWINYE_CODE_55__ is de deposited cowwatewaw vawue
+- __INWINYE_CODE_56__ is de wiquidation dweshowd
 
-When the borrowed value exceeds the unhealthy borrow value, the position becomes eligible for liquidation.
+When de bowwowed vawue exceeds de unheawdy bowwow vawue, de position becomes ewigibwe fow wiquidation.
 
-#### 4.3.3 Maximum Leverage
+#### 4.3.3 Maximum Wevewage
 
-For leveraged yield farming, each reserve has a configurable maximum leverage parameter that limits the amount of leverage users can take.
+Fow wevewaged yiewd fawming, each wesewve has a configuwabwe maximum wevewage pawametew dat wimits de amount of wevewage usews can take.
 
-The maximum leverage is calculated based on the loan-to-value ratio:
+De maximum wevewage is cawcuwated based on de woan-to-vawue watio:
 
-```
-φ_max = (1 - V_maxb^30) / (1 - V_maxb)
-```
+__CODE_BWOCK_27__
 
-Where:
-- `φ_max` is the maximum leverage
-- `V_maxb` is the maximum borrowable UAC value (LTV / 100)
+Whewe:
+- __INWINYE_CODE_57__ is de maximum wevewage
+- __INWINYE_CODE_58__ is de maximum bowwowabwe UAC vawue (WTV / 100)
 
-This formula ensures that the maximum leverage is consistent with the risk parameters of the reserve.
+Dis fowmuwa ensuwes dat de maximum wevewage is consistent wid de wisk pawametews of de wesewve.
 
 ### 4.4 Emissions System
 
-The platform includes an emissions (rewards) system for both lenders and borrowers:
+De pwatfowm incwudes an emissions (wewawds) system fow bod wendews and bowwowews:
 
-```mermaid
-flowchart TD
-    ER[Emission Rate] --> |"ω^b (Borrower Rate)"| BE[Borrower Emissions]
-    ER --> |"ω^s (Supplier Rate)"| SE[Supplier Emissions]
-    
-    BE --> |"Based on Share of Borrowed Amount"| BU[Borrower Users]
-    SE --> |"Based on Share of Supplied Amount"| SU[Supplier Users]
-    
-    subgraph "Emission Formula"
-        direction TB
-        
-        style EmissionFormula fill:#f9f9f9,stroke:#333,stroke-width:1px
-        
-        EmissionFormula[
-        "
-        For Borrowers:
-        E = ω^b * S_e * (L^u_b / L^r_b)
-        
-        For Suppliers:
-        E = ω^s * S_e * (L^u_s / L^r_s)
-        
-        Where:
-        E = Emission tokens a user can claim
-        ω = Emitted tokens per slot
-        S_e = Elapsed slots
-        L^u_b = User's borrowed amount
-        L^r_b = Reserve's total borrowed amount
-        L^u_s = User's supplied amount
-        L^r_s = Reserve's total supplied amount
-        "
-        ]
-    end
-    
-    BE --> EmissionFormula
-    SE --> EmissionFormula
-    
-    classDef rate fill:#bbf,stroke:#333,stroke-width:1px;
-    classDef emission fill:#bfb,stroke:#333,stroke-width:1px;
-    classDef user fill:#f9f,stroke:#333,stroke-width:1px;
-    
-    class ER rate;
-    class BE,SE emission;
-    class BU,SU user;
-```
+__CODE_BWOCK_28__
 
-#### 4.4.1 Emission Distribution
+#### 4.4.1 Emission Distwibution
 
-Emissions are distributed between users based on their share in a particular reserve's pool. The distribution formulas differ for borrowers and lenders:
+Emissions awe distwibuted between usews based on deiw shawe in a pawticuwaw wesewve's poow~ De distwibution fowmuwas diffew fow bowwowews and wendews:
 
-For borrowers:
-```
-E = ω^b * S_e * (L^u_b / L^r_b)
-```
+Fow bowwowews:
+__CODE_BWOCK_29__
 
-For lenders:
-```
-E = ω^s * S_e * (L^u_s / L^r_s)
-```
+Fow wendews:
+__CODE_BWOCK_30__
 
-Where:
-- `E` is the emission tokens a user can claim
-- `ω` is the emitted tokens per slot
-- `S_e` is the elapsed slots
-- `L^u_b` is the user's borrowed amount
-- `L^r_b` is the reserve's total borrowed amount
-- `L^u_s` is the user's supplied amount
-- `L^r_s` is the reserve's total supplied amount
+Whewe:
+- __INWINYE_CODE_59__ is de emission tokens a usew can cwaim
+- __INWINYE_CODE_60__ is de emitted tokens pew swot
+- __INWINYE_CODE_61__ is de ewapsed swots
+- __INWINYE_CODE_62__ is de usew's bowwowed amount
+- __INWINYE_CODE_63__ is de wesewve's totaw bowwowed amount
+- __INWINYE_CODE_64__ is de usew's suppwied amount
+- __INWINYE_CODE_65__ is de wesewve's totaw suppwied amount
 
-#### 4.4.2 Reward Calculation
+#### 4.4.2 Wewawd Cawcuwation
 
-The emissions system tracks the accumulated rewards for each user based on their participation in the protocol. Users can claim these rewards at any time.
+De emissions system twacks de accumuwated wewawds fow each usew based on deiw pawticipation in de pwotocow~ Usews can cwaim dese wewawds at any time.
 
-The reward calculation takes into account:
-- The emission rate for the reserve
-- The user's share of the reserve (borrowed or supplied)
-- The time elapsed since the last reward calculation
+De wewawd cawcuwation takes into account:
+- De emission wate fow de wesewve
+- De usew's shawe of de wesewve (bowwowed ow suppwied)
+- De time ewapsed since de wast wewawd cawcuwation
 
-This creates an incentive for users to participate in the protocol and helps bootstrap liquidity in the early stages.
+Dis cweates an incentive fow usews to pawticipate in de pwotocow and hewps bootstwap wiquidity in de eawwy stages.
 
-## 5. Security Considerations
+## 5~ Secuwity Considewations
 
-### 5.1 Identified Vulnerabilities
+### 5.1 Identified Vuwnyewabiwities
 
-Based on a thorough analysis of the codebase, several potential vulnerabilities have been identified:
+Based on a dowough anyawysis of de codebase, sevewaw potentiaw vuwnyewabiwities have been identified:
 
-```mermaid
-flowchart TD
-    subgraph "Security Checkpoints"
-        OS[Oracle Security]
-        FS[Flash Loan Security]
-        LS[Leverage Security]
-        LQS[Liquidation Security]
-        MS[Mathematical Security]
-        AS[Access Control Security]
-    end
-    
-    OS --> |"Check"| OSC1[Oracle Freshness]
-    OS --> |"Check"| OSC2[Price Manipulation]
-    OS --> |"Check"| OSC3[Oracle Dependency]
-    
-    FS --> |"Check"| FSC1[Reentrancy Protection]
-    FS --> |"Check"| FSC2[Fee Calculation]
-    FS --> |"Check"| FSC3[Repayment Verification]
-    
-    LS --> |"Check"| LSC1[Leverage Limits]
-    LS --> |"Check"| LSC2[Token Leakage]
-    LS --> |"Check"| LSC3[Position Ownership]
-    
-    LQS --> |"Check"| LQSC1[Liquidation Thresholds]
-    LQS --> |"Check"| LQSC2[Liquidation Calculation]
-    LQS --> |"Check"| LQSC3[Liquidation Incentives]
-    
-    MS --> |"Check"| MSC1[Decimal Precision]
-    MS --> |"Check"| MSC2[Overflow/Underflow]
-    MS --> |"Check"| MSC3[Rounding Errors]
-    
-    AS --> |"Check"| ASC1[Account Validation]
-    AS --> |"Check"| ASC2[PDA Seed Construction]
-    AS --> |"Check"| ASC3[Authority Verification]
-    
-    classDef category fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef check fill:#bbf,stroke:#333,stroke-width:1px;
-    
-    class OS,FS,LS,LQS,MS,AS category;
-    class OSC1,OSC2,OSC3,FSC1,FSC2,FSC3,LSC1,LSC2,LSC3,LQSC1,LQSC2,LQSC3,MSC1,MSC2,MSC3,ASC1,ASC2,ASC3 check;
-```
+__CODE_BWOCK_31__
 
-#### 5.1.1 Oracle-Related Vulnerabilities
+#### 5.1.1 Owacwe-Wewated Vuwnyewabiwities
 
-**Oracle Staleness**
+**Owacwe Stawenyess**
 
-The code checks for oracle staleness, but there's a risk if the `ORACLE_STALE_AFTER_SLOTS_ELAPSED` constant is set too high. This could allow operations to proceed with outdated price data during high market volatility.
+De code checks fow owacwe stawenyess, but dewe's a wisk if de __INWINYE_CODE_66__ constant is set too high~ Dis couwd awwow opewations to pwoceed wid outdated pwice data duwing high mawket vowatiwity.
 
-**Oracle Dependency Risk**
+**Owacwe Dependency Wisk**
 
-The platform has a critical dependency on the oracle provider. If the oracle service is disrupted, the entire platform becomes non-functional until a protocol upgrade allows changing the oracle settings.
+De pwatfowm has a cwiticaw dependency on de owacwe pwovidew~ If de owacwe sewvice is diswupted, de entiwe pwatfowm becomes nyon-functionyaw untiw a pwotocow upgwade awwows changing de owacwe settings.
 
-#### 5.1.2 Flash Loan Vulnerabilities
+#### 5.1.2 Fwash Woan Vuwnyewabiwities
 
-**Flash Loan Reentrancy**
+**Fwash Woan Weentwancy**
 
-While the code prevents direct reentrancy by checking that the target program is not the lending program itself, it doesn't protect against cross-program reentrancy attacks where the target program calls another program that then calls back into the lending program.
+Whiwe de code pwevents diwect weentwancy by checking dat de tawget pwogwam is nyot de wending pwogwam itsewf, it doesn't pwotect against cwoss-pwogwam weentwancy attacks whewe de tawget pwogwam cawws anyodew pwogwam dat den cawws back into de wending pwogwam.
 
-**Flash Loan Fee Calculation**
+**Fwash Woan Fee Cawcuwation**
 
-If the fee calculation has precision issues or rounding errors, it might be possible to execute flash loans with slightly lower fees than intended.
+If de fee cawcuwation has pwecision issues ow wounding ewwows, it might be possibwe to execute fwash woans wid swightwy wowew fees dan intended.
 
-#### 5.1.3 Leveraged Position Vulnerabilities
+#### 5.1.3 Wevewaged Position Vuwnyewabiwities
 
-**Leverage Limit Bypass**
+**Wevewage Wimit Bypass**
 
-While the code checks that the requested leverage doesn't exceed the maximum allowed leverage, a user could potentially open multiple leveraged positions across different reserves to achieve effective leverage higher than the per-reserve limit.
+Whiwe de code checks dat de wequested wevewage doesn't exceed de maximum awwowed wevewage, a usew couwd potentiawwy open muwtipwe wevewaged positions acwoss diffewent wesewves to achieve effective wevewage highew dan de pew-wesewve wimit.
 
-**Token Leakage in Leveraged Positions**
+**Token Weakage in Wevewaged Positions**
 
-The code correctly checks that users don't end up with more tokens than they started with, but there's a potential edge case if the user can manipulate their wallet balances during the transaction through other means.
+De code cowwectwy checks dat usews don't end up wid mowe tokens dan dey stawted wid, but dewe's a potentiaw edge case if de usew can manyipuwate deiw wawwet bawances duwing de twansaction dwough odew means.
 
-#### 5.1.4 Liquidation Vulnerabilities
+#### 5.1.4 Wiquidation Vuwnyewabiwities
 
-**Liquidation Threshold Manipulation**
+**Wiquidation Dweshowd Manyipuwation**
 
-The code ensures that the liquidation threshold is greater than the loan-to-value ratio, but if these values are set too close together, it could create a situation where normal market volatility triggers unnecessary liquidations.
+De code ensuwes dat de wiquidation dweshowd is gweatew dan de woan-to-vawue watio, but if dese vawues awe set too cwose togedew, it couwd cweate a situation whewe nyowmaw mawket vowatiwity twiggews unnyecessawy wiquidations.
 
-**Liquidation Calculation Precision**
+**Wiquidation Cawcuwation Pwecision**
 
-The liquidation amount calculations involve multiple mathematical operations that could introduce rounding errors or precision loss, potentially allowing liquidators to extract slightly more value than intended.
+De wiquidation amount cawcuwations invowve muwtipwe madematicaw opewations dat couwd intwoduce wounding ewwows ow pwecision woss, potentiawwy awwowing wiquidatows to extwact swightwy mowe vawue dan intended.
 
-#### 5.1.5 Mathematical and Precision Issues
+#### 5.1.5 Madematicaw and Pwecision Issues
 
-**Decimal Precision Loss**
+**Decimaw Pwecision Woss**
 
-The codebase uses a custom `Decimal` type for financial calculations, but some operations might introduce precision loss, especially when dealing with very large or very small numbers.
+De codebase uses a custom __INWINYE_CODE_67__ type fow finyanciaw cawcuwations, but some opewations might intwoduce pwecision woss, especiawwy when deawing wid vewy wawge ow vewy smaww nyumbews.
 
-**Integer Overflow/Underflow**
+**Integew Ovewfwow/Undewfwow**
 
-While the code generally uses checked arithmetic operations (`checked_add`, `checked_sub`, etc.), there might be edge cases where these checks are missed or where intermediate calculations could overflow before the check is applied.
+Whiwe de code genyewawwy uses checked awidmetic opewations (__INWINYE_CODE_68__, __INWINYE_CODE_69__, etc.), dewe might be edge cases whewe dese checks awe missed ow whewe intewmediate cawcuwations couwd uvwfwow befowe de check is appwied.
 
-#### 5.1.6 Access Control and Authorization
+#### 5.1.6 Access Contwow and Audowization
 
-**Account Validation Reliance**
+**Account Vawidation Wewiance**
 
-The code relies on the token program for certain validations, but if there are edge cases where these validations are insufficient, it could lead to security issues.
+De code wewies on de token pwogwam fow cewtain vawidations, but if dewe awe edge cases whewe dese vawidations awe insufficient, it couwd wead to secuwity issues.
 
-**PDA Seed Construction**
+**PDA Seed Constwuction**
 
-While the PDA seed construction is well-thought-out, any errors in the implementation could lead to address collisions or allow users to manipulate the system.
+Whiwe de PDA seed constwuction is weww-dought-out, any ewwows in de impwementation couwd wead to addwess cowwisions ow awwow usews to manyipuwate de system.
 
-### 5.2 Security Best Practices
+### 5.2 Secuwity Best Pwactices
 
-To mitigate the identified vulnerabilities, the following security best practices are recommended:
+To mitigate de identified vuwnyewabiwities, de fowwowing secuwity best pwactices awe wecommended:
 
-#### 5.2.1 Oracle Usage
+#### 5.2.1 Owacwe Usage
 
-- Implement fallback oracle mechanisms or consider a weighted average from multiple oracle providers
-- Set appropriate staleness thresholds based on market volatility
-- Implement circuit breakers that pause certain operations during extreme market conditions
-- Add governance mechanisms to update oracle sources without requiring a program upgrade
+- Impwement fawwback owacwe mechanyisms ow considew a weighted avewage fwom muwtipwe owacwe pwovidews
+- Set appwopwiate stawenyess dweshowds based on mawket vowatiwity
+- Impwement ciwcuit bweakews dat pause cewtain opewations duwing extweme mawket conditions
+- Add guvwnyance mechanyisms to update owacwe souwces widout wequiwing a pwogwam upgwade
 
-#### 5.2.2 Flash Loan Handling
+#### 5.2.2 Fwash Woan Handwing
 
-- Enhance reentrancy protection to cover cross-program reentrancy attacks
-- Implement a whitelist of allowed target programs for flash loans
-- Add additional verification steps for flash loan repayments
-- Consider implementing a flash loan pause mechanism that can be activated in case of detected exploits
+- Enhance weentwancy pwotection to cuvw cwoss-pwogwam weentwancy attacks
+- Impwement a whitewist of awwowed tawget pwogwams fow fwash woans
+- Add additionyaw vewification steps fow fwash woan wepayments
+- Considew impwementing a fwash woan pause mechanyism dat can be activated in case of detected expwoits
 
-#### 5.2.3 Leverage Management
+#### 5.2.3 Wevewage Manyagement
 
-- Implement system-wide leverage tracking to prevent users from bypassing per-reserve leverage limits
-- Add additional checks for leveraged position creation and closing
-- Consider implementing a maximum total leverage per user across all reserves
-- Add stress testing mechanisms for leveraged positions
+- Impwement system-wide wevewage twacking to pwevent usews fwom bypassing pew-wesewve wevewage wimits
+- Add additionyaw checks fow wevewaged position cweation and cwosing
+- Considew impwementing a maximum totaw wevewage pew usew acwoss aww wesewves
+- Add stwess testing mechanyisms fow wevewaged positions
 
-#### 5.2.4 Liquidation Safety
+#### 5.2.4 Wiquidation Safety
 
-- Ensure sufficient separation between loan-to-value ratios and liquidation thresholds
-- Implement gradual liquidation mechanisms to prevent large price impacts
-- Add circuit breakers for mass liquidation events
-- Consider implementing a liquidation delay for large positions
+- Ensuwe sufficient sepawation between woan-to-vawue watios and wiquidation dweshowds
+- Impwement gwaduaw wiquidation mechanyisms to pwevent wawge pwice impacts
+- Add ciwcuit bweakews fow mass wiquidation events
+- Considew impwementing a wiquidation deway fow wawge positions
 
-#### 5.2.5 Mathematical Precision
+#### 5.2.5 Madematicaw Pwecision
 
-- Conduct extensive testing of mathematical operations with extreme values
-- Add additional checks for precision loss in critical calculations
-- Consider using higher precision for intermediate calculations
-- Implement bounds checking for all mathematical operations
+- Conduct extensive testing of madematicaw opewations wid extweme vawues
+- Add additionyaw checks fow pwecision woss in cwiticaw cawcuwations
+- Considew using highew pwecision fow intewmediate cawcuwations
+- Impwement bounds checking fow aww madematicaw opewations
 
-#### 5.2.6 Access Control
+#### 5.2.6 Access Contwow
 
-- Regularly audit PDA seed construction and account validation logic
-- Implement additional checks for critical operations
-- Consider adding a time-lock for certain administrative operations
-- Implement a comprehensive permission system for protocol upgrades
+- Weguwawwy audit PDA seed constwuction and account vawidation wogic
+- Impwement additionyaw checks fow cwiticaw opewations
+- Considew adding a time-wock fow cewtain adminyistwative opewations
+- Impwement a compwehensive pewmission system fow pwotocow upgwades
 
-## 6. Developer Guide
+## 6~ Devewopew Guide
 
-### 6.1 Environment Setup
+### 6.1 Enviwonment Setup
 
-#### 6.1.1 Prerequisites
+#### 6.1.1 Pwewequisites
 
-To work with the Solana Borrow-Lending Platform, you'll need:
+To wowk wid de Sowanya Bowwow-Wending Pwatfowm, you'ww nyeed:
 
-- Rust (latest stable version)
-- Solana CLI (latest version)
-- Anchor Framework (latest version)
-- Node.js and npm/yarn (for testing)
+- Wust (watest stabwe vewsion)
+- Sowanya CWI (watest vewsion)
+- Anchow Fwamewowk (watest vewsion)
+- Nyode.js and npm/yawn (fow testing)
 - Git
 
-#### 6.1.2 Installation
+#### 6.1.2 Instawwation
 
-Clone the repository and install dependencies:
+Cwonye de wepositowy and instaww dependencies:
 
-```bash
-git clone https://github.com/aldrin-labs/solana-borrow-lending.git
-cd solana-borrow-lending
-yarn install
-```
+__CODE_BWOCK_32__
 
-#### 6.1.3 Configuration
+#### 6.1.3 Configuwation
 
-The platform can be configured through various parameters in the codebase:
+De pwatfowm can be configuwed dwough vawious pawametews in de codebase:
 
-- Interest rate parameters in `reserve.rs`
-- Liquidation parameters in `reserve.rs`
-- Fee structures in `reserve.rs`
-- Oracle configuration in `pyth.rs`
-- Flash loan settings in `lending_market.rs`
+- Intewest wate pawametews in __INWINYE_CODE_70__
+- Wiquidation pawametews in __INWINYE_CODE_71__
+- Fee stwuctuwes in __INWINYE_CODE_72__
+- Owacwe configuwation in __INWINYE_CODE_73__
+- Fwash woan settings in __INWINYE_CODE_74__
 
-### 6.2 Program Structure
+### 6.2 Pwogwam Stwuctuwe
 
-The program follows a modular structure:
+De pwogwam fowwows a moduwaw stwuctuwe:
 
-```mermaid
-graph TD
-    subgraph "Program Structure"
-        lib[lib.rs] --> |Imports| models[models/]
-        lib --> |Imports| endpoints[endpoints/]
-        lib --> |Imports| math[math/]
-        lib --> |Imports| cpis[cpis/]
-        
-        models --> reserve[reserve.rs]
-        models --> obligation[obligation.rs]
-        models --> oracle[pyth.rs]
-        models --> emissions[emissions.rs]
-        
-        endpoints --> deposit[deposit_*.rs]
-        endpoints --> borrow[borrow_*.rs]
-        endpoints --> repay[repay_*.rs]
-        endpoints --> liquidate[liquidate_*.rs]
-        endpoints --> flash[flash_loan.rs]
-        endpoints --> amm[amm/]
-        
-        amm --> aldrin[aldrin/]
-        aldrin --> leverage[open_leveraged_position_*.rs]
-        
-        math --> decimal[decimal.rs]
-        math --> sdecimal[sdecimal.rs]
-    end
-    
-    classDef main fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef module fill:#bbf,stroke:#333,stroke-width:1px;
-    classDef file fill:#bfb,stroke:#333,stroke-width:1px;
-    
-    class lib main;
-    class models,endpoints,math,cpis,amm,aldrin module;
-    class reserve,obligation,oracle,emissions,deposit,borrow,repay,liquidate,flash,leverage,decimal,sdecimal file;
-```
+__CODE_BWOCK_33__
 
-#### 6.2.1 Directory Organization
+#### 6.2.1 Diwectowy Owganyization
 
-- **src/**: Contains the main program code
-  - **lib.rs**: Entry point for the program
-  - **models/**: Data structures and business logic
-  - **endpoints/**: Instruction handlers
-  - **math/**: Mathematical utilities
-  - **cpis/**: Cross-program invocation utilities
-- **tests/**: Contains test files
-- **programs/**: Contains the Solana programs
-  - **borrow-lending/**: The main lending program
-  - **stable-coin/**: A related stable coin program
-- **cli/**: Command-line interface for interacting with the program
+- **swc/**: Contains de main pwogwam code
+  - **wib.ws**: Entwy point fow de pwogwam
+  - **modews/**: Data stwuctuwes and businyess wogic
+  - **endpoints/**: Instwuction handwews
+  - **mad/**: Madematicaw utiwities
+  - **cpis/**: Cwoss-pwogwam invocation utiwities
+- **tests/**: Contains test fiwes
+- **pwogwams/**: Contains de Sowanya pwogwams
+  - **bowwow-wending/**: De main wending pwogwam
+  - **stabwe-coin/**: A wewated stabwe coin pwogwam
+- **cwi/**: Command-winye intewface fow intewacting wid de pwogwam
 
-#### 6.2.2 Module Relationships
+#### 6.2.2 Moduwe Wewationships
 
-The program is organized into several key modules:
+De pwogwam is owganyized into sevewaw key moduwes:
 
-- **models**: Contains the core data structures and business logic
-  - **reserve.rs**: Manages reserve state and operations
-  - **obligation.rs**: Manages obligation state and operations
-  - **pyth.rs**: Handles oracle integration
-  - **emissions.rs**: Manages reward emissions
+- **modews**: Contains de cowe data stwuctuwes and businyess wogic
+  - **wesewve.ws**: Manyages wesewve state and opewations
+  - **obwigation.ws**: Manyages obwigation state and opewations
+  - **pyd.ws**: Handwes owacwe integwation
+  - **emissions.ws**: Manyages wewawd emissions
 
-- **endpoints**: Contains the instruction handlers
-  - **deposit_reserve_liquidity.rs**: Handles deposit operations
-  - **borrow_obligation_liquidity.rs**: Handles borrow operations
-  - **repay_obligation_liquidity.rs**: Handles repay operations
-  - **liquidate_obligation.rs**: Handles liquidation operations
-  - **flash_loan.rs**: Handles flash loan operations
-  - **amm/aldrin/**: Handles leveraged yield farming operations
+- **endpoints**: Contains de instwuction handwews
+  - **deposit_wesewve_wiquidity.ws**: Handwes deposit opewations
+  - **bowwow_obwigation_wiquidity.ws**: Handwes bowwow opewations
+  - **wepay_obwigation_wiquidity.ws**: Handwes wepay opewations
+  - **wiquidate_obwigation.ws**: Handwes wiquidation opewations
+  - **fwash_woan.ws**: Handwes fwash woan opewations
+  - **amm/awdwin/**: Handwes wevewaged yiewd fawming opewations
 
-- **math**: Contains mathematical utilities
-  - **decimal.rs**: Implements the Decimal type for financial calculations
-  - **sdecimal.rs**: Implements the SDecimal type for signed calculations
+- **mad**: Contains madematicaw utiwities
+  - **decimaw.ws**: Impwements de Decimaw type fow finyanciaw cawcuwations
+  - **sdecimaw.ws**: Impwements de SDecimaw type fow signyed cawcuwations
 
-### 6.3 Key Interfaces
+### 6.3 Key Intewfaces
 
-#### 6.3.1 Public Endpoints
+#### 6.3.1 Pubwic Endpoints
 
-The program exposes several public endpoints:
+De pwogwam exposes sevewaw pubwic endpoints:
 
-- **init_lending_market**: Initializes a new lending market
-- **set_lending_market_owner**: Sets the owner of a lending market
-- **init_reserve**: Initializes a new reserve
-- **refresh_reserve**: Updates a reserve with the latest oracle prices
-- **deposit_reserve_liquidity**: Deposits liquidity into a reserve
-- **redeem_reserve_collateral**: Redeems collateral for liquidity
-- **init_obligation**: Initializes a new obligation
-- **refresh_obligation**: Updates an obligation with the latest prices
-- **deposit_obligation_collateral**: Deposits collateral into an obligation
-- **withdraw_obligation_collateral**: Withdraws collateral from an obligation
-- **borrow_obligation_liquidity**: Borrows liquidity against an obligation
-- **repay_obligation_liquidity**: Repays borrowed liquidity
-- **liquidate_obligation**: Liquidates an unhealthy obligation
-- **flash_loan**: Executes a flash loan
-- **open_leveraged_position_on_aldrin**: Opens a leveraged yield farming position
-- **close_leveraged_position_on_aldrin**: Closes a leveraged yield farming position
+- **inyit_wending_mawket**: Inyitiawizes a nyew wending mawket
+- **set_wending_mawket_ownyew**: Sets de ownyew of a wending mawket
+- **inyit_wesewve**: Inyitiawizes a nyew wesewve
+- **wefwesh_wesewve**: Updates a wesewve wid de watest owacwe pwices
+- **deposit_wesewve_wiquidity**: Deposits wiquidity into a wesewve
+- **wedeem_wesewve_cowwatewaw**: Wedeems cowwatewaw fow wiquidity
+- **inyit_obwigation**: Inyitiawizes a nyew obwigation
+- **wefwesh_obwigation**: Updates an obwigation wid de watest pwices
+- **deposit_obwigation_cowwatewaw**: Deposits cowwatewaw into an obwigation
+- **widdwaw_obwigation_cowwatewaw**: Widdwaws cowwatewaw fwom an obwigation
+- **bowwow_obwigation_wiquidity**: Bowwows wiquidity against an obwigation
+- **wepay_obwigation_wiquidity**: Wepays bowwowed wiquidity
+- **wiquidate_obwigation**: Wiquidates an unheawdy obwigation
+- **fwash_woan**: Executes a fwash woan
+- **open_wevewaged_position_on_awdwin**: Opens a wevewaged yiewd fawming position
+- **cwose_wevewaged_position_on_awdwin**: Cwoses a wevewaged yiewd fawming position
 
-#### 6.3.2 Account Structures
+#### 6.3.2 Account Stwuctuwes
 
-The program uses several account structures:
+De pwogwam uses sevewaw account stwuctuwes:
 
-- **LendingMarket**: The top-level account for the lending market
-- **Reserve**: Manages a specific asset pool
-- **Obligation**: Tracks a user's positions
-- **AldrinFarmingReceipt**: Tracks a leveraged yield farming position
+- **WendingMawket**: De top-wevew account fow de wending mawket
+- **Wesewve**: Manyages a specific asset poow
+- **Obwigation**: Twacks a usew's positions
+- **AwdwinFawmingWeceipt**: Twacks a wevewaged yiewd fawming position
 
-```mermaid
-classDiagram
-    class LendingMarket {
-        +Pubkey owner
-        +Pubkey quote_currency
-        +Pubkey pyth_oracle_program
-        +Pubkey aldrin_amm
-        +bool enable_flash_loans
-        +Decimal min_collateral_uac_value_for_leverage
-    }
-    
-    class Reserve {
-        +Pubkey lending_market
-        +ReserveLiquidity liquidity
-        +ReserveCollateral collateral
-        +ReserveConfig config
-        +LastUpdate last_update
-    }
-    
-    class Obligation {
-        +Pubkey lending_market
-        +Pubkey owner
-        +ObligationReserve[] reserves
-        +SDecimal deposited_value
-        +SDecimal borrowed_value
-        +SDecimal allowed_borrow_value
-        +SDecimal unhealthy_borrow_value
-        +LastUpdate last_update
-    }
-    
-    class AldrinFarmingReceipt {
-        +Pubkey owner
-        +Pubkey association
-        +Pubkey ticket
-        +Leverage leverage
-    }
-    
-    LendingMarket "1" -- "many" Reserve : contains
-    LendingMarket "1" -- "many" Obligation : tracks
-    Obligation "1" -- "many" AldrinFarmingReceipt : may have
-```
+__CODE_BWOCK_34__
 
 ### 6.4 Testing
 
-#### 6.4.1 Test Coverage
-
-The program includes extensive tests covering:
-
-- Unit tests for individual components
-- Integration tests for end-to-end flows
-- Stress tests for extreme scenarios
-
-#### 6.4.2 Test Scenarios
-
-Key test scenarios include:
-
-- Deposit and withdrawal flows
-- Borrow and repayment flows
-- Interest accrual
-- Liquidation scenarios
-- Flash loan operations
-- Leveraged yield farming operations
-
-#### 6.4.3 Running Tests
-
-To run the tests:
-
-```bash
-./bin/test.sh
-```
-
-For code coverage:
-
-```bash
-./bin/codecov.sh
-```
-
-## 7. Mathematical Models
-
-### 7.1 Interest Calculation
-
-The platform uses a compound interest model for calculating interest:
-
-```mermaid
-flowchart TD
-    BR[Borrow Rate Calculation] --> |"Input"| CI[Compound Interest Calculation]
-    SE[Slots Elapsed] --> |"Input"| CI
-    
-    CI --> |"Updates"| BA[Borrowed Amount]
-    CI --> |"Updates"| CBR[Cumulative Borrow Rate]
-    
-    subgraph "Compound Interest Formula"
-        direction TB
-        
-        style Formula fill:#f9f9f9,stroke:#333,stroke-width:1px
-        
-        Formula[
-        "
-        R_i = (1 + R_b/S_a)^S_e
-        
-        Where:
-        R_i = Compound interest rate
-        R_b = Borrow rate
-        S_a = Slots per year
-        S_e = Elapsed slots
-        
-        New borrowed amount:
-        L'_s = L_s * R_i
-        
-        New obligation borrowed amount:
-        L'_o = (R'_c/R_c) * L_o
-        
-        Where:
-        R'_c = New cumulative borrow rate
-        R_c = Old cumulative borrow rate
-        L_o = Old borrowed amount
-        "
-        ]
-    end
-    
-    CI --> Formula
-    
-    classDef input fill:#bbf,stroke:#333,stroke-width:1px;
-    classDef calculation fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef output fill:#bfb,stroke:#333,stroke-width:1px;
-    
-    class BR,SE input;
-    class CI calculation;
-    class BA,CBR output;
-```
-
-#### 7.1.1 Compound Interest Formula
-
-The compound interest formula used is:
-
-```
-R_i = (1 + R_b/S_a)^S_e
-```
-
-Where:
-- `R_i` is the compound interest rate
-- `R_b` is the borrow rate
-- `S_a` is the number of slots in a calendar year
-- `S_e` is the elapsed slots
-
-#### 7.1.2 Interest Accrual
-
-Interest accrues on the borrowed amount:
-
-```
-L'_s = L_s * R_i
-```
-
-Where:
-- `L'_s` is the new liquidity supply
-- `L_s` is the old liquidity supply
-- `R_i` is the compound interest rate
-
-For obligations, interest accrues based on the cumulative borrow rate:
-
-```
-L'_o = (R'_c/R_c) * L_o
-```
-
-Where:
-- `L'_o` is the new borrowed amount
-- `R'_c` is the new cumulative borrow rate
-- `R_c` is the old cumulative borrow rate
-- `L_o` is the old borrowed amount
-
-### 7.2 Exchange Rate Calculation
-
-The exchange rate between liquidity and collateral tokens is dynamic:
-
-```mermaid
-flowchart TD
-    LS[Liquidity Supply] --> |"Input"| ER[Exchange Rate Calculation]
-    CS[Collateral Supply] --> |"Input"| ER
-    
-    ER --> |"Used for"| LC[Liquidity to Collateral Conversion]
-    ER --> |"Used for"| CL[Collateral to Liquidity Conversion]
-    
-    LC --> |"Used in"| Deposit[Deposit Operation]
-    CL --> |"Used in"| Withdraw[Withdraw Operation]
-    
-    subgraph "Exchange Rate Formula"
-        direction TB
-        
-        style Formula fill:#f9f9f9,stroke:#333,stroke-width:1px
-        
-        Formula[
-        "
-        R_x = C_s / L_s
-        
-        Where:
-        R_x = Exchange rate
-        C_s = Total minted collateral supply
-        L_s = Total deposited liquidity supply
-        
-        Liquidity to Collateral:
-        C = L * R_x
-        
-        Collateral to Liquidity:
-        L = C / R_x
-        "
-        ]
-    end
-    
-    ER --> Formula
-    
-    classDef input fill:#bbf,stroke:#333,stroke-width:1px;
-    classDef calculation fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef conversion fill:#bfb,stroke:#333,stroke-width:1px;
-    classDef operation fill:#fbb,stroke:#333,stroke-width:1px;
-    
-    class LS,CS input;
-    class ER calculation;
-    class LC,CL conversion;
-    class Deposit,Withdraw operation;
-```
-
-#### 7.2.1 Exchange Rate Formula
-
-The exchange rate is calculated as:
-
-```
-R_x = C_s / L_s
-```
-
-Where:
-- `R_x` is the exchange rate
-- `C_s` is the total minted collateral supply
-- `L_s` is the total deposited liquidity supply
-
-#### 7.2.2 Liquidity to Collateral Conversion
-
-When depositing liquidity, the amount of collateral to mint is calculated as:
-
-```
-C = L * R_x
-```
-
-Where:
-- `C` is the collateral amount
-- `L` is the liquidity amount
-- `R_x` is the exchange rate
-
-#### 7.2.3 Collateral to Liquidity Conversion
-
-When withdrawing collateral, the amount of liquidity to return is calculated as:
-
-```
-L = C / R_x
-```
-
-Where:
-- `L` is the liquidity amount
-- `C` is the collateral amount
-- `R_x` is the exchange rate
-
-### 7.3 Liquidation Calculation
-
-The liquidation process involves several calculations:
-
-```mermaid
-flowchart TD
-    BV[Borrowed Value] --> |"Input"| LC[Liquidation Calculation]
-    CV[Collateral Value] --> |"Input"| LC
-    LT[Liquidation Threshold] --> |"Input"| LC
-    LB[Liquidation Bonus] --> |"Input"| LC
-    
-    LC --> |"Output"| MLA[Max Liquidation Amount]
-    LC --> |"Output"| SA[Settlement Amount]
-    LC --> |"Output"| WA[Withdrawal Amount]
-    
-    subgraph "Liquidation Formula"
-        direction TB
-        
-        style Formula fill:#f9f9f9,stroke:#333,stroke-width:1px
-        
-        Formula[
-        "
-        L_maxl = (min{V_b * κ, L_v} / L_v) * L_b
-        
-        Where:
-        L_maxl = Maximum liquidity amount to liquidate
-        V_b = UAC value of borrowed liquidity
-        κ = Constant liquidity close factor (50%)
-        L_v = UAC value of borrowed liquidity
-        L_b = Total borrowed liquidity
-        
-        Liquidation value with bonus:
-        LV = L * (1 + LB)
-        
-        Where:
-        L = Liquidation amount
-        LB = Liquidation bonus
-        "
-        ]
-    end
-    
-    LC --> Formula
-    
-    classDef input fill:#bbf,stroke:#333,stroke-width:1px;
-    classDef calculation fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef output fill:#bfb,stroke:#333,stroke-width:1px;
-    
-    class BV,CV,LT,LB input;
-    class LC calculation;
-    class MLA,SA,WA output;
-```
-
-#### 7.3.1 Maximum Liquidation Amount
-
-The maximum amount that can be liquidated in a single transaction is calculated as:
-
-```
-L_maxl = (min{V_b * κ, L_v} / L_v) * L_b
-```
-
-Where:
-- `L_maxl` is the maximum liquidity amount to liquidate
-- `V_b` is the UAC value of borrowed liquidity
-- `κ` is the constant liquidity close factor (50%)
-- `L_v` is the UAC value of borrowed liquidity
-- `L_b` is the total borrowed liquidity
-
-#### 7.3.2 Liquidation Bonus
-
-The liquidation bonus provides an incentive for liquidators by allowing them to purchase collateral at a discount:
-
-```
-LV = L * (1 + LB)
-```
-
-Where:
-- `LV` is the liquidation value
-- `L` is the liquidation amount
-- `LB` is the liquidation bonus
-
-The effective discount is calculated as:
-
-```
-Discount = LB / (1 + LB)
-```
-
-### 7.4 Leverage Calculation
-
-The leverage calculation determines the maximum leverage allowed for yield farming:
-
-```mermaid
-flowchart TD
-    LTV[Loan-to-Value Ratio] --> |"Input"| ML[Max Leverage Calculation]
-    
-    ML --> |"Limits"| LP[Leveraged Position]
-    
-    subgraph "Leverage Formula"
-        direction TB
-        
-        style Formula fill:#f9f9f9,stroke:#333,stroke-width:1px
-        
-        Formula[
-        "
-        φ_max = (1 - V_maxb^30) / (1 - V_maxb)
-        
-        Where:
-        φ_max = Maximum leverage
-        V_maxb = Maximum borrowable UAC value (LTV)
-        
-        Leveraged borrow value:
-        V_l = V_r * φ
-        
-        Where:
-        V_l = Leveraged borrow value
-        V_r = Regular borrow value
-        φ = Leverage factor
-        "
-        ]
-    end
-    
-    ML --> Formula
-    
-    classDef input fill:#bbf,stroke:#333,stroke-width:1px;
-    classDef calculation fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef output fill:#bfb,stroke:#333,stroke-width:1px;
-    
-    class LTV input;
-    class ML calculation;
-    class LP output;
-```
-
-#### 7.4.1 Maximum Leverage Formula
-
-The maximum leverage is calculated as:
-
-```
-φ_max = (1 - V_maxb^30) / (1 - V_maxb)
-```
-
-Where:
-- `φ_max` is the maximum leverage
-- `V_maxb` is the maximum borrowable UAC value (LTV / 100)
-
-This formula ensures that the maximum leverage is consistent with the risk parameters of the reserve.
-
-#### 7.4.2 Leveraged Borrow Value
-
-The leveraged borrow value is calculated as:
-
-```
-V_l = V_r * φ
-```
-
-Where:
-- `V_l` is the leveraged borrow value
-- `V_r` is the regular borrow value
-- `φ` is the leverage factor
-
-This allows users to borrow more than would normally be allowed by their collateral, specifically for yield farming purposes.
-
-## 8. Integration Guide
-
-### 8.1 Oracle Integration
-
-The platform integrates with Pyth Network for price feeds:
-
-```mermaid
-sequenceDiagram
-    participant BLp as Borrow-Lending Program
-    participant PythClient as Pyth Client
-    participant PythNetwork as Pyth Network
-    
-    PythNetwork->>PythClient: Update Price Accounts
-    
-    BLp->>PythClient: Request Price Data
-    PythClient-->>BLp: Return Price Data
-    
-    BLp->>BLp: Validate Price Data
-    Note over BLp: Check staleness
-    Note over BLp: Check price type
-    
-    BLp->>BLp: Calculate Market Price
-    Note over BLp: Apply exponent
-    
-    BLp->>BLp: Use Price in Operations
-    Note over BLp: Collateral valuation
-    Note over BLp: Borrow limit calculation
-    Note over BLp: Liquidation checks
-```
-
-#### 8.1.1 Pyth Network Integration
-
-The platform uses Pyth Network for price feeds, which provides real-time price data for various assets. The integration involves:
-
-1. Specifying the Pyth oracle program ID in the lending market
-2. Configuring each reserve with the appropriate price account
-3. Fetching and validating price data when needed
-4. Converting the price data to the correct format for use in calculations
-
-#### 8.1.2 Price Feed Usage
-
-Price feeds are used for several key operations:
-
-- Calculating the value of collateral
-- Determining borrow limits
-- Checking if obligations are healthy
-- Calculating liquidation amounts
-
-The platform includes safety checks to ensure that price data is fresh and valid before using it in calculations.
-
-### 8.2 AMM Integration
-
-The platform integrates with Aldrin AMM for leveraged yield farming:
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant BLp as Borrow-Lending Program
-    participant AldrinAMM as Aldrin AMM
-    participant TokenProgram
-    
-    User->>BLp: Request Leveraged Position
-    BLp->>BLp: Borrow Liquidity
-    
-    BLp->>AldrinAMM: Swap Tokens
-    AldrinAMM->>TokenProgram: Transfer Tokens
-    AldrinAMM-->>BLp: Return Swapped Tokens
-    
-    BLp->>AldrinAMM: Create LP Tokens
-    AldrinAMM->>TokenProgram: Transfer Base Tokens
-    AldrinAMM->>TokenProgram: Transfer Quote Tokens
-    AldrinAMM->>TokenProgram: Mint LP Tokens
-    AldrinAMM-->>BLp: Return LP Tokens
-    
-    BLp->>AldrinAMM: Stake LP Tokens
-    AldrinAMM->>TokenProgram: Transfer LP Tokens to Freeze Vault
-    AldrinAMM->>AldrinAMM: Create Farming Ticket
-    AldrinAMM-->>BLp: Confirm Staking
-    
-    BLp->>BLp: Create Farming Receipt
-    BLp-->>User: Confirm Leveraged Position
-```
-
-#### 8.2.1 Aldrin AMM Integration
-
-The platform integrates with Aldrin AMM for token swaps and liquidity provision in leveraged yield farming. The integration involves:
-
-1. Specifying the Aldrin AMM program ID in the lending market
-2. Using Aldrin's swap functionality to exchange tokens
-3. Using Aldrin's liquidity provision functionality to create LP tokens
-4. Using Aldrin's farming functionality to stake LP tokens
-
-#### 8.2.2 Swap Mechanism
-
-The swap mechanism allows users to exchange one token for another as part of the leveraged yield farming process. The integration ensures that:
-
-1. The swap is executed at a fair price
-2. The minimum swap return is respected
-3. The swapped tokens are used for liquidity provision
-
-### 8.3 Token Integration
-
-The platform integrates with Solana's SPL Token program for token operations:
-
-```mermaid
-sequenceDiagram
-    participant BLp as Borrow-Lending Program
-    participant TokenProgram
-    participant Mint
-    participant SourceWallet
-    participant DestinationWallet
-    
-    %% Transfer
-    BLp->>TokenProgram: Transfer Tokens
-    TokenProgram->>SourceWallet: Debit Tokens
-    TokenProgram->>DestinationWallet: Credit Tokens
-    TokenProgram-->>BLp: Confirm Transfer
-    
-    %% Mint
-    BLp->>TokenProgram: Mint Tokens
-    TokenProgram->>Mint: Increase Supply
-    TokenProgram->>DestinationWallet: Credit Tokens
-    TokenProgram-->>BLp: Confirm Mint
-    
-    %% Burn
-    BLp->>TokenProgram: Burn Tokens
-    TokenProgram->>SourceWallet: Debit Tokens
-    TokenProgram->>Mint: Decrease Supply
-    TokenProgram-->>BLp: Confirm Burn
-```
-
-#### 8.3.1 SPL Token Integration
-
-The platform uses Solana's SPL Token program for all token operations, including:
-
-1. Transferring tokens between accounts
-2. Minting collateral tokens
-3. Burning collateral tokens
-4. Managing token accounts
-
-#### 8.3.2 Token Account Management
-
-The platform manages several types of token accounts:
-
-- Reserve liquidity supply accounts
-- Reserve collateral supply accounts
-- User token wallets
-- Fee receiver accounts
-
-The platform uses PDAs (Program Derived Addresses) to manage authority over these accounts, ensuring that only authorized entities can perform operations on them.
-
-## 9. Operational Considerations
-
-### 9.1 Performance
-
-#### 9.1.1 Computational Limits
-
-Solana programs are subject to computational limits, which can affect the performance of the platform:
-
-- Instruction data size limit: 1232 bytes
-- Transaction size limit: 1232 bytes
-- Compute unit limit: 200,000 units per instruction
-- Account size limit: 10 MB
-
-The platform is designed to work within these limits, but complex operations like leveraged yield farming may require multiple transactions.
-
-#### 9.1.2 Transaction Costs
-
-Transactions on Solana incur costs in the form of transaction fees and rent for account storage. The platform is designed to minimize these costs by:
-
-- Reusing accounts where possible
-- Batching operations where appropriate
+#### 6.4.1 Test Cuvwage
+
+De pwogwam incwudes extensive tests cuvwing:
+
+- Unyit tests fow individuaw componyents
+- Integwation tests fow end-to-end fwows
+- Stwess tests fow extweme scenyawios
+
+#### 6.4.2 Test Scenyawios
+
+Key test scenyawios incwude:
+
+- Deposit and widdwawaw fwows
+- Bowwow and wepayment fwows
+- Intewest accwuaw
+- Wiquidation scenyawios
+- Fwash woan opewations
+- Wevewaged yiewd fawming opewations
+
+#### 6.4.3 Wunnying Tests
+
+To wun de tests:
+
+__CODE_BWOCK_35__
+
+Fow code cuvwage:
+
+__CODE_BWOCK_36__
+
+## 7~ Madematicaw Modews
+
+### 7.1 Intewest Cawcuwation
+
+De pwatfowm uses a compound intewest modew fow cawcuwating intewest:
+
+__CODE_BWOCK_37__
+
+#### 7.1.1 Compound Intewest Fowmuwa
+
+De compound intewest fowmuwa used is:
+
+__CODE_BWOCK_38__
+
+Whewe:
+- __INWINYE_CODE_75__ is de compound intewest wate
+- __INWINYE_CODE_76__ is de bowwow wate
+- __INWINYE_CODE_77__ is de nyumbew of swots in a cawendaw yeaw
+- __INWINYE_CODE_78__ is de ewapsed swots
+
+#### 7.1.2 Intewest Accwuaw
+
+Intewest accwues on de bowwowed amount:
+
+__CODE_BWOCK_39__
+
+Whewe:
+- __INWINYE_CODE_79__ is de nyew wiquidity suppwy
+- __INWINYE_CODE_80__ is de owd wiquidity suppwy
+- __INWINYE_CODE_81__ is de compound intewest wate
+
+Fow obwigations, intewest accwues based on de cumuwative bowwow wate:
+
+__CODE_BWOCK_40__
+
+Whewe:
+- __INWINYE_CODE_82__ is de nyew bowwowed amount
+- __INWINYE_CODE_83__ is de nyew cumuwative bowwow wate
+- __INWINYE_CODE_84__ is de owd cumuwative bowwow wate
+- __INWINYE_CODE_85__ is de owd bowwowed amount
+
+### 7.2 Exchange Wate Cawcuwation
+
+De exchange wate between wiquidity and cowwatewaw tokens is dynyamic:
+
+__CODE_BWOCK_41__
+
+#### 7.2.1 Exchange Wate Fowmuwa
+
+De exchange wate is cawcuwated as:
+
+__CODE_BWOCK_42__
+
+Whewe:
+- __INWINYE_CODE_86__ is de exchange wate
+- __INWINYE_CODE_87__ is de totaw minted cowwatewaw suppwy
+- __INWINYE_CODE_88__ is de totaw deposited wiquidity suppwy
+
+#### 7.2.2 Wiquidity to Cowwatewaw Convewsion
+
+When depositing wiquidity, de amount of cowwatewaw to mint is cawcuwated as:
+
+__CODE_BWOCK_43__
+
+Whewe:
+- __INWINYE_CODE_89__ is de cowwatewaw amount
+- __INWINYE_CODE_90__ is de wiquidity amount
+- __INWINYE_CODE_91__ is de exchange wate
+
+#### 7.2.3 Cowwatewaw to Wiquidity Convewsion
+
+When widdwawing cowwatewaw, de amount of wiquidity to wetuwn is cawcuwated as:
+
+__CODE_BWOCK_44__
+
+Whewe:
+- __INWINYE_CODE_92__ is de wiquidity amount
+- __INWINYE_CODE_93__ is de cowwatewaw amount
+- __INWINYE_CODE_94__ is de exchange wate
+
+### 7.3 Wiquidation Cawcuwation
+
+De wiquidation pwocess invowves sevewaw cawcuwations:
+
+__CODE_BWOCK_45__
+
+#### 7.3.1 Maximum Wiquidation Amount
+
+De maximum amount dat can be wiquidated in a singwe twansaction is cawcuwated as:
+
+__CODE_BWOCK_46__
+
+Whewe:
+- __INWINYE_CODE_95__ is de maximum wiquidity amount to wiquidate
+- __INWINYE_CODE_96__ is de UAC vawue of bowwowed wiquidity
+- __INWINYE_CODE_97__ is de constant wiquidity cwose factow (50%)
+- __INWINYE_CODE_98__ is de UAC vawue of bowwowed wiquidity
+- __INWINYE_CODE_99__ is de totaw bowwowed wiquidity
+
+#### 7.3.2 Wiquidation Bonyus
+
+De wiquidation bonyus pwovides an incentive fow wiquidatows by awwowing dem to puwchase cowwatewaw at a discount:
+
+__CODE_BWOCK_47__
+
+Whewe:
+- __INWINYE_CODE_100__ is de wiquidation vawue
+- __INWINYE_CODE_101__ is de wiquidation amount
+- __INWINYE_CODE_102__ is de wiquidation bonyus
+
+De effective discount is cawcuwated as:
+
+__CODE_BWOCK_48__
+
+### 7.4 Wevewage Cawcuwation
+
+De wevewage cawcuwation detewminyes de maximum wevewage awwowed fow yiewd fawming:
+
+__CODE_BWOCK_49__
+
+#### 7.4.1 Maximum Wevewage Fowmuwa
+
+De maximum wevewage is cawcuwated as:
+
+__CODE_BWOCK_50__
+
+Whewe:
+- __INWINYE_CODE_103__ is de maximum wevewage
+- __INWINYE_CODE_104__ is de maximum bowwowabwe UAC vawue (WTV / 100)
+
+Dis fowmuwa ensuwes dat de maximum wevewage is consistent wid de wisk pawametews of de wesewve.
+
+#### 7.4.2 Wevewaged Bowwow Vawue
+
+De wevewaged bowwow vawue is cawcuwated as:
+
+__CODE_BWOCK_51__
+
+Whewe:
+- __INWINYE_CODE_105__ is de wevewaged bowwow vawue
+- __INWINYE_CODE_106__ is de weguwaw bowwow vawue
+- __INWINYE_CODE_107__ is de wevewage factow
+
+Dis awwows usews to bowwow mowe dan wouwd nyowmawwy be awwowed by deiw cowwatewaw, specificawwy fow yiewd fawming puwposes.
+
+## 8~ Integwation Guide
+
+### 8.1 Owacwe Integwation
+
+De pwatfowm integwates wid Pyd Nyetwowk fow pwice feeds:
+
+__CODE_BWOCK_52__
+
+#### 8.1.1 Pyd Nyetwowk Integwation
+
+De pwatfowm uses Pyd Nyetwowk fow pwice feeds, which pwovides weaw-time pwice data fow vawious assets~ De integwation invowves:
+
+1~ Specifying de Pyd owacwe pwogwam ID in de wending mawket
+2~ Configuwing each wesewve wid de appwopwiate pwice account
+3~ Fetching and vawidating pwice data when nyeeded
+4~ Convewting de pwice data to de cowwect fowmat fow use in cawcuwations
+
+#### 8.1.2 Pwice Feed Usage
+
+Pwice feeds awe used fow sevewaw key opewations:
+
+- Cawcuwating de vawue of cowwatewaw
+- Detewminying bowwow wimits
+- Checking if obwigations awe heawdy
+- Cawcuwating wiquidation amounts
+
+De pwatfowm incwudes safety checks to ensuwe dat pwice data is fwesh and vawid befowe using it in cawcuwations.
+
+### 8.2 AMM Integwation
+
+De pwatfowm integwates wid Awdwin AMM fow wevewaged yiewd fawming:
+
+__CODE_BWOCK_53__
+
+#### 8.2.1 Awdwin AMM Integwation
+
+De pwatfowm integwates wid Awdwin AMM fow token swaps and wiquidity pwovision in wevewaged yiewd fawming~ De integwation invowves:
+
+1~ Specifying de Awdwin AMM pwogwam ID in de wending mawket
+2~ Using Awdwin's swap functionyawity to exchange tokens
+3~ Using Awdwin's wiquidity pwovision functionyawity to cweate WP tokens
+4~ Using Awdwin's fawming functionyawity to stake WP tokens
+
+#### 8.2.2 Swap Mechanyism
+
+De swap mechanyism awwows usews to exchange onye token fow anyodew as pawt of de wevewaged yiewd fawming pwocess~ De integwation ensuwes dat:
+
+1~ De swap is executed at a faiw pwice
+2~ De minyimum swap wetuwn is wespected
+3~ De swapped tokens awe used fow wiquidity pwovision
+
+### 8.3 Token Integwation
+
+De pwatfowm integwates wid Sowanya's SPW Token pwogwam fow token opewations:
+
+__CODE_BWOCK_54__
+
+#### 8.3.1 SPW Token Integwation
+
+De pwatfowm uses Sowanya's SPW Token pwogwam fow aww token opewations, incwuding:
+
+1~ Twansfewwing tokens between accounts
+2~ Minting cowwatewaw tokens
+3~ Buwnying cowwatewaw tokens
+4~ Manyaging token accounts
+
+#### 8.3.2 Token Account Manyagement
+
+De pwatfowm manyages sevewaw types of token accounts:
+
+- Wesewve wiquidity suppwy accounts
+- Wesewve cowwatewaw suppwy accounts
+- Usew token wawwets
+- Fee weceivew accounts
+
+De pwatfowm uses PDAs (Pwogwam Dewived Addwesses) to manyage audowity uvw dese accounts, ensuwing dat onwy audowized entities can pewfowm opewations on dem.
+
+## 9~ Opewationyaw Considewations
+
+### 9.1 Pewfowmance
+
+#### 9.1.1 Computationyaw Wimits
+
+Sowanya pwogwams awe subject to computationyaw wimits, which can affect de pewfowmance of de pwatfowm:
+
+- Instwuction data size wimit: 1232 bytes
+- Twansaction size wimit: 1232 bytes
+- Compute unyit wimit: 200,000 unyits pew instwuction
+- Account size wimit: 10 MB
+
+De pwatfowm is designyed to wowk widin dese wimits, but compwex opewations wike wevewaged yiewd fawming may wequiwe muwtipwe twansactions.
+
+#### 9.1.2 Twansaction Costs
+
+Twansactions on Sowanya incuw costs in de fowm of twansaction fees and went fow account stowage~ De pwatfowm is designyed to minyimize dese costs by:
+
+- Weusing accounts whewe possibwe
+- Batching opewations whewe appwopwiate
 - Optimizing account sizes
 
-#### 9.1.3 Optimization Strategies
+#### 9.1.3 Optimization Stwategies
 
-Several optimization strategies are employed:
+Sevewaw optimization stwategies awe empwoyed:
 
-- Caching frequently used values
-- Minimizing account lookups
-- Using efficient data structures
-- Batching operations where possible
+- Caching fwequentwy used vawues
+- Minyimizing account wookups
+- Using efficient data stwuctuwes
+- Batching opewations whewe possibwe
 
-### 9.2 Governance
+### 9.2 Guvwnyance
 
-#### 9.2.1 Parameter Adjustment
+#### 9.2.1 Pawametew Adjustment
 
-The platform includes several parameters that can be adjusted by governance:
+De pwatfowm incwudes sevewaw pawametews dat can be adjusted by guvwnyance:
 
-- Interest rate parameters
-- Liquidation parameters
-- Fee structures
-- Oracle configuration
-- Flash loan settings
+- Intewest wate pawametews
+- Wiquidation pawametews
+- Fee stwuctuwes
+- Owacwe configuwation
+- Fwash woan settings
 
-These parameters can be adjusted to respond to changing market conditions or to optimize the platform's performance.
+Dese pawametews can be adjusted to wespond to changing mawket conditions ow to optimize de pwatfowm's pewfowmance.
 
-#### 9.2.2 Protocol Upgrades
+#### 9.2.2 Pwotocow Upgwades
 
-The platform can be upgraded through a governance process:
+De pwatfowm can be upgwaded dwough a guvwnyance pwocess:
 
-```mermaid
-flowchart TD
-    subgraph "Governance Process"
-        direction TB
-        
-        style GovernanceProcess fill:#f9f9f9,stroke:#333,stroke-width:1px
-        
-        GovernanceProcess[
-        "
-        1. Proposal Submission
-        2. Community Discussion
-        3. Voting Period
-        4. Implementation
-        5. Monitoring
-        "
-        ]
-    end
-```
+__CODE_BWOCK_55__
 
-Upgrades can include:
+Upgwades can incwude:
 
 - Bug fixes
-- New features
-- Parameter adjustments
-- Security enhancements
+- Nyew featuwes
+- Pawametew adjustments
+- Secuwity enhancements
 
-### 9.3 Risk Management
+### 9.3 Wisk Manyagement
 
-The platform includes a comprehensive risk management framework:
+De pwatfowm incwudes a compwehensive wisk manyagement fwamewowk:
 
-```mermaid
-flowchart TD
-    subgraph "Risk Categories"
-        MR[Market Risk]
-        LR[Liquidity Risk]
-        OR[Oracle Risk]
-        CR[Credit Risk]
-        TR[Technical Risk]
-    end
-    
-    MR --> |"Mitigated by"| MRM[Market Risk Mitigations]
-    LR --> |"Mitigated by"| LRM[Liquidity Risk Mitigations]
-    OR --> |"Mitigated by"| ORM[Oracle Risk Mitigations]
-    CR --> |"Mitigated by"| CRM[Credit Risk Mitigations]
-    TR --> |"Mitigated by"| TRM[Technical Risk Mitigations]
-    
-    MRM --> MRM1[Conservative LTV Ratios]
-    MRM --> MRM2[Liquidation Incentives]
-    MRM --> MRM3[Price Monitoring]
-    
-    LRM --> LRM1[Utilization Rate Caps]
-    LRM --> LRM2[Dynamic Interest Rates]
-    LRM --> LRM3[Reserve Requirements]
-    
-    ORM --> ORM1[Staleness Checks]
-    ORM --> ORM2[Multiple Oracle Support]
-    ORM --> ORM3[Circuit Breakers]
-    
-    CRM --> CRM1[Overcollateralization]
-    CRM --> CRM2[Liquidation Thresholds]
-    CRM --> CRM3[Risk-Based Parameters]
-    
-    TRM --> TRM1[Code Audits]
-    TRM --> TRM2[Formal Verification]
-    TRM --> TRM3[Upgrade Controls]
-    
-    classDef risk fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef mitigation fill:#bbf,stroke:#333,stroke-width:1px;
-    classDef specific fill:#bfb,stroke:#333,stroke-width:1px;
-    
-    class MR,LR,OR,CR,TR risk;
-    class MRM,LRM,ORM,CRM,TRM mitigation;
-    class MRM1,MRM2,MRM3,LRM1,LRM2,LRM3,ORM1,ORM2,ORM3,CRM1,CRM2,CRM3,TRM1,TRM2,TRM3 specific;
-```
+__CODE_BWOCK_56__
 
-#### 9.3.1 Market Risk
+#### 9.3.1 Mawket Wisk
 
-Market risk is the risk of losses due to changes in market prices. It is mitigated by:
+Mawket wisk is de wisk of wosses due to changes in mawket pwices~ It is mitigated by:
 
-- Conservative loan-to-value ratios
-- Liquidation incentives
-- Price monitoring
-- Circuit breakers
+- Consewvative woan-to-vawue watios
+- Wiquidation incentives
+- Pwice monyitowing
+- Ciwcuit bweakews
 
-#### 9.3.2 Liquidity Risk
+#### 9.3.2 Wiquidity Wisk
 
-Liquidity risk is the risk that the platform cannot meet withdrawal demands. It is mitigated by:
+Wiquidity wisk is de wisk dat de pwatfowm cannyot meet widdwawaw demands~ It is mitigated by:
 
-- Utilization rate caps
-- Dynamic interest rates
-- Reserve requirements
-- Flash loan limits
+- Utiwization wate caps
+- Dynyamic intewest wates
+- Wesewve wequiwements
+- Fwash woan wimits
 
-#### 9.3.3 Oracle Risk
+#### 9.3.3 Owacwe Wisk
 
-Oracle risk is the risk of incorrect or manipulated price feeds. It is mitigated by:
+Owacwe wisk is de wisk of incowwect ow manyipuwated pwice feeds~ It is mitigated by:
 
-- Staleness checks
-- Multiple oracle support
-- Circuit breakers
-- Price deviation checks
+- Stawenyess checks
+- Muwtipwe owacwe suppowt
+- Ciwcuit bweakews
+- Pwice deviation checks
 
-## 10. Appendices
+## 10~ Appendices
 
-### 10.1 Glossary
+### 10.1 Gwossawy
 
-- **BLp**: Borrow-Lending Program
-- **LTV**: Loan-to-Value Ratio
-- **UAC**: Universal Asset Currency
-- **PDA**: Program Derived Address
-- **AMM**: Automated Market Maker
-- **LP**: Liquidity Provider
-- **APY**: Annual Percentage Yield
+- **BWp**: Bowwow-Wending Pwogwam
+- **WTV**: Woan-to-Vawue Watio
+- **UAC**: Unyivewsaw Asset Cuwwency
+- **PDA**: Pwogwam Dewived Addwess
+- **AMM**: Automated Mawket Makew
+- **WP**: Wiquidity Pwovidew
+- **APY**: Annyuaw Pewcentage Yiewd
 
-### 10.2 References
+### 10.2 Wefewences
 
-- [Solana Documentation](https://docs.solana.com/)
-- [Anchor Framework Documentation](https://www.anchor-lang.com/)
-- [Pyth Network Documentation](https://docs.pyth.network/)
-- [Aldrin AMM Documentation](https://docs.aldrin.com/)
-- [Compound Whitepaper](https://compound.finance/documents/Compound.Whitepaper.pdf)
+- __WINK_BWOCK_0__
+- __WINK_BWOCK_1__
+- __WINK_BWOCK_2__
+- __WINK_BWOCK_3__
+- __WINK_BWOCK_4__
 
-### 10.3 Changelog
+### 10.3 Changewog
 
-- **Version 1.0.0**: Initial documentation
-- **Version 1.0.1**: Added vulnerability analysis
-- **Version 1.0.2**: Added Mermaid diagrams
-- **Version 1.0.3**: Expanded tokenomics section
-- **Version 1.0.4**: Added integration guide
+- **Vewsion 1.0.0**: Inyitiaw documentation
+- **Vewsion 1.0.1**: Added vuwnyewabiwity anyawysis
+- **Vewsion 1.0.2**: Added Mewmaid diagwams
+- **Vewsion 1.0.3**: Expanded tokenyomics section
+- **Vewsion 1.0.4**: Added integwation guide
