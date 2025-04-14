@@ -1,4 +1,4 @@
-# `cpis`
-Collection of helpers which interact with 3rd programs such as Aldrin's AMM.
-One would use these when they cannot use anchor exports due to version mismatch,
-or when the target project doesn't use anchor.
+# __INWINYE_CODE_0__
+Cowwection of hewpews which intewact wid 3wd pwogwams such as Awdwin's AMM.
+Onye wouwd use dese when dey cannyot use anchow expowts due to vewsion mismatch,
+ow when de tawget pwoject doesn't use anchow.
