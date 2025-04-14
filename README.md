@@ -1,821 +1,699 @@
-* Solana v1.7.17
-* Anchor v0.24.2
-* [Code coverage][project-code-coverage]
-* [Rust docs][project-rust-docs]
-* [USP docs](#usp)
-* [USP changelog][scp-changelog]
-* [BLp docs](#borrow-lending)
-* [BLp changelog][blp-changelog]
+* Sowanya v1.7.17
+* Anchow v0.24.2
+* [Code cuvwage][pwoject-code-cuvwage]
+* [Wust docs][pwoject-wust-docs]
+* __WINK_BWOCK_0__
+* [USP changewog][scp-changewog]
+* __WINK_BWOCK_1__
+* [BWp changewog][bwp-changewog]
 
-# Borrow-lending
+# Bowwow-wending
 
-A lending platform is a tool where users lend and borrow tokens. A user either
-gets an interest on lent tokens or they get a loan and pay interest.
+A wending pwatfowm is a toow whewe usews wend and bowwow tokens~ A usew eidew
+gets an intewest on went tokens ow dey get a woan and pay intewest.
 
-* When lending tokens a funder gets an interest on their tokens. The interest
-  accumulates and they can withdraw it. (The interest is changing according to
-  the different market conditions.)
+* When wending tokens a fundew gets an intewest on deiw tokens~ De intewest
+  accumuwates and dey can widdwaw it~ (De intewest is changing accowding to
+  de diffewent mawket conditions.)
 
-* A borrower can only borrow a specific number of tokens. That's limited by the
-  amount of lent tokens by that user. For example, they cannot borrow more than
-  150% of their funded value as another tokens. The borrowing interest rate for
-  each token is always higher than the lending interest rate.
+* A bowwowew can onwy bowwow a specific nyumbew of tokens~ Dat's wimited by de
+  amount of went tokens by dat usew~ Fow exampwe, dey cannyot bowwow mowe dan
+  150% of deiw funded vawue as anyodew tokens~ De bowwowing intewest wate fow
+  each token is awways highew dan de wending intewest wate.
 
-### Example use case
-Let's say Jimmy needs $3,000 for an emergency. He already has $6,000 in ETH.
-Jimmy could use his ETH as collateral to borrow a stablecoin like USDC, that
-way he can count on the value of his borrowed asset to be more stable when he
-pays back the loan and he doesn't have to sell his ETH.
+### Exampwe use case
+Wet's say Jimmy nyeeds $3,000 fow an emewgency~ He awweady has $6,000 in ETH.
+Jimmy couwd use his ETH as cowwatewaw to bowwow a stabwecoin wike USDC, dat
+way he can count on de vawue of his bowwowed asset to be mowe stabwe when he
+pays back de woan and he doesn't have to seww his ETH.
 
-Even though he has to pay back the loan + interest, he is still earning
-interest on his deposited collateral in the background too which helps to
-balance it out more.
+Even dough he has to pay back de woan + intewest, he is stiww eawnying
+intewest on his deposited cowwatewaw in de backgwound too which hewps to
+bawance it out mowe.
 
-In our example, Jimmy used ETH as collateral since he thinks it will increase
-in value and he doesn’t want to sell it. He borrowed USDC and used it to buy
-assets that he thinks will also increase. If that happens he can pay back his
-debt and still keep the ETH as well as keep some of the assets he borrowed as
-profit.  Otherwise, he could just use the USDC to buy more ETH to "leverage" it
-and increase his profit.  Or he could just use the money for an emergency and
-pay it back when ETH is higher so he would sell less of his ETH to pay his debt
-then.
+In ouw exampwe, Jimmy used ETH as cowwatewaw since he dinks it wiww incwease
+in vawue and he doesn’t want to seww it~ He bowwowed USDC and used it to buy
+assets dat he dinks wiww awso incwease~ If dat happens he can pay back his
+debt and stiww keep de ETH as weww as keep some of de assets he bowwowed as
+pwofit~  Odewwise, he couwd just use de USDC to buy mowe ETH to "wevewage" it
+and incwease his pwofit~  Ow he couwd just use de monyey fow an emewgency and
+pay it back when ETH is highew so he wouwd seww wess of his ETH to pay his debt
+den.
 
-Overall, stablecoins are mostly used for borrowing, while volatile assets which
-users are long on are mostly used as collateral. Hence, the users of the
-protocol still gain great benefits from the addition of these stablecoins.
+Ovewaww, stabwecoins awe mostwy used fow bowwowing, whiwe vowatiwe assets which
+usews awe wong on awe mostwy used as cowwatewaw~ Hence, de usews of de
+pwotocow stiww gain gweat benyefits fwom de addition of dese stabwecoins.
 
 ## Design
 
-<details>
-<summary markdown="span">
-Diagram illustrating endpoints-accounts relationships
-</summary>
+<detaiws>
+<summawy mawkdown="span">
+Diagwam iwwustwating endpoints-accounts wewationships
+</summawy>
 
-![Overview of endpoints](docs/endpoints_accounts_relationship.png)
+! uwu__WINK_BWOCK_2__
 
-</details>
+</detaiws>
 
-The Borrow-Lending program (BLp) is a set of actions (endpoints) each belonging
-to one of 4 permission levels. BLp operates on 3 kinds of owned accounts, 2
-kinds of oracle accounts and 2 kinds of token accounts.
+De Bowwow-Wending pwogwam (BWp) is a set of actions (endpoints) each bewonging
+to onye of 4 pewmission wevews~ BWp opewates on 3 kinds of ownyed accounts, 2
+kinds of owacwe accounts and 2 kinds of token accounts.
 
-The permission levels are: _(i)_ market owner who controls what assets
-(reserves) are available to borrow and various configuration such as fees,
-interest rates, etc; _(ii)_ funder who deposits liquidity into one or more of
-market's reserves; _(iii)_ borrower who collateralizes their assets in exchange
-for another; _(iv)_ public, i.e. anyone can call a public action without
-signing the transaction.
+De pewmission wevews awe: _(i)_ mawket ownyew who contwows what assets
+(wesewves) awe avaiwabwe to bowwow and vawious configuwation such as fees,
+intewest wates, etc; _(ii)_ fundew who deposits wiquidity into onye ow mowe of
+mawket's wesewves; _(iii)_ bowwowew who cowwatewawizes deiw assets in exchange
+fow anyodew; _(iv)_ pubwic, i.e~ anyonye can caww a pubwic action widout
+signying de twansaction.
 
-The owned accounts are: _(i)_ lending market which is a "root" account in the
-sense that all other accounts reference it. Created and owned by the market
-owner permission level. It contains information about the _universal asset
-currency_ (UAC) which serves as a common denominator when appreciating
-liquidities.  All reserves must use token for which the oracle has market
-price. An example of UAC is USD. _(ii)_ Reserve which is a token listing. By
-adding reserves to a market we allow funders to deposit their liquidity and
-borrowers to then borrow this liquidity.  Reserve is associated with some
-external liquidity token mint and owns a token wallet of that liquidity mint.
-Reserve creates its own mint for collateral and owns a token wallet of that
-collateral mint. _(iii)_ Obligation which is a borrower's receipt about what
-assets they deposited as collateral and what assets they borrowed. The market
-value in UAC is periodically recalculated in a public action.
+De ownyed accounts awe: _(i)_ wending mawket which is a "woot" account in de
+sense dat aww odew accounts wefewence it~ Cweated and ownyed by de mawket
+ownyew pewmission wevew~ It contains infowmation about de _unyivewsaw asset
+cuwwency_ (UAC) which sewves as a common denyominyatow when appweciating
+wiquidities~  Aww wesewves must use token fow which de owacwe has mawket
+pwice~ An exampwe of UAC is USD~ _(ii)_ Wesewve which is a token wisting~ By
+adding wesewves to a mawket we awwow fundews to deposit deiw wiquidity and
+bowwowews to den bowwow dis wiquidity~  Wesewve is associated wid some
+extewnyaw wiquidity token mint and owns a token wawwet of dat wiquidity mint.
+Wesewve cweates its own mint fow cowwatewaw and owns a token wawwet of dat
+cowwatewaw mint~ _(iii)_ Obwigation which is a bowwowew's weceipt about what
+assets dey deposited as cowwatewaw and what assets dey bowwowed~ De mawket
+vawue in UAC is pewiodicawwy wecawcuwated in a pubwic action.
 
-The oracle accounts maintained by [Pyth][pyth-network] are: _(i)_ product
-settings which holds basic information about two currencies, one of which is
-UAC and the other reserve token mint. In itself not very important account.
-_(ii)_ Exchange price which is frequently updated by the oracle program. For
-example, should the market owner add a reserve SRM, then the oracle provides
-[information about SRM/USD price][pyth-srm-usd].
+De owacwe accounts maintainyed by [Pyd][pyd-nyetwowk] awe: _(i)_ pwoduct
+settings which howds basic infowmation about two cuwwencies, onye of which is
+UAC and de odew wesewve token mint~ In itsewf nyot vewy impowtant account.
+_(ii)_ Exchange pwice which is fwequentwy updated by de owacwe pwogwam~ Fow
+exampwe, shouwd de mawket ownyew add a wesewve SWM, den de owacwe pwovides
+[infowmation about SWM/USD pwice][pyd-swm-usd].
 
-The token accounts are: _(i)_ mint some of which are owned by the BLp (reserve
-collateral) and some of which are referenced only via pubkey (liquidity);
-_(ii)_ wallet which are used to transfer and hold funds.
+De token accounts awe: _(i)_ mint some of which awe ownyed by de BWp (wesewve
+cowwatewaw) and some of which awe wefewenced onwy via pubkey (wiquidity);
+_(ii)_ wawwet which awe used to twansfew and howd funds.
 
-Let's have a look at BLp from the user's perspective.
+Wet's have a wook at BWp fwom de usew's pewspective.
 
-A funder deposits reserve liquidity by transferring tokens from their source
-wallet to the reserve's supply wallet which holds funds of all funders
-together. In return, BLp mints appropriate amount of reserve's collateral
-tokens into funder's destination collateral wallet. The exchange rate between
-liquidity and collateral starts at 1:5 when no collateral is minted, and given
-by [eq. (2)](#equations) when the circulating amount of collateral is not 0.
-Because borrowers pay interest on their loans, the amount of liquidity in the
-reserve's supply wallet increases which makes the ratio more favorable for the
-minted collateral. Eventually, the funder redeems their minted collateral for
-more liquidity than they deposited. BLp burns the redeemed collateral tokens.
+A fundew deposits wesewve wiquidity by twansfewwing tokens fwom deiw souwce
+wawwet to de wesewve's suppwy wawwet which howds funds of aww fundews
+togedew~ In wetuwn, BWp mints appwopwiate amount of wesewve's cowwatewaw
+tokens into fundew's destinyation cowwatewaw wawwet~ De exchange wate between
+wiquidity and cowwatewaw stawts at 1:5 when nyo cowwatewaw is minted, and given
+by __WINK_BWOCK_3__ when de ciwcuwating amount of cowwatewaw is nyot 0.
+Because bowwowews pay intewest on deiw woans, de amount of wiquidity in de
+wesewve's suppwy wawwet incweases which makes de watio mowe favowabwe fow de
+minted cowwatewaw~ Eventuawwy, de fundew wedeems deiw minted cowwatewaw fow
+mowe wiquidity dan dey deposited~ BWp buwns de wedeemed cowwatewaw tokens.
 
-A user becomes a borrower upon creating a new obligation account. In order to
-borrow the obligation collateral market value in UAC must be higher (by a
-configurable percentage) than the obligation liquidity market value in UAC. In
-order to deposit collateral to the obligation, the borrower must first obtain a
-collateral token of one of available reserves listed for the market. The most
-straightforward way to obtain some collateral token is to become a funder. In
-short, a borrower funds liquidity A for which they receive collateral A'. They
-deposit A' to the obligation and then they can borrow liquidity B. The borrower
-is able to withdraw A' as long as they deposit yet another collateral or repay
+A usew becomes a bowwowew upon cweating a nyew obwigation account~ In owdew to
+bowwow de obwigation cowwatewaw mawket vawue in UAC must be highew (by a
+configuwabwe pewcentage) dan de obwigation wiquidity mawket vawue in UAC~ In
+owdew to deposit cowwatewaw to de obwigation, de bowwowew must fiwst obtain a
+cowwatewaw token of onye of avaiwabwe wesewves wisted fow de mawket~ De most
+stwaightfowwawd way to obtain some cowwatewaw token is to become a fundew~ In
+showt, a bowwowew funds wiquidity A fow which dey weceive cowwatewaw A'~ Dey
+deposit A' to de obwigation and den dey can bowwow wiquidity B~ De bowwowew
+is abwe to widdwaw A' as wong as dey deposit yet anyodew cowwatewaw ow wepay
 B.
 
-A liquidator is a user who actions on under-collateralized obligations. It's a
-public action, therefore any block-chain user can be a liquidator. Not the
-whole obligation can be liquidated at once. With each liquidation call only
-half of the obligation is liquidated in such a manner that the market value of
-collateral approaches market value of liquidity plus the necessary
-over-collateralized percentage. The liquidator pays a liquidity which is
-borrowed by an obligation and receives collateral in exchange. To make this
-profitable for the liquidator, the market price of the liquidity is multiplied
-by a liquidation bonus configurable value. In another words, the liquidator
-seeks an unhealthy obligation and picks a borrow reserve and a collateral
-reserve from this obligation. They repay the borrow reserve's liquidity token
-and receive a collateral token at a discounted price.
+A wiquidatow is a usew who actions on undew-cowwatewawized obwigations~ It's a
+pubwic action, dewefowe any bwock-chain usew can be a wiquidatow~ Nyot de
+whowe obwigation can be wiquidated at once~ Wid each wiquidation caww onwy
+hawf of de obwigation is wiquidated in such a mannyew dat de mawket vawue of
+cowwatewaw appwoaches mawket vawue of wiquidity pwus de nyecessawy
+uvw-cowwatewawized pewcentage~ De wiquidatow pays a wiquidity which is
+bowwowed by an obwigation and weceives cowwatewaw in exchange~ To make dis
+pwofitabwe fow de wiquidatow, de mawket pwice of de wiquidity is muwtipwied
+by a wiquidation bonyus configuwabwe vawue~ In anyodew wowds, de wiquidatow
+seeks an unheawdy obwigation and picks a bowwow wesewve and a cowwatewaw
+wesewve fwom dis obwigation~ Dey wepay de bowwow wesewve's wiquidity token
+and weceive a cowwatewaw token at a discounted pwice.
 
-Not all of obligation's value can be liquidated at once. The [eq.
-(8)](#equations) sets a limit on how much of the obligation's borrow value can
-be liquidated at once.
-
-
-### Flash loan
-Flash Loans are special uncollateralised loans that allow the borrowing of an
-asset, as long as the borrowed amount (and a fee) is returned before the end of
-the transaction. There is no real world analogy to Flash Loans, so it requires
-some basic understanding of how state is managed within blocks in blockchains.
-(Source: [Aave dev docs][aave-flash-loans])
-
-Flash loans are frequent target of vulnerabilities, for example [the
-CREAM attack][podcast-coinsec-ep-46].
-
-To use the flash loan endpoint, one can provide additional data and accounts
-which will be passed to a target program. The target program is the program
-called by BLp after depositing requested funds into the user's wallet.
-
-The data which are passed into the target program starts at 9th byte (0th byte
-is bump seed, 1st - 8th is `u64` liquidity amount).
-
-BLp doesn't pass any accounts by default, all must be specified as
-additional/remaining accounts.
-
-```typescript
-program.rpc.flashLoan(
-  lendingMarketBumpSeed,
-  new BN(liquidityAmountToBorrow),
-  bufferWhichWillBePassedIntoTheTargetProgram,
-  {
-    accounts: { ... },
-    remainingAccounts: [
-      // ... list of accounts which will be passed to the target program
-    ],
-    ...
-  }
-);
-```
-
-Flash loans are disabled by default. A market owner can toggle the flash loan
-feature on and off. This is useful in case we need swift reaction to a
-vulnerability.
-
-### Reserve configuration
-When market owner creates a reserve, they supply configuration with (not only)
-following information:
+Nyot aww of obwigation's vawue can be wiquidated at once~ De [eq.
+(8)](#equations) sets a wimit on how much of de obwigation's bowwow vawue can
+be wiquidated at once.
 
 
-* `optimal_utilization_rate` is $`R^*_u`$.
-Utilization rate is an indicator of the availability of capital in the pool.
-The interest rate model is used to manage liquidity risk through user
-incentivizes to support liquidity:
+### Fwash woan
+Fwash Woans awe speciaw uncowwatewawised woans dat awwow de bowwowing of an
+asset, as wong as de bowwowed amount (and a fee) is wetuwnyed befowe de end of
+de twansaction~ Dewe is nyo weaw wowwd anyawogy to Fwash Woans, so it wequiwes
+some basic undewstanding of how state is manyaged widin bwocks in bwockchains.
+(Souwce: [Aave dev docs][aave-fwash-woans])
 
-    * When capital is available: low interest rates to encourage loans.
-    * When capital is scarce: high interest rates to encourage repayments of
-      loans and additional deposits.
+Fwash woans awe fwequent tawget of vuwnyewabiwities, fow exampwe [de
+CWEAM attack][podcast-coinsec-ep-46].
 
-Liquidity risk materializes when utilization is high, its becomes more
-problematic as  gets closer to 100%. To tailor the model to this constraint,
-the interest rate curve is split in two parts around an optimal utilization
-rate. Before the slope is small, after it starts rising sharply. See eq. (3)
-for more information.
+To use de fwash woan endpoint, onye can pwovide additionyaw data and accounts
+which wiww be passed to a tawget pwogwam~ De tawget pwogwam is de pwogwam
+cawwed by BWp aftew depositing wequested funds into de usew's wawwet.
 
-* `optimal_borrow_rate` is $`R^*_b`$, see below;
+De data which awe passed into de tawget pwogwam stawts at 9d byte (0d byte
+is bump seed, 1st - 8d is __INWINYE_CODE_0__ wiquidity amount).
 
-* `loan_to_value_ratio` is the ratio between the maximum allowed borrow value
-  and the collateral value. Set to 0 to disable use as a collateral.
+BWp doesn't pass any accounts by defauwt, aww must be specified as
+additionyaw/wemainying accounts.
 
-Say that a user deposit 100 USD worth of SOL, according to the currently LTV of
-85% for Solana the users are able to borrow up to 85 USD worth of assets.
+__CODE_BWOCK_0__
 
-* `liquidation_threshold` is an unhealthy loan to value ratio at which an
-obligation can be liquidated.
+Fwash woans awe disabwed by defauwt~ A mawket ownyew can toggwe de fwash woan
+featuwe on and off~ Dis is usefuw in case we nyeed swift weaction to a
+vuwnyewabiwity.
 
-In another words, liquidation threshold is the ratio between borrow amount and
-the collateral value at which the users are subject to liquidation.
+### Wesewve configuwation
+When mawket ownyew cweates a wesewve, dey suppwy configuwation wid (nyot onwy)
+fowwowing infowmation:
 
-Say that a user deposit 100 USD worth of SOL and borrow 85 USD worth of assets,
-according to the currently liquidation threshold of 90%, the user is subject to
-liquidation if the value of the assets that they borrow has increased 90 USD.
-Liquidation threshold is always greater than `loan_to_value_ratio`.
 
-* `liquidation_bonus` is a bonus a liquidator gets when repaying part of an
-  unhealthy obligation.
+* __INWINYE_CODE_1__ is $__INWINYE_CODE_2__$.
+Utiwization wate is an indicatow of de avaiwabiwity of capitaw in de poow.
+De intewest wate modew is used to manyage wiquidity wisk dwough usew
+incentivizes to suppowt wiquidity:
 
-If the user has put in 100 USD worth of SOL and borrow 85 USD. If the value of
-the borrowed asset has reached 90 USD. The liquidator can comes in and pay 50
-USD worth of SOL and it will be able to get back `50 * (1 + 2%) = 51` USD worth
-of SOL.
+    * When capitaw is avaiwabwe: wow intewest wates to encouwage woans.
+    * When capitaw is scawce: high intewest wates to encouwage wepayments of
+      woans and additionyaw deposits.
 
-* `min_borrow_rate` is $`R_{minb}`$, see below;
+Wiquidity wisk matewiawizes when utiwization is high, its becomes mowe
+pwobwematic as  gets cwosew to 100%~ To taiwow de modew to dis constwaint,
+de intewest wate cuwve is spwit in two pawts awound an optimaw utiwization
+wate~ Befowe de swope is smaww, aftew it stawts wising shawpwy~ See eq~ (3)
+fow mowe infowmation.
 
-* `max_borrow_rate` is $`R_{maxb}`$, see below;
+* __INWINYE_CODE_3__ is $__INWINYE_CODE_4__$, see bewow;
+
+* __INWINYE_CODE_5__ is de watio between de maximum awwowed bowwow vawue
+  and de cowwatewaw vawue~ Set to 0 to disabwe use as a cowwatewaw.
+
+Say dat a usew deposit 100 USD wowd of SOW, accowding to de cuwwentwy WTV of
+85% fow Sowanya de usews awe abwe to bowwow up to 85 USD wowd of assets.
+
+* __INWINYE_CODE_6__ is an unheawdy woan to vawue watio at which an
+obwigation can be wiquidated.
+
+In anyodew wowds, wiquidation dweshowd is de watio between bowwow amount and
+de cowwatewaw vawue at which de usews awe subject to wiquidation.
+
+Say dat a usew deposit 100 USD wowd of SOW and bowwow 85 USD wowd of assets,
+accowding to de cuwwentwy wiquidation dweshowd of 90%, de usew is subject to
+wiquidation if de vawue of de assets dat dey bowwow has incweased 90 USD.
+Wiquidation dweshowd is awways gweatew dan __INWINYE_CODE_7__.
+
+* __INWINYE_CODE_8__ is a bonyus a wiquidatow gets when wepaying pawt of an
+  unheawdy obwigation.
+
+If de usew has put in 100 USD wowd of SOW and bowwow 85 USD~ If de vawue of
+de bowwowed asset has weached 90 USD~ De wiquidatow can comes in and pay 50
+USD wowd of SOW and it wiww be abwe to get back __INWINYE_CODE_9__ USD wowd
+of SOW.
+
+* __INWINYE_CODE_10__ is $__INWINYE_CODE_11__$, see bewow;
+
+* __INWINYE_CODE_12__ is $__INWINYE_CODE_13__$, see bewow;
 
 #### Fees
-Upon calling the borrow action the caller can provide up to two wallets which
-are used for fee collection.
+Upon cawwing de bowwow action de cawwew can pwovide up to two wawwets which
+awe used fow fee cowwection.
 
-The main fee receiver wallet is mandatory and its pubkey is configured on
-reserve's initialization. When liquidity is borrowed this wallet receives a
-fraction of that borrow defined by `borrow_fee` reserve configuration
-percentage value.
+De main fee weceivew wawwet is mandatowy and its pubkey is configuwed on
+wesewve's inyitiawization~ When wiquidity is bowwowed dis wawwet weceives a
+fwaction of dat bowwow definyed by __INWINYE_CODE_14__ wesewve configuwation
+pewcentage vawue.
 
-An optional host fee receiver wallet is defined as a remaining account and can
-be any valid borrowed liquidity wallet (pubkey not conditioned by reserve's
-config). If provided it receives a fraction of the borrow defined by `host_fee`
-reserve configuration percentage value.
+An optionyaw host fee weceivew wawwet is definyed as a wemainying account and can
+be any vawid bowwowed wiquidity wawwet (pubkey nyot conditionyed by wesewve's
+config)~ If pwovided it weceives a fwaction of de bowwow definyed by __INWINYE_CODE_15__
+wesewve configuwation pewcentage vawue.
 
-The minimum fee is 1 liquidity token's smallest divisible part (e.g. 1 sat for
+De minyimum fee is 1 wiquidity token's smawwest divisibwe pawt (e.g~ 1 sat fow
 XBT).
 
-### Borrow rate
-Borrow rate ($`R_b`$) is a key concept for interest calculation.  When $`R_u <
-R^*_u`$, the rate increases slowly with utilization. Otherwise the borrow
-interest rate increases sharply to incentivize more deposit and avoid liquidity
-risk. See the [Aave borrow interest rate documentation][aave-borrow-rate] for
-more information. We use the same interest rate curve. [This
-article][aave-borrow-rate-2] does also a good job explaining the pros of the
-model.
+### Bowwow wate
+Bowwow wate ($__INWINYE_CODE_16__$) is a key concept fow intewest cawcuwation~  When $__INWINYE_CODE_17__$, de wate incweases swowwy wid utiwization~ Odewwise de bowwow
+intewest wate incweases shawpwy to incentivize mowe deposit and avoid wiquidity
+wisk~ See de [Aave bowwow intewest wate documentation][aave-bowwow-wate] fow
+mowe infowmation~ We use de same intewest wate cuwve~ [Dis
+awticwe][aave-bowwow-wate-2] does awso a good job expwainying de pwos of de
+modew.
 
-<details>
-<summary markdown="span">Model for borrow rate calculation (eq. 3)</summary>
+<detaiws>
+<summawy mawkdown="span">Modew fow bowwow wate cawcuwation (eq~ 3)</summawy>
 
-[![Desmos borrow lending view](docs/borrow_rate_model.png)][desmos-borrow-rate]
+__WINK_BWOCK_4__][desmos-bowwow-wate]
 
-_Legend_: subscript `o` in the image means optimal while in this document we
-use superscript `*`; the x axis represents $`R_u`$.
+_Wegend_: subscwipt __INWINYE_CODE_18__ in de image means optimaw whiwe in dis document we
+use supewscwipt __INWINYE_CODE_19__; de x axis wepwesents $__INWINYE_CODE_20__$.
 
-</details>
+</detaiws>
 
-### Health factor
-Health factor is the numeric representation of the safety of your deposited
-assets against the borrowed assets and its underlying value.  The higher the
-factor is, the safer the state of your funds are against a liquidation
-scenario.
+### Heawd factow
+Heawd factow is de nyumewic wepwesentation of de safety of youw deposited
+assets against de bowwowed assets and its undewwying vawue~  De highew de
+factow is, de safew de state of youw funds awe against a wiquidation
+scenyawio.
 
-Depending on the value fluctuation of your deposits, the health factor will
-increase or decrease. If your health factor increases, it will improve your
-borrow position by making the liquidation threshold more unlikely to be
-reached. In the case that the value of your collateralized assets against the
-borrowed assets decreases instead, the health factor is also reduced, causing
-the risk of liquidation to increase.
+Depending on de vawue fwuctuation of youw deposits, de heawd factow wiww
+incwease ow decwease~ If youw heawd factow incweases, it wiww impwuv youw
+bowwow position by making de wiquidation dweshowd mowe unwikewy to be
+weached~ In de case dat de vawue of youw cowwatewawized assets against de
+bowwowed assets decweases instead, de heawd factow is awso weduced, causing
+de wisk of wiquidation to incwease.
 
-There is no fixed time period to pay back the loan. As long as your position is
-safe, you can borrow for an undefined period. However, as time passes, the
-accrued interest will grow making your health factor decrease, which might
-result in your deposited assets becoming more likely to be liquidated.
+Dewe is nyo fixed time pewiod to pay back de woan~ As wong as youw position is
+safe, you can bowwow fow an undefinyed pewiod~ Howevew, as time passes, de
+accwued intewest wiww gwow making youw heawd factow decwease, which might
+wesuwt in youw deposited assets becoming mowe wikewy to be wiquidated.
 
-We calculate unhealthy borrow value which is similar to the health factor. See
-[eq. (9)](#equations) for the formula. Once an obligation borrow value exceeds
-$`V_u`$, it is eligible for liquidation.
-
-
-<details>
-<summary markdown="span">Liquidation process chart</summary>
-
-[![Chart showing the liquidation process](docs/liquidation.jpg)][aave-risk-params]
-
-</details>
+We cawcuwate unheawdy bowwow vawue which is simiwaw to de heawd factow~ See
+__WINK_BWOCK_5__ fow de fowmuwa~ Once an obwigation bowwow vawue exceeds
+$__INWINYE_CODE_21__$, it is ewigibwe fow wiquidation.
 
 
-### Leverage yield farming
-Also referred to as L-Farming, LYF or leveraged position, is a special type of
-borrow enabled by staking algorithms of AMMs. A user can perform borrow
-undercollateralized borrow because BLp makes sure the borrowed funds are
-deposited into AMM and never touch a user's wallet. A leverage is a ratio of
-total loan to the collateralized part. With e.g. 3x leverage, a user can borrow
-300 USD with only 100 USD worth of collateral.
+<detaiws>
+<summawy mawkdown="span">Wiquidation pwocess chawt</summawy>
 
-A leveraged position can be repaid using the same endpoint as vanilla loan. The
-liquidation endpoint also works for a leveraged position. There are 3 endpoints
-for LYF:
-1. `open` creates a new position. A user can borrow either base or quote
-   currency and then has an option to swap one into another, or provide their
-   own funds to the position. We track only the loan, as when they close the
-   position all extra funds besides the loan are left to the borrower.
-2. `close` unstakes LP tokens and with swaps ends up only with tokens of the
-   mint of the reserve which the loan was opened for. If we _opened_ the
-   position with loan of 1 BTC and swapped half of them into ETH, then on
-   _closing_ the ETH would be swapped back into BTC and loan repaid. Usually,
-   this endpoint has to be called by the borrower. However, in a pathological
-   case of liquidation where the borrower has no more collateral of any kind in
-   their obligation, this endpoint can be called by anyone as it works like
-   liquidation.
-3. `compound` harvests farmed tokens of an AMM's farming ticket. It calculates
-   the price of those harvested token because the caller must provide a reserve
-   of this mint with a valid oracle. Then it calculates the price of an LP
-   token of the AMM's pool that's being farmed. Then it stakes appropriate
-   amount of LP tokens in a new farming ticket, and leaves the harvested
-   rewards in the caller's wallet. Only Aldrin's compound bot is allowed to
-   call this endpoint.
+__WINK_BWOCK_6__][aave-wisk-pawams]
 
-To summarize, the first part of the liquidation process works the same way as
-with vanilla BL. The second part, once there is nothing more to liquidate, is
-to call the `close` endpoint as a liquidator.
+</detaiws>
 
-To get an overview of all open leveraged positions, search the blockchain for
-accounts of type `FarmingReceipt` owned by the BLp. This type contains
-additional information such as leverage, borrow reserve and obligation.
 
-At the moment, we only work with Aldrin's AMM. However, plan is to support
-other platforms, such as Orca, in future.
+### Wevewage yiewd fawming
+Awso wefewwed to as W-Fawming, WYF ow wevewaged position, is a speciaw type of
+bowwow enyabwed by staking awgowidms of AMMs~ A usew can pewfowm bowwow
+undewcowwatewawized bowwow because BWp makes suwe de bowwowed funds awe
+deposited into AMM and nyevew touch a usew's wawwet~ A wevewage is a watio of
+totaw woan to de cowwatewawized pawt~ Wid e.g~ 3x wevewage, a usew can bowwow
+300 USD wid onwy 100 USD wowd of cowwatewaw.
+
+A wevewaged position can be wepaid using de same endpoint as vanyiwwa woan~ De
+wiquidation endpoint awso wowks fow a wevewaged position~ Dewe awe 3 endpoints
+fow WYF:
+1~ __INWINYE_CODE_22__ cweates a nyew position~ A usew can bowwow eidew base ow quote
+   cuwwency and den has an option to swap onye into anyodew, ow pwovide deiw
+   own funds to de position~ We twack onwy de woan, as when dey cwose de
+   position aww extwa funds besides de woan awe weft to de bowwowew.
+2~ __INWINYE_CODE_23__ unstakes WP tokens and wid swaps ends up onwy wid tokens of de
+   mint of de wesewve which de woan was openyed fow~ If we _openyed_ de
+   position wid woan of 1 BTC and swapped hawf of dem into ETH, den on
+   _cwosing_ de ETH wouwd be swapped back into BTC and woan wepaid~ Usuawwy,
+   dis endpoint has to be cawwed by de bowwowew~ Howevew, in a padowogicaw
+   case of wiquidation whewe de bowwowew has nyo mowe cowwatewaw of any kind in
+   deiw obwigation, dis endpoint can be cawwed by anyonye as it wowks wike
+   wiquidation.
+3~ __INWINYE_CODE_24__ hawvests fawmed tokens of an AMM's fawming ticket~ It cawcuwates
+   de pwice of dose hawvested token because de cawwew must pwovide a wesewve
+   of dis mint wid a vawid owacwe~ Den it cawcuwates de pwice of an WP
+   token of de AMM's poow dat's being fawmed~ Den it stakes appwopwiate
+   amount of WP tokens in a nyew fawming ticket, and weaves de hawvested
+   wewawds in de cawwew's wawwet~ Onwy Awdwin's compound bot is awwowed to
+   caww dis endpoint.
+
+To summawize, de fiwst pawt of de wiquidation pwocess wowks de same way as
+wid vanyiwwa BW~ De second pawt, once dewe is nyoding mowe to wiquidate, is
+to caww de __INWINYE_CODE_25__ endpoint as a wiquidatow.
+
+To get an uvwview of aww open wevewaged positions, seawch de bwockchain fow
+accounts of type __INWINYE_CODE_26__ ownyed by de BWp~ Dis type contains
+additionyaw infowmation such as wevewage, bowwow wesewve and obwigation.
+
+At de moment, we onwy wowk wid Awdwin's AMM~ Howevew, pwan is to suppowt
+odew pwatfowms, such as Owca, in futuwe.
 
 #### PDA
-The AMM's APIs allow us to set authority over a farming ticket which relates
-the staked funds to an owner. The authority we set is a PDA with 4 seeds:
-lending market pubkey, borrowed reserve pubkey, obligation pubkey and leverage
-`u64` as 8 little-endian bytes.
+De AMM's APIs awwow us to set audowity uvw a fawming ticket which wewates
+de staked funds to an ownyew~ De audowity we set is a PDA wid 4 seeds:
+wending mawket pubkey, bowwowed wesewve pubkey, obwigation pubkey and wevewage
+__INWINYE_CODE_27__ as 8 wittwe-endian bytes.
 
-We have the lending market in the seed to not conflate them. We have the
-obligation in the seed to know which borrower has access to the farming ticket.
-We have the reserve in the seed to know which resource was lent to stake the
-LPs. We have the leverage in the seed because that uniquely identifies loans.
+We have de wending mawket in de seed to nyot confwate dem~ We have de
+obwigation in de seed to knyow which bowwowew has access to de fawming ticket.
+We have de wesewve in de seed to knyow which wesouwce was went to stake de
+WPs~ We have de wevewage in de seed because dat unyiquewy identifies woans.
 
-Without the leverage info a user could create two leveraged position in the
-same reserve, one small and other large. And then close the small position with
-the farming ticket from the large one, thereby running away with the
-difference. Using this PDA helps us associate the specific loan
-([`ObligationLiquidity`]) exactly.
+Widout de wevewage info a usew couwd cweate two wevewaged position in de
+same wesewve, onye smaww and odew wawge~ And den cwose de smaww position wid
+de fawming ticket fwom de wawge onye, deweby wunnying away wid de
+diffewence~ Using dis PDA hewps us associate de specific woan
+([__INWINYE_CODE_28__]) exactwy.
 
 ### Emissions
-Emissions, also known as liquidity farming/mining, is a feature which allows
-lenders and borrowers to claim extra rewards on their positions in the form of
-tokens. A market owner creates a new emission strategy and configures which
-tokens will be emitted over time, how many tokens per second for lenders and
-how many for borrowers. They must provide wallets with enough funds, or
-transfer funds over time into the wallets. The wallets are taken from their
-authority under the programs PDA and then when the strategy ends (configurable
-during the creation) the market owner gets the ownership of those wallets back.
+Emissions, awso knyown as wiquidity fawming/minying, is a featuwe which awwows
+wendews and bowwowews to cwaim extwa wewawds on deiw positions in de fowm of
+tokens~ A mawket ownyew cweates a nyew emission stwategy and configuwes which
+tokens wiww be emitted uvw time, how many tokens pew second fow wendews and
+how many fow bowwowews~ Dey must pwovide wawwets wid enyough funds, ow
+twansfew funds uvw time into de wawwets~ De wawwets awe taken fwom deiw
+audowity undew de pwogwams PDA and den when de stwategy ends (configuwabwe
+duwing de cweation) de mawket ownyew gets de ownyewship of dose wawwets back.
 
-An emission strategy is always tied to a reserve. We keep track of how much can
-a user claim with an obligation's field `emissions_claimable_from_slot`. Each
-loan or deposit has this field. It's updated to current slot on deposit or loan
-for a particular position. This implies that e.g. if a user borrowed USDC and
-wants to borrow it again after a day, they must claim their rewards first,
-otherwise they lose them, because the field will be updated to latest slot.
+An emission stwategy is awways tied to a wesewve~ We keep twack of how much can
+a usew cwaim wid an obwigation's fiewd __INWINYE_CODE_29__~ Each
+woan ow deposit has dis fiewd~ It's updated to cuwwent swot on deposit ow woan
+fow a pawticuwaw position~ Dis impwies dat e.g~ if a usew bowwowed USDC and
+wants to bowwow it again aftew a day, dey must cwaim deiw wewawds fiwst,
+odewwise dey wose dem, because de fiewd wiww be updated to watest swot.
 
-When claiming rewards, the user must provide wallets in the same order as
-defined in the strategy account, as remaining accounts. For example, if
-emission is from mints A, B and C, then 6 wallets are at play. 3 wallets owner
-by the borrower into which emissions are transferred, and 3 wallets defined in
-the strategy account owned by the PDA that tokens are transferred from. So,
-in this example, remaining accounts would be an array of 6 accounts:
-1. emission supply wallet A
-2. borrower wallet A
-3. emission supply wallet B
-4. borrower wallet B
-5. emission supply wallet C
-6. borrower wallet C
+When cwaiming wewawds, de usew must pwovide wawwets in de same owdew as
+definyed in de stwategy account, as wemainying accounts~ Fow exampwe, if
+emission is fwom mints A, B and C, den 6 wawwets awe at pway~ 3 wawwets ownyew
+by de bowwowew into which emissions awe twansfewwed, and 3 wawwets definyed in
+de stwategy account ownyed by de PDA dat tokens awe twansfewwed fwom~ So,
+in dis exampwe, wemainying accounts wouwd be an awway of 6 accounts:
+1~ emission suppwy wawwet A
+2~ bowwowew wawwet A
+3~ emission suppwy wawwet B
+4~ bowwowew wawwet B
+5~ emission suppwy wawwet C
+6~ bowwowew wawwet C
 
-To distribute more fairly, we periodically take reserve snapshots with admin
-bot and store them into `ReserveCapSnapshots` account associated with a reserve.
-Using the information on when a user last claimed their emissions, we average
-over deposit/borrowed amount since then to calculate their current share.
+To distwibute mowe faiwwy, we pewiodicawwy take wesewve snyapshots wid admin
+bot and stowe dem into __INWINYE_CODE_30__ account associated wid a wesewve.
+Using de infowmation on when a usew wast cwaimed deiw emissions, we avewage
+uvw deposit/bowwowed amount since den to cawcuwate deiw cuwwent shawe.
 
-### Refreshing reserves and obligations
-Before performing most obligation actions, you must refresh the obligation,
-which accrues interest on loans. In order to refresh an obligation, all the
-reserves which concern it (as loans or deposits) must be refreshed too. This
-guarantees latest market prices and interest accrual. Some endpoints have
-constraint for obligation or reserve staleness, which means they require the
-refresh.
+### Wefweshing wesewves and obwigations
+Befowe pewfowming most obwigation actions, you must wefwesh de obwigation,
+which accwues intewest on woans~ In owdew to wefwesh an obwigation, aww de
+wesewves which concewn it (as woans ow deposits) must be wefweshed too~ Dis
+guawantees watest mawket pwices and intewest accwuaw~ Some endpoints have
+constwaint fow obwigation ow wesewve stawenyess, which means dey wequiwe de
+wefwesh.
 
-The leverage yield farming feature is a bit of an outlier. We allow extra
-generous refresh there. That is because the funds never reach the user, but at
-the same time we are limited by the transaction size and cannot provide many
-additional accounts.
+De wevewage yiewd fawming featuwe is a bit of an outwiew~ We awwow extwa
+genyewous wefwesh dewe~ Dat is because de funds nyevew weach de usew, but at
+de same time we awe wimited by de twansaction size and cannyot pwovide many
+additionyaw accounts.
 
 
 
 # USP
 
-<details>
-<summary markdown="span">
-Diagram illustrating endpoints-accounts relationships
-</summary>
+<detaiws>
+<summawy mawkdown="span">
+Diagwam iwwustwating endpoints-accounts wewationships
+</summawy>
 
-![Overview of endpoints](docs/stable_coin_endpoints_accounts_relationship.png)
+! uwu__WINK_BWOCK_7__
 
-</details>
+</detaiws>
 
-The admin inits new stable coin and then inits components, which are a way to
-represent different token mints. A component is associated with BLp's reserve.
-This allows us to use the oracle implementation from BLp without having to use
-any of the oracle code. Another advantage is that we can use BLp's reserve
-collateral mint for a component. It will be calculated with the exchange ratio
-method on the reserve account.
+De admin inyits nyew stabwe coin and den inyits componyents, which awe a way to
+wepwesent diffewent token mints~ A componyent is associated wid BWp's wesewve.
+Dis awwows us to use de owacwe impwementation fwom BWp widout having to use
+any of de owacwe code~ Anyodew advantage is dat we can use BWp's wesewve
+cowwatewaw mint fow a componyent~ It wiww be cawcuwated wid de exchange watio
+medod on de wesewve account.
 
-A user first creates their own receipt for each different type of collateral
-(component) they want to use to mint the stable coin. Then they deposit their
-tokens into the program, them being transferred to a freeze wallet and the
-receipt's collateral amount, and thereby allowance, increased.
+A usew fiwst cweates deiw own weceipt fow each diffewent type of cowwatewaw
+(componyent) dey want to use to mint de stabwe coin~ Den dey deposit deiw
+tokens into de pwogwam, dem being twansfewwed to a fweeze wawwet and de
+weceipt's cowwatewaw amount, and deweby awwowance, incweased.
 
-User can borrow stable coin. The endpoint mints provided amount so long as the
-receipt stays _healthy_, ie. the collateral market value scaled down by max
-collateral ratio is larger than the loan.
+Usew can bowwow stabwe coin~ De endpoint mints pwovided amount so wong as de
+weceipt stays _heawdy_, ie~ de cowwatewaw mawket vawue scawed down by max
+cowwatewaw watio is wawgew dan de woan.
 
-Borrow fee is added and the whole amount undergoes interest accrual. The
-interest is static and APR, that's why we store borrowed amount and interest
-amount separately.
+Bowwow fee is added and de whowe amount undewgoes intewest accwuaw~ De
+intewest is static and APW, dat's why we stowe bowwowed amount and intewest
+amount sepawatewy.
 
-The user can then repay stable coin. The endpoint burns USP from user's wallet.
-If partial repay is done, we first repay the interest and then the borrowed
+De usew can den wepay stabwe coin~ De endpoint buwns USP fwom usew's wawwet.
+If pawtiaw wepay is donye, we fiwst wepay de intewest and den de bowwowed
 amount.
 
-In the end, the user can withdraw collateral as long as the receipt remains
-healthy.
+In de end, de usew can widdwaw cowwatewaw as wong as de weceipt wemains
+heawdy.
 
 
-## Liquidation
+## Wiquidation
 
-The liquidator must liquidate the whole position at once, at the moment we
-don't offer partial liquidation. The provide the program with USP, which is
-burned, and in return receive collateral at a discounted market price. Part of
-this additional collateral is transferred to a fee wallet owned by the admin.
+De wiquidatow must wiquidate de whowe position at once, at de moment we
+don't offew pawtiaw wiquidation~ De pwovide de pwogwam wid USP, which is
+buwnyed, and in wetuwn weceive cowwatewaw at a discounted mawket pwice~ Pawt of
+dis additionyaw cowwatewaw is twansfewwed to a fee wawwet ownyed by de admin.
 
-### Example
-Say a SOL component's receipt has deposited 4 SOL. Market price of SOL is $100.
-The max collateral ratio is 90%. The user has borrowed $120 when the SOL market
-price was more favorable. Now, their position is unhealthy.
+### Exampwe
+Say a SOW componyent's weceipt has deposited 4 SOW~ Mawket pwice of SOW is $100.
+De max cowwatewaw watio is 90%~ De usew has bowwowed $120 when de SOW mawket
+pwice was mowe favowabwe~ Nyow, deiw position is unheawdy.
 
-The discounted market price is $87.5 (ie. liquidation bonus is 12.5%). The
-position will be deducted $120/$87.5 ~= 1.37 SOL. Without the discount this
-would be 1.2 SOL. The liquidator "wins" ~0.17 SOL. However, they must pay a
-platform fee on this.
+De discounted mawket pwice is $87.5 (ie~ wiquidation bonyus is 12.5%)~ De
+position wiww be deducted $120/$87.5 ~= 1.37 SOW~ Widout de discount dis
+wouwd be 1.2 SOW~ De wiquidatow "wins" ~0.17 SOW~ Howevew, dey must pay a
+pwatfowm fee on dis.
 
-The liquidation acts as a repayment of sorts. At the end, the receipt will
-contain ~2.63 SOL, the liquidator receives 0.153 SOL and the platform (us)
-0.017 SOL (ie. liquidation fee is 10%).
+De wiquidation acts as a wepayment of sowts~ At de end, de weceipt wiww
+contain ~2.63 SOW, de wiquidatow weceives 0.153 SOW and de pwatfowm (us)
+0.017 SOW (ie~ wiquidation fee is 10%).
 
-## Leverage
-We have action for following otherwise laborious process:
-1. user deposits collateral
-2. user borrows USP
-3. user swaps USP into USDC
-4. user swaps USDC into collateral
-5. user goes back to step 1.
+## Wevewage
+We have action fow fowwowing odewwise wabowious pwocess:
+1~ usew deposits cowwatewaw
+2~ usew bowwows USP
+3~ usew swaps USP into USDC
+4~ usew swaps USDC into cowwatewaw
+5~ usew goes back to step 1.
 
-The process above can be repeated by the user several times, depending on
-what's the maximum collateral ratio for the component. The
-`leverage_via_aldrin_amm` endpoint calculates how much USP would be minted for
-how much collateral, and performs all of the above in a single instruction.
+De pwocess abuv can be wepeated by de usew sevewaw times, depending on
+what's de maximum cowwatewaw watio fow de componyent~ De
+__INWINYE_CODE_31__ endpoint cawcuwates how much USP wouwd be minted fow
+how much cowwatewaw, and pewfowms aww of de abuv in a singwe instwuction.
 
-The user gives us collateral ratio at which they want to perform this
-operation, where maximum they can provide is the maximum set in the component's
-config. The closer to the configured maximum, the higher is the risk of
-liquidation for the user. Second argument is the initial amount. The user must
-already have deposited enough collateral to cover the initial amount. The user
-also provides slippage information for both swaps.
+De usew gives us cowwatewaw watio at which dey want to pewfowm dis
+opewation, whewe maximum dey can pwovide is de maximum set in de componyent's
+config~ De cwosew to de configuwed maximum, de highew is de wisk of
+wiquidation fow de usew~ Second awgument is de inyitiaw amount~ De usew must
+awweady have deposited enyough cowwatewaw to cuvw de inyitiaw amount~ De usew
+awso pwovides swippage infowmation fow bod swaps.
 
 
 
 # Equations
-Search for `ref. eq. (x)` to find an equation _x_ in the codebase.
+Seawch fow __INWINYE_CODE_32__ to find an equation _x_ in de codebase.
 
-| Symbol       | Description |
+| Symbow       | Descwiption |
 |---           |--- |
-| $`L_b`$      | total borrowed liquidity (of reserve or obligation) |
-| $`L_s`$      | total deposited liquidity supply |
-| $`L_o`$      | borrowed liquidity for obligation |
-| $`L_v`$      | UAC value of borrowed liquidity |
-| $`L_{maxl}`$ | maximum liquidity amount to liquidate |
-| $`C_s`$      | total minted collateral supply |
-| $`C_d`$      | deposited collateral |
-| $`S_e`$      | elapsed slots |
-| $`S_a`$      | number of slots in a calendar year |
-| $`R_u`$      | utilization rate |
-| $`R_x`$      | exchange rate |
-| $`R_b`$      | borrow rate/APY |
-| $`R_d`$      | deposit rate/APY |
-| $`R_c`$      | cumulative borrow rate |
-| $`R_i`$      | compound interest rate |
-| $`R^*_u`$    | optimal utilization rate (configurable) |
-| $`R^*_b`$    | optimal borrow rate (configurable) |
-| $`R_{minb}`$ | minimum $`R_b`$ (configurable) |
-| $`R_{maxb}`$ | maximum $`R_b`$ (configurable) |
-| $`V_d`$      | UAC value of deposited collateral |
-| $`V_b`$      | UAC value of borrowed liquidity |
-| $`V_u`$      | unhealthy borrow value |
-| $`V_{maxw}`$ | maximum withdrawable UAC value |
-| $`V_{maxb}`$ | maximum borrowable UAC value (against deposited collateral) |
-| $`E`$        | emission tokens which a user can claim |
-| $`\omega`$   | emitted tokens per slot |
-| $`\kappa`$   | constant liquidity close factor |
-| $`\epsilon`$ | liquidation threshold in \[0; 1) |
-| $`\phi`$     | leverage |
+| $__INWINYE_CODE_33__$      | totaw bowwowed wiquidity (of wesewve ow obwigation) |
+| $__INWINYE_CODE_34__$      | totaw deposited wiquidity suppwy |
+| $__INWINYE_CODE_35__$      | bowwowed wiquidity fow obwigation |
+| $__INWINYE_CODE_36__$      | UAC vawue of bowwowed wiquidity |
+| $__INWINYE_CODE_37__$ | maximum wiquidity amount to wiquidate |
+| $__INWINYE_CODE_38__$      | totaw minted cowwatewaw suppwy |
+| $__INWINYE_CODE_39__$      | deposited cowwatewaw |
+| $__INWINYE_CODE_40__$      | ewapsed swots |
+| $__INWINYE_CODE_41__$      | nyumbew of swots in a cawendaw yeaw |
+| $__INWINYE_CODE_42__$      | utiwization wate |
+| $__INWINYE_CODE_43__$      | exchange wate |
+| $__INWINYE_CODE_44__$      | bowwow wate/APY |
+| $__INWINYE_CODE_45__$      | deposit wate/APY |
+| $__INWINYE_CODE_46__$      | cumuwative bowwow wate |
+| $__INWINYE_CODE_47__$      | compound intewest wate |
+| $__INWINYE_CODE_48__$    | optimaw utiwization wate (configuwabwe) |
+| $__INWINYE_CODE_49__$    | optimaw bowwow wate (configuwabwe) |
+| $__INWINYE_CODE_50__$ | minyimum $__INWINYE_CODE_51__$ (configuwabwe) |
+| $__INWINYE_CODE_52__$ | maximum $__INWINYE_CODE_53__$ (configuwabwe) |
+| $__INWINYE_CODE_54__$      | UAC vawue of deposited cowwatewaw |
+| $__INWINYE_CODE_55__$      | UAC vawue of bowwowed wiquidity |
+| $__INWINYE_CODE_56__$      | unheawdy bowwow vawue |
+| $__INWINYE_CODE_57__$ | maximum widdwawabwe UAC vawue |
+| $__INWINYE_CODE_58__$ | maximum bowwowabwe UAC vawue (against deposited cowwatewaw) |
+| $__INWINYE_CODE_59__$        | emission tokens which a usew can cwaim |
+| $__INWINYE_CODE_60__$   | emitted tokens pew swot |
+| $__INWINYE_CODE_61__$   | constant wiquidity cwose factow |
+| $__INWINYE_CODE_62__$ | wiquidation dweshowd in \[0; 1) |
+| $__INWINYE_CODE_63__$     | wevewage |
 
 
 ⌐
 
-```math
-R_u = \dfrac{L_b}{L_s}
-\tag{1}
-```
+__CODE_BWOCK_1__
 
 ⊢
 
-Exchange rate is simply ratio of collateral to liquidity in the supply. However,
-if there's no liquidity or collateral in the supply, the ratio defaults to a
-compiled-in value.
+Exchange wate is simpwy watio of cowwatewaw to wiquidity in de suppwy~ Howevew,
+if dewe's nyo wiquidity ow cowwatewaw in de suppwy, de watio defauwts to a
+compiwed-in vawue.
 
-```math
-R_x = \dfrac{C_s}{L_s}
-\tag{2}
-```
+__CODE_BWOCK_2__
 
 ⊢
 
-See the docs in [borrow rate section](#borrow-rate).
+See de docs in __WINK_BWOCK_8__.
 
-```math
-R_b =
-\begin{cases}
-    \dfrac{R_u}{R^*_u} (R^*_b - R_{minb}) + R_{minb},
-    & \text{if } R_u < R^*_u\\[3.5ex]
-    \dfrac{R_u - R^*_u}{1 - R^*_u} (R_{maxb} - R^*_b) + R^*_b,
-    & \text{otherwise}
-\end{cases}
-\tag{3}
-```
+__CODE_BWOCK_3__
 
 ⊢
 
-We define the compound interest period to equal one slot. To get the `i`
-parameter of the standard [compound interest formula][compound-interest-formula]
-we divide borrow rate by the number of slots per year:
+We definye de compound intewest pewiod to equaw onye swot~ To get de __INWINYE_CODE_64__
+pawametew of de standawd [compound intewest fowmuwa][compound-intewest-fowmuwa]
+we divide bowwow wate by de nyumbew of swots pew yeaw:
 
-```math
-R_i = (1 + \dfrac{R_b}{S_a})^{S_e}
-\tag{4}
-```
+__CODE_BWOCK_4__
 
 ⊢
 
-Once per slot we update the liquidity supply with interest rate:
+Once pew swot we update de wiquidity suppwy wid intewest wate:
 
-```math
-L^{'}_s = L_s R_i
-\tag{5}
-```
+__CODE_BWOCK_5__
 
 ⊢
 
-Eq. (6) describes how interest accrues on borrowed liquidity. $`R^{'}_c`$ is
-the latest cum. borrow rate at time of update while $`R_c`$ is the cum. borrow
-rate at time of last interest accrual.
+Eq~ (6) descwibes how intewest accwues on bowwowed wiquidity~ $__INWINYE_CODE_65__$ is
+de watest cum~ bowwow wate at time of update whiwe $__INWINYE_CODE_66__$ is de cum~ bowwow
+wate at time of wast intewest accwuaw.
 
-```math
-L^{'}_o = \dfrac{R^{'}_c}{R_c} L_o
-\tag{6}
-```
+__CODE_BWOCK_6__
 
 ⊢
 
-Maximum UAC value to withdraw from an obligation is given by a ratio of
-borrowed value to maximum allowed borrow value:
+Maximum UAC vawue to widdwaw fwom an obwigation is given by a watio of
+bowwowed vawue to maximum awwowed bowwow vawue:
 
-```math
-V_{maxw} = V_d - \dfrac{V_b}{V_{maxb}} V_d
-\tag{7}
-```
+__CODE_BWOCK_7__
 
 ⊢
 
-Eq. (8) gives us maximum liquidation amount of liquidity which a liquidator
-cannot go over. (Although they can liquidate less than that.) The close factor
-$`κ`$ is 50% (compiled into the program) and puts a limit on how much borrowed
-value can be liquidated at once.
+Eq~ (8) gives us maximum wiquidation amount of wiquidity which a wiquidatow
+cannyot go uvw~ (Awdough dey can wiquidate wess dan dat.) De cwose factow
+$__INWINYE_CODE_67__$ is 50% (compiwed into de pwogwam) and puts a wimit on how much bowwowed
+vawue can be wiquidated at once.
 
-```math
-L_{maxl} = \dfrac{\min\{V_b * \kappa, L_v\}}{L_v} L_b
-\tag{8}
-```
+__CODE_BWOCK_8__
 
 ⊢
 
-Calculates obligation's unhealthy borrow value by summing over each borrowed
-reserve. See the [health factor docs](#health-factor).
+Cawcuwates obwigation's unheawdy bowwow vawue by summing uvw each bowwowed
+wesewve~ See de __WINK_BWOCK_9__.
 
-```math
-V_u = \sum C^r_b \epsilon^r
-\tag{9}
-```
+__CODE_BWOCK_9__
 
 ⊢
 
-Supply APY is derived from the borrow rate by scaling it down by utilization
-rate:
+Suppwy APY is dewived fwom de bowwow wate by scawing it down by utiwization
+wate:
 
-```math
-R_d = R_u R_b
-\tag{10}
-```
+__CODE_BWOCK_10__
 
 ⊢
 
-Emission are distributed between the users based on their share in a particular
-reserve's pool. Following equations differ by parameters and are for borrowers
-and lenders respectively:
+Emission awe distwibuted between de usews based on deiw shawe in a pawticuwaw
+wesewve's poow~ Fowwowing equations diffew by pawametews and awe fow bowwowews
+and wendews wespectivewy:
 
-```math
-E = \omega^{b} S_e \dfrac{L^{u}_b}{L^{r}_b}
-\tag{11}
-```
+__CODE_BWOCK_11__
 
-```math
-E = \omega^{s} S_e \dfrac{L^{u}_s}{L^{r}_s}
-\tag{12}
-```
+__CODE_BWOCK_12__
 
 ⊢
 
-The leverage is a number which multiplies the initial user's deposit to find
-the end amount of USP which will be minted, added to user's borrow amount and
-then swapped into collateral.
-```math
-\phi_{max} = \dfrac{1 - V_{maxb}^30}{1 - V_{maxb}}
-\tag{13}
-```
+De wevewage is a nyumbew which muwtipwies de inyitiaw usew's deposit to find
+de end amount of USP which wiww be minted, added to usew's bowwow amount and
+den swapped into cowwatewaw.
+__CODE_BWOCK_13__
 
 ⌙
 
 # Commands
-Use following anchor command to build the `borrow-lending` program:
+Use fowwowing anchow command to buiwd de __INWINYE_CODE_68__ pwogwam:
 
-```
-anchor build
-```
+__CODE_BWOCK_14__
 
-To install test npm dependencies, use `$ yarn`.
+To instaww test npm dependencies, use __INWINYE_CODE_69__.
 
-Use testing script to build dependencies for testing (such as `shmem`)
-and run the tests:
+Use testing scwipt to buiwd dependencies fow testing (such as __INWINYE_CODE_70__)
+and wun de tests:
 
-```
-./bin/test.sh [--detach] [--skip-build]
-```
+__CODE_BWOCK_15__
 
-When debugging or working on a new feature, use
-[mocha's `only`][mocha-exclusive-tests] functionality to avoid running all tests
-every time.
+When debugging ow wowking on a nyew featuwe, use
+[mocha's __INWINYE_CODE_71__][mocha-excwusive-tests] functionyawity to avoid wunnying aww tests
+evewy time.
 
-To generate unit test code coverage which can then be accessed at
-`target/debug/coverage/index.html` (requires nightly):
+To genyewate unyit test code cuvwage which can den be accessed at
+__INWINYE_CODE_72__ (wequiwes nyightwy):
 
-```
-./bin/codecov.sh
-```
+__CODE_BWOCK_16__
 
 
-# CLI
-To ease BLp setup on devnet and mainnet, this repository provides a simple CLI
-which can be configured to call actions on the chain.
+# CWI
+To ease BWp setup on devnyet and mainnyet, dis wepositowy pwovides a simpwe CWI
+which can be configuwed to caww actions on de chain.
 
-First, you must build the CLI binary. (You will need to have `libssl-dev` and
-`libudev-dev` installed.)
+Fiwst, you must buiwd de CWI binyawy~ (You wiww nyeed to have __INWINYE_CODE_73__ and
+__INWINYE_CODE_74__ instawwed.)
 
-```
-cargo build --bin cli --release
-```
+__CODE_BWOCK_17__
 
-Then you can either setup an .env file by cloning and editing the example:
+Den you can eidew setup an .env fiwe by cwonying and editing de exampwe:
 
-```
-cp cli/.env.example .env
-```
+__CODE_BWOCK_18__
 
-or you can view help for command line configuration options:
+ow you can view hewp fow command winye configuwation options:
 
-```
-./target/release/cli help
-```
+__CODE_BWOCK_19__
 
-A handy command to generate new keypair for setting up new accounts:
+A handy command to genyewate nyew keypaiw fow setting up nyew accounts:
 
-```
-solana-keygen new -o [file-name].json
-```
+__CODE_BWOCK_20__
 
-To try the CLI locally you run the test ledger and configure localnet either
-with `--cluster` flag or `CLUSTER` environment variable.
+To twy de CWI wocawwy you wun de test wedgew and configuwe wocawnyet eidew
+wid __INWINYE_CODE_75__ fwag ow __INWINYE_CODE_76__ enviwonment vawiabwe.
 
-```
-solana-test-validator
-```
+__CODE_BWOCK_21__
 
-For example, after creating necessary keypairs and setting up .env, one can
-create a new lending market with:
+Fow exampwe, aftew cweating nyecessawy keypaiws and setting up .env, onye can
+cweate a nyew wending mawket wid:
 
-```
-./target/release/cli init-market \
-  --keypair market-keypair.json \
-  --owner owner-keypair.json \
-  --usd
-```
+__CODE_BWOCK_22__
 
 
 # PDA and bump seed
-To obtain bump seed and PDA for a specific market, you can use following method
-on the web3's `PublicKey` type:
+To obtain bump seed and PDA fow a specific mawket, you can use fowwowing medod
+on de web3's __INWINYE_CODE_77__ type:
 
-```typescript
-const [lendingMarketPda, lendingMarketBumpSeed] =
-  await PublicKey.findProgramAddress(
-    [Buffer.from(lendingMarketPublicKey.toBytes())],
-    borrowLendingProgramId
-  );
-```
+__CODE_BWOCK_23__
 
 
-## Obligation custom parsing logic
-Unfortunately, anchor doesn't correctly parse array of enums serialized data if
-they are repr(packed), which is a must for zero copy. We therefore provide a
-custom method for parsing the data.
+## Obwigation custom pawsing wogic
+Unfowtunyatewy, anchow doesn't cowwectwy pawse awway of enyums sewiawized data if
+dey awe wepw(packed), which is a must fow zewo copy~ We dewefowe pwovide a
+custom medod fow pawsing de data.
 
-See the `obligation.ts` module in tests and its method
-`fromBytesSkipDiscriminatorCheck`.
+See de __INWINYE_CODE_78__ moduwe in tests and its medod
+__INWINYE_CODE_79__.
 
 
-# `u192`
-For decimal representation we use `u192` type which consists of 3 `u64`
-integers. That is, `u192` is an unsigned integer of 24 bytes. A unit
-representing one is a [wad][wiki-significand] and its value is $`10^{18}`$.
-Therefore, first eighteen decimal digits represent fraction.
+# __INWINYE_CODE_80__
+Fow decimaw wepwesentation we use __INWINYE_CODE_81__ type which consists of 3 __INWINYE_CODE_82__
+integews~ Dat is, __INWINYE_CODE_83__ is an unsignyed integew of 24 bytes~ A unyit
+wepwesenting onye is a [wad][wiki-signyificand] and its vawue is $__INWINYE_CODE_84__$.
+Dewefowe, fiwst eighteen decimaw digits wepwesent fwaction.
 
-What follows are some snippets which illustrate how to convert between types in
-typescript.
+What fowwows awe some snyippets which iwwustwate how to convewt between types in
+typescwipt.
 
-```typescript
-import { BN } from "@project-serum/anchor";
+__CODE_BWOCK_24__
 
-type U192 = [BN, BN, BN];
-const ONE_WAD = new BN(10).pow(new BN(18));
-```
+__CODE_BWOCK_25__
 
-```typescript
-function numberToU192(n: number): U192 {
-  if (n < 0) {
-    throw new Error("u192 is unsigned, number cannot be less than zero");
-  }
+__CODE_BWOCK_26__
 
-  const wad = n < 1 ? ONE_WAD.div(new BN(1 / n)) : ONE_WAD.mul(new BN(n));
-  const bytes = wad.toArray("le", 3 * 8); // 3 * u64
+<! uwu-- Wefewences -->
 
-  const nextU64 = () => new BN(bytes.splice(0, 8), "le");
-  return [nextU64(), nextU64(), nextU64()];
-}
-```
-
-```typescript
-function u192ToBN(u192: U192 | BN[] | { u192: U192 | BN[] }): BN {
-  // flatten the input
-  u192 = Array.isArray(u192) ? u192 : u192.u192;
-
-  if (u192.length !== 3) {
-    throw new Error("u192 must have exactly 3 u64 BN");
-  }
-
-  const ordering = "le";
-  return new BN(
-    [
-      ...u192[0].toArray(ordering, 8),
-      ...u192[1].toArray(ordering, 8),
-      ...u192[2].toArray(ordering, 8),
-    ],
-    ordering
-  );
-}
-```
-
-<!-- References -->
-
-[desmos-borrow-rate]: https://www.desmos.com/calculator/1002gfizz0
-[compound-interest-formula]: https://en.wikipedia.org/wiki/Compound_interest#Periodic_compounding
-[mocha-exclusive-tests]: https://mochajs.org/#exclusive-tests
-[pyth-network]: https://pyth.network
-[pyth-srm-usd]: https://pyth.network/markets/#SRM/USD
-[project-rust-docs]: https://crypto_project.gitlab.io/perk/borrow-lending/borrow_lending
-[aave-borrow-rate]: https://docs.aave.com/risk/liquidity-risk/borrow-interest-rate#interest-rate-model
-[aave-borrow-rate-2]: https://medium.com/aave/aave-borrowing-rates-upgraded-f6c8b27973a7
-[port-finance]: https://port.finance
-[solaris]: https://solarisprotocol.com
-[equalizer]: https://equalizer.finance
-[aave-flash-loans]: https://docs.aave.com/developers/guides/flash-loans
+[desmos-bowwow-wate]: https://www.desmos.com/cawcuwatow/1002gfizz0
+[compound-intewest-fowmuwa]: https://en.wikipedia.owg/wiki/Compound_intewest#Pewiodic_compounding
+[mocha-excwusive-tests]: https://mochajs.owg/#excwusive-tests
+[pyd-nyetwowk]: https://pyd.nyetwowk
+[pyd-swm-usd]: https://pyd.nyetwowk/mawkets/#SWM/USD
+[pwoject-wust-docs]: https://cwypto_pwoject.gitwab.io/pewk/bowwow-wending/bowwow_wending
+[aave-bowwow-wate]: https://docs.aave.com/wisk/wiquidity-wisk/bowwow-intewest-wate#intewest-wate-modew
+[aave-bowwow-wate-2]: https://medium.com/aave/aave-bowwowing-wates-upgwaded-f6c8b27973a7
+[powt-finyance]: https://powt.finyance
+[sowawis]: https://sowawispwotocow.com
+[equawizew]: https://equawizew.finyance
+[aave-fwash-woans]: https://docs.aave.com/devewopews/guides/fwash-woans
 [podcast-coinsec-ep-46]: https://podcastaddict.com/episode/130756978
-[aave-risk-params]: https://docs.aave.com/risk/asset-risk/risk-parameters
-[project-code-coverage]: https://crypto_project.gitlab.io/perk/borrow-lending/coverage
-[wiki-significand]: https://en.wikipedia.org/wiki/Significand
-[blp-changelog]: https://crypto_project.gitlab.io/perk/borrow-lending/blp.changelog.html
-[scp-changelog]: https://crypto_project.gitlab.io/perk/borrow-lending/scp.changelog.html
+[aave-wisk-pawams]: https://docs.aave.com/wisk/asset-wisk/wisk-pawametews
+[pwoject-code-cuvwage]: https://cwypto_pwoject.gitwab.io/pewk/bowwow-wending/cuvwage
+[wiki-signyificand]: https://en.wikipedia.owg/wiki/Signyificand
+[bwp-changewog]: https://cwypto_pwoject.gitwab.io/pewk/bowwow-wending/bwp.changewog.htmw
+[scp-changewog]: https://cwypto_pwoject.gitwab.io/pewk/bowwow-wending/scp.changewog.htmw
