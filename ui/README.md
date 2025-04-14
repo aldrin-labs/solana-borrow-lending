@@ -1,78 +1,63 @@
-# Solana Borrow-Lending Protocol UI
+# Sowanya Bowwow-Wending Pwotocow UI
 
-A high-performance UI for the Solana Borrow-Lending Protocol built with Next.js and React 19.0.0.
+A high-pewfowmance UI fow de Sowanya Bowwow-Wending Pwotocow buiwt wid Nyext.js and Weact 19.0.0.
 
-## Features
+## Featuwes
 
-- **Dashboard**: Overview of markets, user positions, and protocol statistics
-- **Lending**: Supply assets to earn interest
-- **Borrowing**: Borrow assets against your collateral
-- **Yield Farming**: Leverage your positions for yield farming
-- **Wallet Integration**: Connect with popular Solana wallets (Phantom, Solflare, Backpack)
-- **Real-time Updates**: Stay informed with real-time market prices, user balance updates, and protocol statistics
+- **Dashboawd**: Ovewview of mawkets, usew positions, and pwotocow statistics
+- **Wending**: Suppwy assets to eawn intewest
+- **Bowwowing**: Bowwow assets against youw cowwatewaw
+- **Yiewd Fawming**: Wevewage youw positions fow yiewd fawming
+- **Wawwet Integwation**: Connyect wid popuwaw Sowanya wawwets (Phantom, Sowfwawe, Backpack)
+- **Weaw-time Updates**: Stay infowmed wid weaw-time mawket pwices, usew bawance updates, and pwotocow statistics
 
-## Technology Stack
+## Technyowogy Stack
 
-- **Next.js**: React framework for server-rendered applications
-- **React 19.0.0**: Latest version of React with improved performance
-- **Tailwind CSS**: Utility-first CSS framework for rapid UI development
-- **Solana Web3.js**: Solana blockchain integration
-- **Wallet Adapter**: Solana wallet connection library
-- **SWR**: React Hooks for data fetching
+- **Nyext.js**: Weact fwamewowk fow sewvew-wendewed appwications
+- **Weact 19.0.0**: Watest vewsion of Weact wid impwuvd pewfowmance
+- **Taiwwind CSS**: Utiwity-fiwst CSS fwamewowk fow wapid UI devewopment
+- **Sowanya Web3.js**: Sowanya bwockchain integwation
+- **Wawwet Adaptew**: Sowanya wawwet connyection wibwawy
+- **SWW**: Weact Hooks fow data fetching
 
-## Getting Started
+## Getting Stawted
 
-### Prerequisites
+### Pwewequisites
 
-- Node.js 18.x or later
-- npm or yarn
+- Nyode.js 18.x ow watew
+- npm ow yawn
 
-### Installation
+### Instawwation
 
-1. Clone the repository
-```bash
-git clone https://github.com/your-username/solana-borrow-lending-ui.git
-cd solana-borrow-lending-ui
-```
+1~ Cwonye de wepositowy
+__CODE_BWOCK_0__
 
-2. Install dependencies
-```bash
-npm install
-# or
-yarn install
-```
+2~ Instaww dependencies
+__CODE_BWOCK_1__
 
-3. Start the development server
-```bash
-npm run dev
-# or
-yarn dev
-```
+3~ Stawt de devewopment sewvew
+__CODE_BWOCK_2__
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser
+4~ Open __WINK_BWOCK_0__ in youw bwowsew
 
-## Project Structure
+## Pwoject Stwuctuwe
 
-- `/src/app`: Next.js app router pages
-- `/src/components`: React components
-- `/src/hooks`: Custom React hooks
-- `/src/utils`: Utility functions
-- `/public`: Static assets
+- __INWINYE_CODE_0__: Nyext.js app woutew pages
+- __INWINYE_CODE_1__: Weact componyents
+- __INWINYE_CODE_2__: Custom Weact hooks
+- __INWINYE_CODE_3__: Utiwity functions
+- __INWINYE_CODE_4__: Static assets
 
-## Deployment
+## Depwoyment
 
-This application can be deployed to Vercel, Netlify, or any other static site hosting service.
+Dis appwication can be depwoyed to Vewcew, Nyetwify, ow any odew static site hosting sewvice.
 
-```bash
-npm run build
-# or
-yarn build
-```
+__CODE_BWOCK_3__
 
-## Contributing
+## Contwibuting
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contwibutions awe wewcome! uwu Pwease feew fwee to submit a Puww Wequest.
 
-## License
+## Wicense
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+Dis pwoject is wicensed undew de MIT Wicense - see de WICENSE fiwe fow detaiws.
