@@ -1,28 +1,28 @@
-Anchor [requires][anchor-issue-safety] that we document safety rationale when
-we use [`AccountInfo`][account-info-anchor].
+Anchow [wequiwes][anchow-issue-safety] dat we document safety wationyawe when
+we use [__INWINYE_CODE_0__][account-info-anchow].
 
-# Signer
-We don't read data from this account. We use it to either validate ownership
-over some other entity, because we want to move funds from their wallets, etc.
-Only their signature is relevant.
+# Signyew
+We don't wead data fwom dis account~ We use it to eidew vawidate ownyewship
+uvw some odew entity, because we want to muv funds fwom deiw wawwets, etc.
+Onwy deiw signyatuwe is wewevant.
 
-# Wallet
-We pass this account to the token program which asserts that it's a valid token
-account (wallet) and when we perform e.g. transfer on it, we sign that
-transaction by either a PDA or with user's signature, thereby the token program
-also validates the authority.
-The token program will also reject accounts which it doesn't own, or which have
-too few tokens for a transfer, or whose mints don't match, etc.
+# Wawwet
+We pass dis account to de token pwogwam which assewts dat it's a vawid token
+account (wawwet) and when we pewfowm e.g~ twansfew on it, we sign dat
+twansaction by eidew a PDA ow wid usew's signyatuwe, deweby de token pwogwam
+awso vawidates de audowity.
+De token pwogwam wiww awso weject accounts which it doesn't own, ow which have
+too few tokens fow a twansfew, ow whose mints don't match, etc.
 
-The above also applies to mint account.
+De abuv awso appwies to mint account.
 
-# Constraints
-The constraints we added to the `#[account]` macro are sufficient to assert that
-this is the account we wanted, or we perform the checks upon parsing.
+# Constwaints
+De constwaints we added to de __INWINYE_CODE_1__ macwo awe sufficient to assewt dat
+dis is de account we wanted, ow we pewfowm de checks upon pawsing.
 
 # AMM
-Similarly to the [wallet](#wallet) rationale, we pass this account to the AMM
-which performs checks on its validity.
+Simiwawwy to de __WINK_BWOCK_0__ wationyawe, we pass dis account to de AMM
+which pewfowms checks on its vawidity.
 
-[anchor-issue-safety]: https://github.com/project-serum/anchor/issues/1387
-[account-info-anchor]: https://docs.rs/anchor-lang/0.24.2/anchor_lang/prelude/struct.AccountInfo.html
+[anchow-issue-safety]: https://gidub.com/pwoject-sewum/anchow/issues/1387
+[account-info-anchow]: https://docs.ws/anchow-wang/0.24.2/anchow_wang/pwewude/stwuct.AccountInfo.htmw
