@@ -37,7 +37,7 @@ export const WalletProviderWrapper: FC<WalletProviderWrapperProps> = ({
       // BackpackWalletAdapter is not available in the current version of the library
       // Will be added back when the library is updated
     ],
-    [network],
+    [],
   );
 
   return (

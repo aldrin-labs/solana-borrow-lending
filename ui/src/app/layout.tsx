@@ -2,14 +2,6 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { WalletProviderWrapper } from "@/components/WalletProviderWrapper";
 import { Header } from "@/components/Header";
-import { Inter } from "next/font/google";
-
-// Initialize the Inter font
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-inter",
-});
 
 export const metadata: Metadata = {
   title: "Solana Borrow Lending Protocol",
@@ -22,8 +14,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="min-h-screen bg-background text-text-primary">
+    <html lang="en">
+      <body className="min-h-screen bg-background text-text-primary font-sans">
         <WalletProviderWrapper>
           <div className="flex flex-col min-h-screen">
             <Header />

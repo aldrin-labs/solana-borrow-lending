@@ -36,6 +36,8 @@ export const MarketActionModal: FC<MarketActionModalProps> = ({
 
   const handleSubmit = async () => {
     if (!amount || error) {
+      return;
+    }
 
     setIsProcessing(true);
 
