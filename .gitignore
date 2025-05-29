@@ -8,6 +8,7 @@
 bin/*.so
 bin/amm
 node_modules
+.next
 package-lock.json
 yarn.lock
 target
