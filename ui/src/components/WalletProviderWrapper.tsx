@@ -13,8 +13,8 @@ import {
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { clusterApiUrl } from "@solana/web3.js";
 
-// Import the wallet adapter CSS
-import "@solana/wallet-adapter-react-ui/styles.css";
+// Import the local wallet adapter CSS (modified to remove Google Fonts)
+import "@/styles/wallet-adapter.css";
 
 interface WalletProviderWrapperProps {
   children: ReactNode;
