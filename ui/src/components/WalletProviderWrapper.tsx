@@ -13,8 +13,8 @@ import {
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { clusterApiUrl } from "@solana/web3.js";
 
-// Import the wallet adapter CSS
-import "@solana/wallet-adapter-react-ui/styles.css";
+// Import the local wallet adapter CSS (modified to remove Google Fonts)
+import "@/styles/wallet-adapter.css";
 
 interface WalletProviderWrapperProps {
   children: ReactNode;
@@ -37,7 +37,7 @@ export const WalletProviderWrapper: FC<WalletProviderWrapperProps> = ({
       // BackpackWalletAdapter is not available in the current version of the library
       // Will be added back when the library is updated
     ],
-    [network],
+    [],
   );
 
   return (

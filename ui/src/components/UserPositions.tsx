@@ -7,43 +7,43 @@ interface UserPositionsProps {
   positionType?: "supply" | "borrow";
 }
 
+// Mock data for demonstration (moved outside component to avoid dependency warnings)
+const mockSupplyPositions = [
+  {
+    id: "1",
+    token: "SOL",
+    amount: "5.0 SOL",
+    value: "$500.00",
+    apy: "3.2%",
+    collateral: true,
+  },
+  {
+    id: "2",
+    token: "USDC",
+    amount: "1,000 USDC",
+    value: "$1,000.00",
+    apy: "2.5%",
+    collateral: true,
+  },
+];
+
+const mockBorrowPositions = [
+  {
+    id: "1",
+    token: "USDC",
+    amount: "450 USDC",
+    value: "$450.00",
+    apy: "4.2%",
+    healthFactor: 1.8,
+  },
+];
+
 export const UserPositions: FC<UserPositionsProps> = ({
   positionType = "supply",
 }) => {
   const { connected } = useWallet();
   const [positions, setPositions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Mock data for demonstration
-  const mockSupplyPositions = [
-    {
-      id: "1",
-      token: "SOL",
-      amount: "5.0 SOL",
-      value: "$500.00",
-      apy: "3.2%",
-      collateral: true,
-    },
-    {
-      id: "2",
-      token: "USDC",
-      amount: "1,000 USDC",
-      value: "$1,000.00",
-      apy: "2.5%",
-      collateral: true,
-    },
-  ];
-
-  const mockBorrowPositions = [
-    {
-      id: "1",
-      token: "USDC",
-      amount: "450 USDC",
-      value: "$450.00",
-      apy: "4.2%",
-      healthFactor: 1.8,
-    },
-  ];
 
   useEffect(() => {
     if (connected) {
@@ -109,7 +109,7 @@ export const UserPositions: FC<UserPositionsProps> = ({
           No {positionType === "supply" ? "Supplies" : "Borrows"} Found
         </h2>
         <p className="text-text-secondary mb-6">
-          You don't have any{" "}
+          You don&apos;t have any{" "}
           {positionType === "supply" ? "supplies" : "borrows"} yet
         </p>
         <Button variant={positionType === "supply" ? "primary" : "secondary"}>

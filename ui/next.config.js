@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
   output: 'export',
   // Configure webpack to handle polyfills for crypto modules needed by Solana
   webpack: (config, { isServer }) => {
