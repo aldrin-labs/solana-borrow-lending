@@ -2,12 +2,60 @@
 * Anchor v0.24.2
 * [Code coverage][project-code-coverage]
 * [Rust docs][project-rust-docs]
-* [USP docs](#usp)
-* [USP changelog][scp-changelog]
-* [BLp docs](#borrow-lending)
-* [BLp changelog][blp-changelog]
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[🚀 Getting Started](#getting-started)** | Quick setup and first steps |
+| **[📖 API Reference](docs/api-reference.md)** | Complete API documentation |
+| **[🎓 User Tutorials](docs/user-tutorials.md)** | Step-by-step guides for common use cases |
+| **[👨‍💻 Developer Guide](docs/developer-guide.md)** | Development setup and integration |
+| **[🏗️ Architecture](docs/documentation.md)** | Comprehensive system documentation |
+| **[USP docs](#usp)** | Stable coin program documentation |
+| **[BLp docs](#borrow-lending)** | Borrow-lending program documentation |
+| **[USP changelog][scp-changelog]** | Stable coin program changelog |
+| **[BLp changelog][blp-changelog]** | Borrow-lending program changelog |
+
+## 🚀 Getting Started
+
+### For Users
+1. **[User Tutorials](docs/user-tutorials.md)** - Learn how to lend, borrow, and manage positions
+2. **[Common Use Cases](docs/user-tutorials.md#common-use-cases)** - Real-world examples
+
+### For Developers
+1. **[Developer Guide](docs/developer-guide.md)** - Environment setup and architecture
+2. **[API Reference](docs/api-reference.md)** - Complete function reference
+3. **[Integration Examples](docs/developer-guide.md#integration-examples)** - SDK usage patterns
+
+### For Integrators
+1. **[API Reference](docs/api-reference.md#typescript-sdk)** - TypeScript SDK documentation
+2. **[CLI Commands](docs/api-reference.md#cli-commands)** - Command-line interface
 
 # Borrow-lending
+
+A decentralized lending platform on Solana where users can lend and borrow tokens with dynamic interest rates, collateralized positions, and advanced features like flash loans and leveraged yield farming.
+
+## ⚡ Quick Start
+
+```bash
+# Clone and install
+git clone https://github.com/aldrin-labs/solana-borrow-lending.git
+cd solana-borrow-lending
+yarn install
+
+# Build
+anchor build
+
+# Test
+anchor test
+```
+
+**New to the protocol?** Start with [User Tutorials](docs/user-tutorials.md)  
+**Building an integration?** Check the [Developer Guide](docs/developer-guide.md)  
+**Need API details?** See the [API Reference](docs/api-reference.md)
+
+## Overview
 
 A lending platform is a tool where users lend and borrow tokens. A user either
 gets an interest on lent tokens or they get a loan and pay interest.
