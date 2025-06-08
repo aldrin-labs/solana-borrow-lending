@@ -36,6 +36,8 @@ Welcome to the Solana Borrow-Lending Protocol documentation. This index helps yo
 
 | Document | Description | Audience |
 |----------|-------------|----------|
+| **[⚡ Zero-Copy Architecture](zero-copy-architecture.md)** | Zero-copy patterns, memory optimization, and performance | Developers, Protocol Engineers |
+| **[🚀 Performance Optimization](performance-optimization.md)** | Compute unit management and optimization techniques | Developers, Integrators |
 | **[📊 Mermaid Diagrams](mermaid_diagrams.md)** | Visual system diagrams and flow charts | All Audiences |
 | **[🏦 Tokenomics Analysis](tokenomics_analysis.md)** | Economic model and token mechanics | Researchers, Analysts |
 | **[🔐 Vulnerability Analysis](vulnerability_analysis.md)** | Security considerations and potential risks | Auditors, Security Researchers |
@@ -81,10 +83,12 @@ Welcome to the Solana Borrow-Lending Protocol documentation. This index helps yo
 **Goal**: Contribute to or fork the protocol
 
 1. **Start here**: [Developer Guide - Architecture Overview](developer-guide.md#architecture-overview)
-2. **Program structure**: [Program Structure](developer-guide.md#program-structure)
-3. **Core components**: [Core Components](developer-guide.md#core-components)
-4. **Full architecture**: [Architecture Documentation](documentation.md)
-5. **Testing framework**: [Testing](developer-guide.md#testing)
+2. **Zero-copy optimization**: [Zero-Copy Architecture](zero-copy-architecture.md)
+3. **Performance tuning**: [Performance Optimization](performance-optimization.md)
+4. **Program structure**: [Program Structure](developer-guide.md#program-structure)
+5. **Core components**: [Core Components](developer-guide.md#core-components)
+6. **Full architecture**: [Architecture Documentation](documentation.md)
+7. **Testing framework**: [Testing](developer-guide.md#testing)
 
 ### Auditors / Security Researchers
 **Goal**: Review the protocol for security issues

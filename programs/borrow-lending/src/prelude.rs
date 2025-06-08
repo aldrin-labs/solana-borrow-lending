@@ -2,6 +2,7 @@ pub use crate::accounts::*;
 pub use crate::err::{self, ErrorCode};
 pub use crate::math::{self, *};
 pub use crate::models::{self, *};
+pub use crate::zero_copy_utils::*;
 pub use anchor_lang::prelude::*;
 
 pub mod consts {

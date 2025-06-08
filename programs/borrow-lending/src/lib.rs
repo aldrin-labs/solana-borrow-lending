@@ -17,6 +17,7 @@ pub mod err;
 pub mod math;
 pub mod models;
 pub mod prelude;
+pub mod zero_copy_utils;
 
 use endpoints::*;
 use prelude::*;
