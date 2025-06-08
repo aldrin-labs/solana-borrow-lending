@@ -8304,6 +8304,1072 @@ if (validation.valid) {
 }
 ```
 
+---
+
+## Error Codes
+
+The Solana Borrow-Lending Protocol defines comprehensive error codes to help developers understand and handle various failure scenarios. Understanding these errors is crucial for building robust applications.
+
+### Error Code Categories
+
+Error codes are organized by category and severity level:
+
+#### Validation Errors (6000-6019)
+
+**InvalidMarketOwner (6000)**
+- **Description:** Provided owner does not match the market owner
+- **Causes:** 
+  - Attempting administrative operations without proper authority
+  - Incorrect market owner account in transaction
+  - Market ownership transferred without updating references
+- **Solutions:**
+  - Verify the correct market owner account
+  - Update owner references after ownership transfers
+  - Use proper authorization patterns
+
+```typescript
+// Example: Handling market owner validation
+try {
+  await program.rpc.updateLendingMarket(newConfig, {
+    accounts: {
+      marketOwner: currentOwner.publicKey,
+      lendingMarket: marketAddress,
+    },
+    signers: [currentOwner],
+  });
+} catch (error) {
+  if (error.code === 6000) {
+    console.error("Invalid market owner - verify ownership");
+    // Fetch current owner and update references
+    const marketData = await program.account.lendingMarket.fetch(marketAddress);
+    console.log(`Actual owner: ${marketData.owner}`);
+  }
+}
+```
+
+**MathOverflow (6001)**
+- **Description:** Operation would result in an overflow
+- **Causes:**
+  - Arithmetic operations exceeding maximum values
+  - Interest calculations with extreme parameters
+  - Token amounts beyond supported precision
+- **Solutions:**
+  - Validate input ranges before operations
+  - Use appropriate decimal precision
+  - Implement overflow checks in client code
+
+```typescript
+// Example: Preventing math overflow
+function safeMath(a: number, b: number, operation: 'add' | 'multiply'): number {
+  const MAX_SAFE_VALUE = Number.MAX_SAFE_INTEGER;
+  
+  if (operation === 'add') {
+    if (a > MAX_SAFE_VALUE - b) {
+      throw new Error("Addition would overflow");
+    }
+    return a + b;
+  } else if (operation === 'multiply') {
+    if (a > MAX_SAFE_VALUE / b) {
+      throw new Error("Multiplication would overflow");
+    }
+    return a * b;
+  }
+  
+  return 0;
+}
+```
+
+**InvalidConfig (6002)**
+- **Description:** Provided configuration isn't in the right format or range
+- **Causes:**
+  - Configuration parameters outside valid ranges
+  - Inconsistent configuration combinations
+  - Invalid percentage or rate values
+- **Solutions:**
+  - Validate configuration before submission
+  - Use configuration validation utilities
+  - Check parameter constraints
+
+```typescript
+// Configuration validation utility
+class ConfigValidator {
+  static validateReserveConfig(config: ReserveConfig): ValidationResult {
+    const errors: string[] = [];
+    
+    // Validate LTV ratio
+    if (config.loanToValueRatio < 1 || config.loanToValueRatio > 97) {
+      errors.push("LTV ratio must be between 1% and 97%");
+    }
+    
+    // Validate liquidation threshold
+    if (config.liquidationThreshold <= config.loanToValueRatio) {
+      errors.push("Liquidation threshold must be higher than LTV ratio");
+    }
+    
+    // Validate interest rates
+    if (config.minBorrowRate > config.optimalBorrowRate) {
+      errors.push("Minimum borrow rate cannot exceed optimal rate");
+    }
+    
+    return {
+      valid: errors.length === 0,
+      errors,
+    };
+  }
+}
+```
+
+**InvalidOracleConfig (6003)**
+- **Description:** Provided oracle configuration isn't in the right format or range
+- **Causes:**
+  - Invalid Pyth oracle account addresses
+  - Incorrect oracle configuration parameters
+  - Mismatched product and price accounts
+- **Solutions:**
+  - Verify oracle account addresses
+  - Check Pyth network compatibility
+  - Validate oracle configuration parameters
+
+**InvalidOracleDataLayout (6004)**
+- **Description:** Cannot read oracle Pyth data because they have an unexpected format
+- **Causes:**
+  - Corrupted oracle data
+  - Incompatible Pyth client version
+  - Network-specific oracle format differences
+- **Solutions:**
+  - Update Pyth client libraries
+  - Verify network compatibility
+  - Check oracle account health
+
+**InvalidAmount (6005)**
+- **Description:** Provided amount is in invalid range
+- **Causes:**
+  - Zero amounts where positive values required
+  - Amounts exceeding limits or precision
+  - Negative amounts in unsigned contexts
+- **Solutions:**
+  - Validate amount ranges before transactions
+  - Check minimum and maximum limits
+  - Use appropriate number precision
+
+```typescript
+// Amount validation utility
+class AmountValidator {
+  static validateDepositAmount(
+    amount: number,
+    reserveConfig: ReserveConfig,
+    userBalance: number
+  ): ValidationResult {
+    const errors: string[] = [];
+    
+    if (amount <= 0) {
+      errors.push("Deposit amount must be positive");
+    }
+    
+    if (amount > userBalance) {
+      errors.push("Insufficient balance for deposit");
+    }
+    
+    if (amount > reserveConfig.depositLimit) {
+      errors.push(`Amount exceeds deposit limit: ${reserveConfig.depositLimit}`);
+    }
+    
+    return { valid: errors.length === 0, errors };
+  }
+  
+  static validateBorrowAmount(
+    amount: number,
+    availableBorrowValue: number,
+    reserveLiquidity: number
+  ): ValidationResult {
+    const errors: string[] = [];
+    
+    if (amount <= 0) {
+      errors.push("Borrow amount must be positive");
+    }
+    
+    if (amount > availableBorrowValue) {
+      errors.push("Amount exceeds available borrow capacity");
+    }
+    
+    if (amount > reserveLiquidity) {
+      errors.push("Insufficient reserve liquidity");
+    }
+    
+    return { valid: errors.length === 0, errors };
+  }
+}
+```
+
+#### State Errors (6020-6039)
+
+**ReserveStale (6021)**
+- **Description:** Reserve account needs to be refreshed
+- **Causes:**
+  - Time elapsed since last reserve update
+  - Interest accrual requiring state update
+  - Price changes affecting calculations
+- **Solutions:**
+  - Call refresh_reserve before operations
+  - Implement automated refresh mechanisms
+  - Monitor staleness in real-time
+
+```typescript
+// Automatic reserve refresh
+async function ensureReserveFresh(
+  program: Program<BorrowLending>,
+  reserve: PublicKey,
+  maxStalenessSlots: number = 50
+): Promise<void> {
+  const reserveData = await program.account.reserve.fetch(reserve);
+  const currentSlot = await program.provider.connection.getSlot();
+  const staleness = currentSlot - reserveData.lastUpdate.slot.toNumber();
+  
+  if (staleness > maxStalenessSlots) {
+    console.log(`Refreshing stale reserve (${staleness} slots old)`);
+    await program.rpc.refreshReserve({
+      accounts: {
+        reserve: reserve,
+        pythPrice: reserveData.liquidity.pythPriceKey,
+        clock: SYSVAR_CLOCK_PUBKEY,
+      },
+    });
+  }
+}
+```
+
+**ObligationStale (6022)**
+- **Description:** Obligation account needs to be refreshed
+- **Causes:**
+  - Time elapsed since last obligation update
+  - Associated reserve changes affecting calculations
+  - Health factor requiring recalculation
+- **Solutions:**
+  - Call refresh_obligation before operations
+  - Refresh associated reserves first
+  - Implement staleness monitoring
+
+```typescript
+// Comprehensive obligation refresh
+async function refreshObligationWithReserves(
+  program: Program<BorrowLending>,
+  obligation: PublicKey
+): Promise<void> {
+  const obligationData = await program.account.obligation.fetch(obligation);
+  
+  // Collect all associated reserves
+  const reserves = new Set<string>();
+  obligationData.deposits.forEach(deposit => {
+    if (deposit.depositReserve) {
+      reserves.add(deposit.depositReserve.toString());
+    }
+  });
+  obligationData.borrows.forEach(borrow => {
+    if (borrow.borrowReserve) {
+      reserves.add(borrow.borrowReserve.toString());
+    }
+  });
+  
+  // Refresh all reserves first
+  for (const reserveStr of reserves) {
+    const reserve = new PublicKey(reserveStr);
+    await ensureReserveFresh(program, reserve);
+  }
+  
+  // Then refresh obligation
+  await program.rpc.refreshObligation({
+    accounts: {
+      obligation: obligation,
+      clock: SYSVAR_CLOCK_PUBKEY,
+    },
+    remainingAccounts: Array.from(reserves).map(r => ({
+      pubkey: new PublicKey(r),
+      isWritable: false,
+      isSigner: false,
+    })),
+  });
+}
+```
+
+**MissingReserveAccount (6023)**
+- **Description:** A reserve account linked to an obligation was not provided
+- **Causes:**
+  - Incomplete reserve accounts in remaining_accounts
+  - Obligation referencing reserves not included
+  - Incorrect account ordering
+- **Solutions:**
+  - Include all obligation-linked reserves
+  - Verify account ordering requirements
+  - Use helper functions for account collection
+
+**NegativeInterestRate (6024)**
+- **Description:** Interest rate cannot be negative
+- **Causes:**
+  - Invalid interest rate model parameters
+  - Calculation errors resulting in negative rates
+  - Configuration with inconsistent rate bounds
+- **Solutions:**
+  - Validate interest rate model configuration
+  - Add bounds checking to rate calculations
+  - Review rate parameter relationships
+
+#### Business Logic Errors (6040-6059)
+
+**LendingMarketMismatch (6030)**
+- **Description:** Provided accounts must belong to the same market
+- **Causes:**
+  - Mixing reserves from different markets
+  - Obligation and reserve from different markets
+  - Cross-market operations attempted
+- **Solutions:**
+  - Verify market relationships before transactions
+  - Use market-specific account collections
+  - Implement market validation checks
+
+```typescript
+// Market relationship validation
+async function validateMarketAccounts(
+  program: Program<BorrowLending>,
+  accounts: { obligation?: PublicKey; reserves: PublicKey[] }
+): Promise<void> {
+  let marketAddress: PublicKey | null = null;
+  
+  // Check obligation market
+  if (accounts.obligation) {
+    const obligationData = await program.account.obligation.fetch(accounts.obligation);
+    marketAddress = obligationData.lendingMarket;
+  }
+  
+  // Check all reserves belong to same market
+  for (const reserve of accounts.reserves) {
+    const reserveData = await program.account.reserve.fetch(reserve);
+    
+    if (marketAddress === null) {
+      marketAddress = reserveData.lendingMarket;
+    } else if (!marketAddress.equals(reserveData.lendingMarket)) {
+      throw new Error(`Reserve ${reserve} belongs to different market`);
+    }
+  }
+}
+```
+
+**ReserveCollateralDisabled (6031)**
+- **Description:** Reserve cannot be used as a collateral
+- **Causes:**
+  - Reserve configuration disabling collateral use
+  - Asset type restrictions
+  - Risk management limitations
+- **Solutions:**
+  - Check reserve collateral status
+  - Use appropriate reserves for collateral
+  - Review asset eligibility requirements
+
+**ObligationReserveLimit (6032)**
+- **Description:** Number of reserves associated with a single obligation is limited
+- **Causes:**
+  - Attempting to exceed maximum reserve count per obligation
+  - Protocol limit for complexity management
+- **Solutions:**
+  - Monitor reserve count per obligation
+  - Use separate obligations for additional reserves
+  - Plan position structure efficiently
+
+```typescript
+// Obligation reserve management
+class ObligationReserveManager {
+  static readonly MAX_RESERVES = 10;
+  
+  static async checkReserveCapacity(
+    program: Program<BorrowLending>,
+    obligation: PublicKey,
+    newReserveType: 'deposit' | 'borrow'
+  ): Promise<{ canAdd: boolean; currentCount: number; availableSlots: number }> {
+    const obligationData = await program.account.obligation.fetch(obligation);
+    
+    const usedSlots = obligationData.reserves.filter(
+      reserve => reserve.Empty === undefined
+    ).length;
+    
+    const availableSlots = this.MAX_RESERVES - usedSlots;
+    const canAdd = availableSlots > 0;
+    
+    return {
+      canAdd,
+      currentCount: usedSlots,
+      availableSlots,
+    };
+  }
+  
+  static getReserveUtilization(obligationData: any): {
+    totalSlots: number;
+    usedSlots: number;
+    utilizationRate: number;
+  } {
+    const totalSlots = this.MAX_RESERVES;
+    const usedSlots = obligationData.reserves.filter(
+      (reserve: any) => reserve.Empty === undefined
+    ).length;
+    
+    return {
+      totalSlots,
+      usedSlots,
+      utilizationRate: usedSlots / totalSlots,
+    };
+  }
+}
+```
+
+#### Collateral and Liquidity Errors (6060-6079)
+
+**ObligationCollateralEmpty (6033)**
+- **Description:** No collateral deposited in this obligation
+- **Causes:**
+  - Attempting operations requiring collateral without deposits
+  - All collateral previously withdrawn
+- **Solutions:**
+  - Deposit collateral before borrowing operations
+  - Check collateral status before transactions
+  - Implement collateral requirement validation
+
+**ObligationCollateralTooLow (6034)**
+- **Description:** Not enough collateral to perform this action
+- **Causes:**
+  - Insufficient collateral for borrowing amount
+  - Collateral value below required threshold
+  - Market conditions affecting collateral value
+- **Solutions:**
+  - Add more collateral before borrowing
+  - Reduce borrow amount
+  - Monitor collateral value changes
+
+```typescript
+// Collateral management utilities
+class CollateralManager {
+  static async calculateRequiredCollateral(
+    program: Program<BorrowLending>,
+    borrowAmount: number,
+    borrowReserve: PublicKey,
+    collateralReserve: PublicKey
+  ): Promise<{
+    requiredCollateral: number;
+    currentCollateral: number;
+    additionalNeeded: number;
+  }> {
+    const borrowReserveData = await program.account.reserve.fetch(borrowReserve);
+    const collateralReserveData = await program.account.reserve.fetch(collateralReserve);
+    
+    // Get prices (simplified - would use actual oracle data)
+    const borrowPrice = 1; // USD price of borrow asset
+    const collateralPrice = 1; // USD price of collateral asset
+    
+    // Calculate required collateral based on LTV
+    const ltvRatio = collateralReserveData.config.loanToValueRatio / 100;
+    const borrowValue = borrowAmount * borrowPrice;
+    const requiredCollateralValue = borrowValue / ltvRatio;
+    const requiredCollateral = requiredCollateralValue / collateralPrice;
+    
+    return {
+      requiredCollateral,
+      currentCollateral: 0, // Would fetch from obligation
+      additionalNeeded: Math.max(0, requiredCollateral),
+    };
+  }
+  
+  static async validateCollateralSufficiency(
+    program: Program<BorrowLending>,
+    obligation: PublicKey,
+    additionalBorrowValue: number
+  ): Promise<{ sufficient: boolean; shortfall: number }> {
+    const obligationData = await program.account.obligation.fetch(obligation);
+    
+    const currentBorrowValue = obligationData.collateralizedBorrowedValue.toNumber();
+    const totalBorrowValue = currentBorrowValue + additionalBorrowValue;
+    const allowedBorrowValue = obligationData.allowedBorrowValue.toNumber();
+    
+    const sufficient = totalBorrowValue <= allowedBorrowValue;
+    const shortfall = Math.max(0, totalBorrowValue - allowedBorrowValue);
+    
+    return { sufficient, shortfall };
+  }
+}
+```
+
+**WithdrawTooSmall (6041)**
+- **Description:** Cannot withdraw zero collateral
+- **Causes:**
+  - Zero withdrawal amounts
+  - Rounding errors in calculations
+- **Solutions:**
+  - Validate withdrawal amounts
+  - Handle minimum withdrawal requirements
+  - Check for calculation precision issues
+
+**WithdrawTooLarge (6042)**
+- **Description:** Cannot withdraw more than allowed amount of collateral
+- **Causes:**
+  - Withdrawal would violate collateral requirements
+  - Health factor would fall below threshold
+  - Insufficient collateral deposited
+- **Solutions:**
+  - Calculate maximum safe withdrawal amount
+  - Implement withdrawal limit checks
+  - Provide user guidance on safe amounts
+
+```typescript
+// Safe withdrawal calculations
+async function calculateMaxWithdrawal(
+  program: Program<BorrowLending>,
+  obligation: PublicKey,
+  collateralReserve: PublicKey,
+  minHealthFactor: number = 1.3
+): Promise<{
+  maxWithdrawal: number;
+  currentDeposit: number;
+  healthFactorAfterMax: number;
+}> {
+  const obligationData = await program.account.obligation.fetch(obligation);
+  
+  // Find collateral deposit for this reserve
+  const deposit = obligationData.deposits.find(
+    (d: any) => d.Collateral && d.Collateral.inner.deposit_reserve.equals(collateralReserve)
+  );
+  
+  if (!deposit) {
+    return { maxWithdrawal: 0, currentDeposit: 0, healthFactorAfterMax: 0 };
+  }
+  
+  const currentDeposit = deposit.Collateral.inner.deposited_amount;
+  const currentCollateralValue = obligationData.depositedValue.toNumber();
+  const currentBorrowValue = obligationData.collateralizedBorrowedValue.toNumber();
+  
+  // Calculate maximum withdrawal maintaining min health factor
+  const requiredCollateralValue = currentBorrowValue * minHealthFactor;
+  const maxWithdrawValue = currentCollateralValue - requiredCollateralValue;
+  
+  // Convert to token amount (simplified)
+  const collateralPrice = 1; // Would get from oracle
+  const maxWithdrawal = Math.max(0, Math.min(currentDeposit, maxWithdrawValue / collateralPrice));
+  
+  const healthFactorAfterMax = currentCollateralValue - (maxWithdrawal * collateralPrice);
+  
+  return {
+    maxWithdrawal,
+    currentDeposit,
+    healthFactorAfterMax: healthFactorAfterMax / currentBorrowValue,
+  };
+}
+```
+
+#### Borrowing and Repayment Errors (6080-6099)
+
+**BorrowTooLarge (6043)**
+- **Description:** Cannot borrow that amount of liquidity against this obligation
+- **Causes:**
+  - Borrow amount exceeds collateral capacity
+  - Health factor would fall below minimum
+  - Reserve liquidity insufficient
+- **Solutions:**
+  - Calculate maximum safe borrow amount
+  - Add more collateral
+  - Reduce borrow amount
+
+**BorrowTooSmall (6044)**
+- **Description:** Not enough liquidity borrowed to cover the fees
+- **Causes:**
+  - Borrow amount too small to pay fees
+  - Minimum borrow requirements not met
+- **Solutions:**
+  - Increase borrow amount
+  - Check minimum borrow requirements
+  - Account for fees in calculations
+
+**RepayTooSmall (6045)**
+- **Description:** The amount to repay cannot be zero
+- **Causes:**
+  - Zero repayment amounts
+  - Invalid repayment calculations
+- **Solutions:**
+  - Validate repayment amounts
+  - Use proper debt calculation methods
+  - Handle edge cases in repayment logic
+
+#### Liquidation Errors (6100-6119)
+
+**ObligationHealthy (6046)**
+- **Description:** Healthy obligation cannot be liquidated
+- **Causes:**
+  - Health factor above liquidation threshold
+  - Attempting liquidation on safe positions
+- **Solutions:**
+  - Check health factor before liquidation attempts
+  - Wait for health factor to deteriorate
+  - Monitor positions for liquidation opportunities
+
+```typescript
+// Liquidation eligibility checker
+class LiquidationChecker {
+  static async checkLiquidationEligibility(
+    program: Program<BorrowLending>,
+    obligation: PublicKey
+  ): Promise<{
+    liquidatable: boolean;
+    healthFactor: number;
+    liquidationThreshold: number;
+    timeToLiquidation?: number;
+  }> {
+    const obligationData = await program.account.obligation.fetch(obligation);
+    
+    const collateralValue = obligationData.depositedValue.toNumber();
+    const borrowedValue = obligationData.collateralizedBorrowedValue.toNumber();
+    const healthFactor = collateralValue / borrowedValue;
+    
+    const liquidatable = healthFactor < 1.0;
+    
+    return {
+      liquidatable,
+      healthFactor,
+      liquidationThreshold: 1.0,
+      timeToLiquidation: liquidatable ? 0 : this.estimateTimeToLiquidation(
+        healthFactor,
+        obligationData
+      ),
+    };
+  }
+  
+  private static estimateTimeToLiquidation(
+    currentHealthFactor: number,
+    obligationData: any
+  ): number | undefined {
+    if (currentHealthFactor < 1.1) {
+      return 1; // Very close, within 1 day
+    } else if (currentHealthFactor < 1.2) {
+      return 7; // Within a week
+    } else if (currentHealthFactor < 1.3) {
+      return 30; // Within a month
+    }
+    
+    return undefined; // Not approaching liquidation
+  }
+  
+  static async monitorLiquidationRisk(
+    program: Program<BorrowLending>,
+    obligations: PublicKey[],
+    alertCallback: (obligation: PublicKey, risk: any) => void
+  ): Promise<void> {
+    for (const obligation of obligations) {
+      try {
+        const eligibility = await this.checkLiquidationEligibility(program, obligation);
+        
+        if (eligibility.liquidatable) {
+          alertCallback(obligation, {
+            level: 'critical',
+            message: 'Position is liquidatable',
+            healthFactor: eligibility.healthFactor,
+          });
+        } else if (eligibility.healthFactor < 1.1) {
+          alertCallback(obligation, {
+            level: 'warning',
+            message: 'Position at high risk of liquidation',
+            healthFactor: eligibility.healthFactor,
+            timeToLiquidation: eligibility.timeToLiquidation,
+          });
+        }
+      } catch (error) {
+        console.error(`Error checking obligation ${obligation}:`, error);
+      }
+    }
+  }
+}
+```
+
+**LiquidationTooSmall (6047)**
+- **Description:** To receive some collateral or repay liquidity the amount of liquidity to repay must be higher
+- **Causes:**
+  - Liquidation amount below minimum threshold
+  - Insufficient liquidation incentive
+- **Solutions:**
+  - Increase liquidation amount
+  - Check minimum liquidation requirements
+  - Calculate optimal liquidation size
+
+#### Flash Loan Errors (6120-6139)
+
+**InvalidFlashLoanTargetProgram (6048)**
+- **Description:** Flash loan target program cannot be BLp
+- **Causes:**
+  - Attempting recursive flash loans
+  - Invalid target program specification
+- **Solutions:**
+  - Use external programs for flash loan logic
+  - Avoid self-referential flash loans
+  - Implement proper target program validation
+
+**FlashLoansDisabled (6049)**
+- **Description:** Flash loans feature currently not enabled
+- **Causes:**
+  - Market configuration disabling flash loans
+  - Emergency mode or security measures
+- **Solutions:**
+  - Check market flash loan status
+  - Wait for flash loans to be re-enabled
+  - Use alternative liquidity sources
+
+```typescript
+// Flash loan availability checker
+async function checkFlashLoanAvailability(
+  program: Program<BorrowLending>,
+  market: PublicKey,
+  reserve: PublicKey,
+  amount: number
+): Promise<{
+  available: boolean;
+  reason?: string;
+  maxAmount?: number;
+}> {
+  const marketData = await program.account.lendingMarket.fetch(market);
+  
+  if (!marketData.enableFlashLoans) {
+    return {
+      available: false,
+      reason: "Flash loans disabled for this market",
+    };
+  }
+  
+  const reserveData = await program.account.reserve.fetch(reserve);
+  const availableLiquidity = reserveData.liquidity.availableAmount.toNumber();
+  
+  if (amount > availableLiquidity) {
+    return {
+      available: false,
+      reason: "Insufficient reserve liquidity",
+      maxAmount: availableLiquidity,
+    };
+  }
+  
+  return { available: true };
+}
+```
+
+### Error Handling Best Practices
+
+#### Comprehensive Error Handler
+
+```typescript
+class ProtocolErrorHandler {
+  private static readonly ERROR_MESSAGES: { [key: number]: string } = {
+    6000: "Invalid market owner - check authorization",
+    6001: "Math overflow - reduce transaction amounts",
+    6002: "Invalid configuration - check parameter ranges",
+    6021: "Reserve stale - refresh before operation",
+    6022: "Obligation stale - refresh before operation",
+    6043: "Borrow too large - add collateral or reduce amount",
+    6046: "Position healthy - cannot liquidate",
+    6049: "Flash loans disabled - check market settings",
+  };
+  
+  static async handleError(error: any, context: ErrorContext): Promise<ErrorResponse> {
+    const errorCode = this.extractErrorCode(error);
+    const errorMessage = this.ERROR_MESSAGES[errorCode] || "Unknown error occurred";
+    
+    const response: ErrorResponse = {
+      code: errorCode,
+      message: errorMessage,
+      originalError: error.message,
+      context,
+      suggestedActions: [],
+      retryable: false,
+    };
+    
+    // Add specific handling logic
+    switch (errorCode) {
+      case 6021: // ReserveStale
+      case 6022: // ObligationStale
+        response.suggestedActions = ["Refresh accounts and retry"];
+        response.retryable = true;
+        break;
+        
+      case 6043: // BorrowTooLarge
+        response.suggestedActions = [
+          "Add more collateral",
+          "Reduce borrow amount",
+          "Check available borrow capacity"
+        ];
+        break;
+        
+      case 6000: // InvalidMarketOwner
+        response.suggestedActions = [
+          "Verify market owner account",
+          "Check authorization permissions"
+        ];
+        break;
+        
+      case 6049: // FlashLoansDisabled
+        response.suggestedActions = [
+          "Check market flash loan status",
+          "Use alternative liquidity sources",
+          "Wait for flash loans to be re-enabled"
+        ];
+        break;
+    }
+    
+    return response;
+  }
+  
+  private static extractErrorCode(error: any): number {
+    // Extract error code from various error formats
+    if (error.code) return error.code;
+    if (error.error?.errorCode?.code) return error.error.errorCode.code;
+    if (typeof error === 'string' && error.includes('Error Code:')) {
+      const match = error.match(/Error Code: (\d+)/);
+      return match ? parseInt(match[1]) : 0;
+    }
+    return 0;
+  }
+  
+  static async retryWithErrorHandling<T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 3,
+    context: ErrorContext
+  ): Promise<T> {
+    let lastError: any;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error;
+        const errorResponse = await this.handleError(error, context);
+        
+        console.log(`Attempt ${attempt} failed:`, errorResponse.message);
+        
+        if (!errorResponse.retryable || attempt === maxRetries) {
+          throw new EnhancedError(errorResponse);
+        }
+        
+        // Wait before retry (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+    
+    throw lastError;
+  }
+}
+
+interface ErrorContext {
+  operation: string;
+  accounts: { [key: string]: string };
+  parameters: any;
+  timestamp: number;
+}
+
+interface ErrorResponse {
+  code: number;
+  message: string;
+  originalError: string;
+  context: ErrorContext;
+  suggestedActions: string[];
+  retryable: boolean;
+}
+
+class EnhancedError extends Error {
+  constructor(public errorResponse: ErrorResponse) {
+    super(errorResponse.message);
+    this.name = "ProtocolError";
+  }
+}
+
+// Usage example
+async function safeBorrowOperation(
+  program: Program<BorrowLending>,
+  obligation: PublicKey,
+  reserve: PublicKey,
+  amount: number
+) {
+  const context: ErrorContext = {
+    operation: "borrow_obligation_liquidity",
+    accounts: {
+      obligation: obligation.toString(),
+      reserve: reserve.toString(),
+    },
+    parameters: { amount },
+    timestamp: Date.now(),
+  };
+  
+  return await ProtocolErrorHandler.retryWithErrorHandling(
+    async () => {
+      // Refresh accounts first to avoid stale errors
+      await refreshObligationWithReserves(program, obligation);
+      
+      // Attempt borrow operation
+      return await program.rpc.borrowObligationLiquidity(
+        0, // lending_market_bump_seed
+        amount,
+        {
+          accounts: {
+            // ... borrow accounts
+          },
+        }
+      );
+    },
+    3,
+    context
+  );
+}
+```
+
+#### Error Recovery Strategies
+
+```typescript
+class ErrorRecoveryManager {
+  static async recoverFromStaleAccounts(
+    program: Program<BorrowLending>,
+    accounts: {
+      reserves: PublicKey[];
+      obligations: PublicKey[];
+    }
+  ): Promise<void> {
+    console.log("Recovering from stale accounts...");
+    
+    // Refresh all reserves
+    for (const reserve of accounts.reserves) {
+      try {
+        await ensureReserveFresh(program, reserve);
+      } catch (error) {
+        console.error(`Failed to refresh reserve ${reserve}:`, error);
+      }
+    }
+    
+    // Refresh all obligations
+    for (const obligation of accounts.obligations) {
+      try {
+        await refreshObligationWithReserves(program, obligation);
+      } catch (error) {
+        console.error(`Failed to refresh obligation ${obligation}:`, error);
+      }
+    }
+  }
+  
+  static async recoverFromInsufficientCollateral(
+    program: Program<BorrowLending>,
+    obligation: PublicKey,
+    targetHealthFactor: number = 1.5
+  ): Promise<{
+    recovered: boolean;
+    actions: string[];
+  }> {
+    const actions: string[] = [];
+    
+    try {
+      const obligationData = await program.account.obligation.fetch(obligation);
+      const currentHealthFactor = obligationData.depositedValue.toNumber() / 
+                                 obligationData.collateralizedBorrowedValue.toNumber();
+      
+      if (currentHealthFactor >= targetHealthFactor) {
+        return { recovered: true, actions: ["Position already healthy"] };
+      }
+      
+      const requiredCollateralValue = obligationData.collateralizedBorrowedValue.toNumber() * 
+                                    targetHealthFactor;
+      const additionalCollateralNeeded = requiredCollateralValue - 
+                                       obligationData.depositedValue.toNumber();
+      
+      actions.push(`Add $${additionalCollateralNeeded.toFixed(2)} in collateral`);
+      
+      // Alternative: partial debt repayment
+      const debtToRepay = (obligationData.collateralizedBorrowedValue.toNumber() - 
+                          obligationData.depositedValue.toNumber() / targetHealthFactor);
+      
+      if (debtToRepay > 0) {
+        actions.push(`Alternatively, repay $${debtToRepay.toFixed(2)} of debt`);
+      }
+      
+      return { recovered: false, actions };
+    } catch (error) {
+      return { 
+        recovered: false, 
+        actions: ["Failed to analyze position - check account status"] 
+      };
+    }
+  }
+}
+```
+
+### Testing Error Scenarios
+
+```typescript
+describe("Error Handling Tests", () => {
+  test("should handle stale reserve gracefully", async () => {
+    // Create stale condition by advancing time
+    await program.provider.connection.confirmTransaction(
+      await program.provider.connection.requestAirdrop(
+        user.publicKey,
+        1000000000
+      )
+    );
+    
+    // Wait for staleness
+    await new Promise(resolve => setTimeout(resolve, 30000));
+    
+    try {
+      await program.rpc.depositReserveLiquidity(1000, {
+        accounts: {
+          // ... accounts
+        },
+      });
+      
+      expect.fail("Should have thrown stale reserve error");
+    } catch (error) {
+      expect(error.code).toBe(6021); // ReserveStale
+      
+      // Verify error handling
+      const errorResponse = await ProtocolErrorHandler.handleError(error, {
+        operation: "deposit",
+        accounts: {},
+        parameters: { amount: 1000 },
+        timestamp: Date.now(),
+      });
+      
+      expect(errorResponse.retryable).toBe(true);
+      expect(errorResponse.suggestedActions).toContain("Refresh accounts and retry");
+    }
+  });
+  
+  test("should handle insufficient collateral error", async () => {
+    try {
+      await program.rpc.borrowObligationLiquidity(
+        0,
+        10000000, // Very large amount
+        {
+          accounts: {
+            // ... accounts
+          },
+        }
+      );
+      
+      expect.fail("Should have thrown borrow too large error");
+    } catch (error) {
+      expect(error.code).toBe(6043); // BorrowTooLarge
+      
+      const recovery = await ErrorRecoveryManager.recoverFromInsufficientCollateral(
+        program,
+        obligationAddress,
+        1.5
+      );
+      
+      expect(recovery.actions.length).toBeGreaterThan(0);
+      expect(recovery.actions[0]).toContain("Add");
+    }
+  });
+});
+```
+
+---
+
+## TypeScript SDK
+
+The TypeScript SDK provides a comprehensive interface for interacting with the Solana Borrow-Lending Protocol. It abstracts complex operations and provides type-safe interfaces for all protocol functionality.
+```
+
 #### `update_lending_market`
 
 Updates the configuration of an existing lending market.
