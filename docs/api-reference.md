@@ -3659,6 +3659,4651 @@ async function multiReserveLiquidation(
 - [`repay_obligation_liquidity`](#repay_obligation_liquidity) - Alternative repayment method
 - [`borrow_obligation_liquidity`](#borrow_obligation_liquidity) - Original borrowing instruction
 
+---
+
+### Flash Loans
+
+Flash loans provide uncollateralized loans that must be repaid within the same transaction. These powerful financial primitives enable advanced DeFi strategies like arbitrage, collateral swapping, and debt refinancing without requiring upfront capital.
+
+#### `flash_loan`
+
+**Function Signature:**
+```rust
+pub fn flash_loan(
+    ctx: Context<FlashLoan>,
+    lending_market_bump_seed: u8,
+    amount: u64,
+) -> Result<()>
+```
+
+**Description:**
+Executes a flash loan by temporarily lending liquidity that must be repaid with fees in the same transaction. Flash loans enable atomically composable transactions where users can:
+
+- Borrow large amounts without collateral
+- Execute complex financial operations
+- Repay the loan plus fees before transaction completion
+- Access instant liquidity for arbitrage and refinancing
+
+The flash loan process:
+1. Validates flash loans are enabled for the market
+2. Transfers requested liquidity to user's account
+3. Calls user-specified program with custom data and accounts
+4. Verifies the loan plus fees were repaid
+5. Reverts entire transaction if repayment fails
+
+This mechanism ensures atomicity - either the entire transaction succeeds (including repayment) or fails completely, eliminating credit risk for the protocol.
+
+**Parameters:**
+
+- `lending_market_bump_seed: u8` - Bump seed for lending market PDA
+  - Used to derive the lending market authority
+  - Required for signing token transfers
+  - Must match the canonical bump for the market
+
+- `amount: u64` - Amount of liquidity to flash loan
+  - Must be > 0
+  - Denominated in the reserve's underlying token units
+  - Limited by reserve's available liquidity
+  - Must be repaid with fees in the same transaction
+
+**Accounts:**
+
+1. `lending_market: Box<Account<'info, LendingMarket>>` - The lending market
+   - Must have flash loans enabled
+   - Provides market-wide configuration
+   - Controls flash loan availability
+
+2. `lending_market_pda: AccountInfo<'info>` - PDA for market authority
+   - Derived from lending market with bump seed
+   - Signs the initial loan transfer
+   - Authority for reserve token accounts
+
+3. `reserve: Box<Account<'info, Reserve>>` - Reserve providing the flash loan
+   - Must be properly initialized and not stale
+   - Must have sufficient available liquidity
+   - Source of the flash loan funds
+
+4. `source_liquidity_wallet: Box<Account<'info, TokenAccount>>` - Reserve's liquidity supply
+   - Contains protocol's available liquidity
+   - Must match reserve's configured supply account
+   - Source of the flash loan
+
+5. `destination_liquidity_wallet: AccountInfo<'info>` - Borrower's token account
+   - Receives the flash loan liquidity
+   - User-controlled account for loan utilization
+   - Must be repaid before transaction end
+
+6. `fee_receiver: AccountInfo<'info>` - Protocol's fee collection account
+   - Receives flash loan fees
+   - Must match reserve's configured fee receiver
+   - Ensures protocol revenue from flash loans
+
+7. `host_fee_receiver: AccountInfo<'info>` - Optional host fee receiver
+   - Additional fee distribution if specified
+   - Can be used for partner revenue sharing
+   - Optional account in remaining accounts
+
+8. `token_program: Program<'info, Token>` - SPL Token program
+9. `clock: Sysvar<'info, Clock>` - Clock sysvar for timestamps
+
+**Remaining Accounts:**
+The flash loan instruction forwards additional accounts to the target program:
+- Target program ID (account 0 in remaining accounts)
+- Any additional accounts required by target program
+- These accounts are passed through for custom program execution
+
+**Account Constraints:**
+- Flash loans must be enabled in the lending market
+- Reserve must not be stale (recently refreshed)
+- Source wallet must be the reserve's liquidity supply
+- Fee receiver must match reserve configuration
+- Sufficient liquidity must be available
+
+**State Changes:**
+- Liquidity is temporarily transferred to user
+- Target program is invoked with custom logic
+- Loan plus fees must be repaid to reserve
+- Reserve liquidity returns to original state (plus fees)
+- Flash loan fees are collected by protocol
+
+**Flash Loan Fee Structure:**
+Flash loans incur fees based on the borrowed amount:
+```rust
+flash_loan_fee = amount * flash_loan_fee_rate
+total_repayment = amount + flash_loan_fee
+
+// Optional host fee split
+host_fee = flash_loan_fee * host_fee_percentage
+protocol_fee = flash_loan_fee - host_fee
+```
+
+Typical flash loan fees range from 0.05% to 0.3% of the borrowed amount.
+
+**Target Program Integration:**
+The flash loan calls a user-specified program with:
+- Custom instruction data (after 9-byte header)
+- User-provided accounts
+- Loan amount and market information
+
+The target program must:
+- Use the borrowed liquidity for intended operations
+- Ensure sufficient funds for repayment
+- Return control to the flash loan instruction
+
+**Error Conditions:**
+- `FlashLoansDisabled` - If flash loans are not enabled for the market
+- `InsufficientLiquidity` - If reserve lacks sufficient available liquidity
+- `ReserveStale` - If reserve needs refreshing
+- `InvalidAmount` - If amount is zero
+- `FlashLoanNotRepaid` - If repayment verification fails
+- `InstructionError` - If target program execution fails
+
+**Security Considerations:**
+- Target programs must be carefully audited
+- Repayment verification is critical for protocol security
+- Consider reentrancy protection in target programs
+- Monitor for potential MEV extraction
+- Validate all account relationships
+
+**TypeScript Example:**
+```typescript
+async function executeFlashLoan(
+  program: Program<BorrowLending>,
+  user: Keypair,
+  reserve: PublicKey,
+  amount: number,
+  targetProgram: PublicKey,
+  targetInstruction: Buffer,
+  targetAccounts: AccountMeta[]
+) {
+  // Get reserve and market data
+  const reserveData = await program.account.reserve.fetch(reserve);
+  const lendingMarket = reserveData.lendingMarket;
+  
+  // Derive lending market PDA
+  const [lendingMarketPda, bump] = await PublicKey.findProgramAddress(
+    [lendingMarket.toBuffer()],
+    program.programId
+  );
+  
+  // Get user's token account for receiving flash loan
+  const liquidityMint = reserveData.liquidity.mint;
+  const liquidityToken = new Token(
+    program.provider.connection, 
+    liquidityMint, 
+    TOKEN_PROGRAM_ID, 
+    user
+  );
+  const destinationLiquidity = await liquidityToken.getOrCreateAssociatedAccountInfo(
+    user.publicKey
+  );
+  
+  // Prepare flash loan instruction data
+  const flashLoanData = Buffer.concat([
+    Buffer.from([bump]),                    // Bump seed (1 byte)
+    Buffer.from(amount.toString(), 'hex').padStart(8, '0'), // Amount (8 bytes)
+    targetInstruction,                      // Custom instruction data
+  ]);
+  
+  // Create flash loan instruction
+  const flashLoanIx = await program.instruction.flashLoan(
+    bump,
+    amount,
+    {
+      accounts: {
+        lendingMarket: lendingMarket,
+        lendingMarketPda: lendingMarketPda,
+        reserve: reserve,
+        sourceLiquidityWallet: reserveData.liquidity.supply,
+        destinationLiquidityWallet: destinationLiquidity.address,
+        feeReceiver: reserveData.liquidity.feeReceiver,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        clock: SYSVAR_CLOCK_PUBKEY,
+      },
+      remainingAccounts: [
+        // Target program
+        { pubkey: targetProgram, isWritable: false, isSigner: false },
+        // Target program accounts
+        ...targetAccounts,
+      ],
+    }
+  );
+  
+  // Create transaction
+  const transaction = new Transaction();
+  
+  // First refresh the reserve
+  transaction.add(
+    await program.instruction.refreshReserve({
+      accounts: {
+        reserve: reserve,
+        pythPrice: reserveData.liquidity.pythPriceKey,
+        clock: SYSVAR_CLOCK_PUBKEY,
+      },
+    })
+  );
+  
+  // Add flash loan instruction
+  transaction.add(flashLoanIx);
+  
+  console.log(`Executing flash loan: ${amount} tokens`);
+  console.log(`Target program: ${targetProgram.toString()}`);
+  
+  const signature = await program.provider.send(transaction, [user]);
+  console.log(`Flash loan executed: ${signature}`);
+  
+  return signature;
+}
+
+// Example: Flash loan for arbitrage
+const arbitrageProgram = new PublicKey("ArbitrageProgram111111111111111111111111111");
+const usdcReserve = new PublicKey("8GWTTbNiXdmyZREXbjsZBmCRuzdPrW55dnZGDkTRjWvb");
+
+await executeFlashLoan(
+  program,
+  userKeypair,
+  usdcReserve,
+  10000 * 1e6, // Flash loan 10,000 USDC
+  arbitrageProgram,
+  Buffer.from("arbitrage_instruction_data"),
+  [
+    { pubkey: sourceExchange, isWritable: true, isSigner: false },
+    { pubkey: targetExchange, isWritable: true, isSigner: false },
+  ]
+);
+```
+
+**CLI Example:**
+```bash
+# Execute flash loan with custom program
+solana-borrow-lending flash-loan \
+  --reserve 8GWTTbNiXdmyZREXbjsZBmCRuzdPrW55dnZGDkTRjWvb \
+  --amount 10000 \
+  --target-program ArbitrageProgram111111111111111111111111111 \
+  --instruction-data arbitrage_params.json \
+  --user ./user-keypair.json \
+  --rpc-url https://api.mainnet-beta.solana.com
+```
+
+**Arbitrage Flash Loan Example:**
+```typescript
+// Flash loan arbitrage between two DEXs
+async function executeArbitrageFlashLoan(
+  program: Program<BorrowLending>,
+  arbitrager: Keypair,
+  reserve: PublicKey,
+  flashLoanAmount: number,
+  dexA: PublicKey,
+  dexB: PublicKey,
+  tokenA: PublicKey,
+  tokenB: PublicKey
+) {
+  // Create arbitrage instruction
+  const arbitrageInstruction = await createArbitrageInstruction({
+    amount: flashLoanAmount,
+    sourceDex: dexA,
+    targetDex: dexB,
+    tokenIn: tokenA,
+    tokenOut: tokenB,
+    user: arbitrager.publicKey,
+  });
+  
+  // Execute flash loan with arbitrage logic
+  return await executeFlashLoan(
+    program,
+    arbitrager,
+    reserve,
+    flashLoanAmount,
+    arbitrageProgram.programId,
+    arbitrageInstruction.data,
+    arbitrageInstruction.keys
+  );
+}
+
+async function createArbitrageInstruction(params: ArbitrageParams) {
+  // Implementation would create instruction to:
+  // 1. Swap tokens on DEX A
+  // 2. Swap back on DEX B
+  // 3. Repay flash loan with profit
+  // 4. Keep remaining profit
+  
+  return {
+    data: Buffer.from(JSON.stringify(params)),
+    keys: [
+      { pubkey: params.sourceDex, isWritable: true, isSigner: false },
+      { pubkey: params.targetDex, isWritable: true, isSigner: false },
+      { pubkey: params.tokenIn, isWritable: false, isSigner: false },
+      { pubkey: params.tokenOut, isWritable: false, isSigner: false },
+    ],
+  };
+}
+```
+
+**Collateral Swap Flash Loan Example:**
+```typescript
+// Use flash loan to swap collateral types
+async function swapCollateralWithFlashLoan(
+  program: Program<BorrowLending>,
+  user: Keypair,
+  obligation: PublicKey,
+  oldCollateralReserve: PublicKey,
+  newCollateralReserve: PublicKey,
+  swapAmount: number
+) {
+  // Flash loan workflow:
+  // 1. Flash loan new collateral token
+  // 2. Deposit new collateral to obligation
+  // 3. Withdraw old collateral from obligation
+  // 4. Swap old collateral for new collateral (via AMM)
+  // 5. Repay flash loan with swapped tokens
+  
+  const swapInstruction = await createCollateralSwapInstruction({
+    obligation: obligation,
+    oldReserve: oldCollateralReserve,
+    newReserve: newCollateralReserve,
+    amount: swapAmount,
+    user: user.publicKey,
+  });
+  
+  return await executeFlashLoan(
+    program,
+    user,
+    newCollateralReserve,
+    swapAmount,
+    collateralSwapProgram.programId,
+    swapInstruction.data,
+    swapInstruction.keys
+  );
+}
+```
+
+**Debt Refinancing Flash Loan Example:**
+```typescript
+// Refinance debt from one protocol to another
+async function refinanceDebtWithFlashLoan(
+  program: Program<BorrowLending>,
+  user: Keypair,
+  currentObligation: PublicKey,
+  newLendingProtocol: PublicKey,
+  debtAmount: number,
+  debtReserve: PublicKey
+) {
+  // Flash loan workflow:
+  // 1. Flash loan debt amount
+  // 2. Repay debt in current protocol
+  // 3. Withdraw collateral from current protocol
+  // 4. Deposit collateral in new protocol
+  // 5. Borrow from new protocol to repay flash loan
+  
+  const refinanceInstruction = await createRefinanceInstruction({
+    currentObligation: currentObligation,
+    newProtocol: newLendingProtocol,
+    debtAmount: debtAmount,
+    debtReserve: debtReserve,
+    user: user.publicKey,
+  });
+  
+  return await executeFlashLoan(
+    program,
+    user,
+    debtReserve,
+    debtAmount,
+    refinanceProgram.programId,
+    refinanceInstruction.data,
+    refinanceInstruction.keys
+  );
+}
+```
+
+**Flash Loan Safety Checker:**
+```typescript
+class FlashLoanSafetyChecker {
+  constructor(private program: Program<BorrowLending>) {}
+  
+  async validateFlashLoanSafety(
+    reserve: PublicKey,
+    amount: number,
+    targetProgram: PublicKey
+  ): Promise<{
+    safe: boolean;
+    risks: string[];
+    recommendations: string[];
+  }> {
+    const risks: string[] = [];
+    const recommendations: string[] = [];
+    
+    // Check reserve liquidity
+    const reserveData = await this.program.account.reserve.fetch(reserve);
+    const availableLiquidity = reserveData.liquidity.availableAmount.toNumber();
+    
+    if (amount > availableLiquidity * 0.8) {
+      risks.push("Flash loan amount is very large relative to available liquidity");
+      recommendations.push("Consider reducing flash loan amount");
+    }
+    
+    // Check flash loan fees
+    const flashLoanFee = amount * (reserveData.config.flashLoanFeeWad / 1e18);
+    
+    if (flashLoanFee > amount * 0.01) {
+      risks.push("Flash loan fees are higher than 1%");
+      recommendations.push("Verify arbitrage opportunity covers fees");
+    }
+    
+    // Check target program
+    const programAccount = await this.program.provider.connection.getAccountInfo(targetProgram);
+    
+    if (!programAccount?.executable) {
+      risks.push("Target program is not executable");
+      recommendations.push("Verify target program address");
+    }
+    
+    // Check market conditions
+    const lendingMarket = await this.program.account.lendingMarket.fetch(
+      reserveData.lendingMarket
+    );
+    
+    if (!lendingMarket.enableFlashLoans) {
+      risks.push("Flash loans are disabled for this market");
+      recommendations.push("Wait for flash loans to be re-enabled");
+    }
+    
+    const safe = risks.length === 0;
+    
+    return { safe, risks, recommendations };
+  }
+}
+
+// Usage
+const safetyChecker = new FlashLoanSafetyChecker(program);
+const safety = await safetyChecker.validateFlashLoanSafety(
+  usdcReserve,
+  10000 * 1e6,
+  arbitrageProgram
+);
+
+if (!safety.safe) {
+  console.warn("Flash loan safety concerns:", safety.risks);
+  console.log("Recommendations:", safety.recommendations);
+}
+```
+
+**Flash Loan Profit Calculator:**
+```typescript
+async function calculateFlashLoanProfitability(
+  program: Program<BorrowLending>,
+  reserve: PublicKey,
+  flashLoanAmount: number,
+  expectedGrossProfit: number
+): Promise<{
+  profitable: boolean;
+  netProfit: number;
+  costs: {
+    flashLoanFee: number;
+    gasCosts: number;
+    slippage: number;
+  };
+  roi: number;
+}> {
+  const reserveData = await program.account.reserve.fetch(reserve);
+  
+  // Calculate flash loan fee
+  const flashLoanFeeRate = reserveData.config.flashLoanFeeWad / 1e18;
+  const flashLoanFee = flashLoanAmount * flashLoanFeeRate;
+  
+  // Estimate gas costs
+  const estimatedGasCost = 0.02; // SOL
+  const solPrice = 100; // USD (would fetch from oracle)
+  const gasCosts = estimatedGasCost * solPrice;
+  
+  // Estimate slippage (depends on trade size and liquidity)
+  const slippageEstimate = expectedGrossProfit * 0.001; // 0.1% slippage
+  
+  const totalCosts = flashLoanFee + gasCosts + slippageEstimate;
+  const netProfit = expectedGrossProfit - totalCosts;
+  const roi = (netProfit / flashLoanAmount) * 100;
+  
+  return {
+    profitable: netProfit > 0,
+    netProfit,
+    costs: {
+      flashLoanFee,
+      gasCosts,
+      slippage: slippageEstimate,
+    },
+    roi,
+  };
+}
+
+// Example: Check arbitrage profitability
+const profitability = await calculateFlashLoanProfitability(
+  program,
+  usdcReserve,
+  10000 * 1e6,  // 10k USDC flash loan
+  150 * 1e6     // Expected $150 gross profit
+);
+
+console.log(`Flash loan profitable: ${profitability.profitable}`);
+console.log(`Net profit: $${profitability.netProfit / 1e6}`);
+console.log(`ROI: ${profitability.roi.toFixed(2)}%`);
+```
+
+**Advanced Flash Loan Patterns:**
+
+1. **Multi-Reserve Flash Loan:**
+```typescript
+async function multiReserveFlashLoan(
+  program: Program<BorrowLending>,
+  user: Keypair,
+  flashLoans: Array<{ reserve: PublicKey; amount: number }>
+) {
+  // Execute multiple flash loans in sequence or parallel
+  // Useful for complex arbitrage across multiple assets
+  
+  const transaction = new Transaction();
+  
+  for (const loan of flashLoans) {
+    const flashLoanIx = await createFlashLoanInstruction(
+      program,
+      user,
+      loan.reserve,
+      loan.amount
+    );
+    transaction.add(flashLoanIx);
+  }
+  
+  return await program.provider.send(transaction, [user]);
+}
+```
+
+2. **Recursive Flash Loan:**
+```typescript
+// Flash loan that calls another flash loan (carefully managed)
+async function recursiveFlashLoan(
+  program: Program<BorrowLending>,
+  user: Keypair,
+  primaryReserve: PublicKey,
+  secondaryReserve: PublicKey,
+  amounts: number[]
+) {
+  // Primary flash loan calls secondary flash loan
+  // Useful for complex multi-step arbitrage
+  // Requires careful gas and stack management
+}
+```
+
+3. **Flash Loan with Options:**
+```typescript
+// Flash loan with contingent execution paths
+async function conditionalFlashLoan(
+  program: Program<BorrowLending>,
+  user: Keypair,
+  reserve: PublicKey,
+  amount: number,
+  conditions: FlashLoanConditions
+) {
+  // Execute different strategies based on market conditions
+  // Provides flexibility for dynamic arbitrage
+}
+```
+
+**Integration Considerations:**
+- Always refresh reserves before flash loans for accurate liquidity data
+- Implement comprehensive error handling for target program failures
+- Consider gas limits and computation unit constraints
+- Monitor flash loan utilization for reserve capacity planning
+- Implement MEV protection strategies
+- Verify target program security and correctness
+- Handle edge cases like insufficient repayment funds
+
+**Related Instructions:**
+- [`toggle_flash_loans`](#toggle_flash_loans) - Enable/disable flash loans for market
+- [`refresh_reserve`](#refresh_reserve) - Update reserve state before flash loans
+- [`deposit_reserve_liquidity`](#deposit_reserve_liquidity) - Increase reserve liquidity for flash loans
+
+---
+
+#### `toggle_flash_loans`
+
+**Function Signature:**
+```rust
+pub fn toggle_flash_loans(
+    ctx: Context<ToggleFlashLoans>,
+) -> Result<()>
+```
+
+**Description:**
+Enables or disables flash loan functionality for a lending market. This administrative function provides market operators with the ability to control flash loan availability based on market conditions, security considerations, or protocol governance decisions.
+
+Flash loans can be disabled during:
+- Market stress or high volatility periods
+- Security investigations or upgrades
+- Regulatory compliance requirements
+- Protocol governance decisions
+- Emergency situations requiring additional controls
+
+**Parameters:**
+This instruction takes no additional parameters beyond the accounts context. It toggles the current state.
+
+**Accounts:**
+
+1. `market_owner: Signer<'info>` - Owner of the lending market
+   - Must match the owner stored in the lending market
+   - Required to authorize flash loan setting changes
+   - Only the market owner can control flash loan availability
+
+2. `lending_market: Account<'info, LendingMarket>` - The lending market to modify
+   - Must be properly initialized
+   - Flash loan setting will be toggled
+   - Affects all reserves in the market
+
+**Account Constraints:**
+- Market owner must be a signer
+- Market owner must match the stored owner in lending market
+- Lending market must be properly initialized
+
+**State Changes:**
+- Toggles the `enable_flash_loans` boolean in the lending market
+- If currently enabled, flash loans become disabled
+- If currently disabled, flash loans become enabled
+- Change takes effect immediately for all new flash loan attempts
+
+**Error Conditions:**
+- `IllegalOwner` - If signer is not the market owner
+- `MarketNotFound` - If lending market account is invalid
+
+**Security Considerations:**
+- Flash loan state changes affect market liquidity utilization
+- Consider announcing changes in advance when possible
+- Monitor market impact after toggling flash loans
+- Emergency disabling may be necessary for security
+
+**TypeScript Example:**
+```typescript
+async function toggleFlashLoans(
+  program: Program<BorrowLending>,
+  marketOwner: Keypair,
+  lendingMarket: PublicKey
+) {
+  // Check current flash loan status
+  const marketData = await program.account.lendingMarket.fetch(lendingMarket);
+  const currentStatus = marketData.enableFlashLoans;
+  
+  console.log(`Current flash loan status: ${currentStatus ? 'Enabled' : 'Disabled'}`);
+  console.log(`Toggling to: ${!currentStatus ? 'Enabled' : 'Disabled'}`);
+  
+  const signature = await program.rpc.toggleFlashLoans({
+    accounts: {
+      marketOwner: marketOwner.publicKey,
+      lendingMarket: lendingMarket,
+    },
+    signers: [marketOwner],
+  });
+  
+  console.log(`Flash loans toggled: ${signature}`);
+  
+  // Verify the change
+  const updatedMarketData = await program.account.lendingMarket.fetch(lendingMarket);
+  console.log(`New flash loan status: ${updatedMarketData.enableFlashLoans ? 'Enabled' : 'Disabled'}`);
+  
+  return signature;
+}
+
+// Example: Enable flash loans for a market
+await toggleFlashLoans(
+  program,
+  marketOwnerKeypair,
+  lendingMarketAddress
+);
+```
+
+**CLI Example:**
+```bash
+# Toggle flash loan status
+solana-borrow-lending toggle-flash-loans \
+  --market 5ZWj7a1TsYKqN1jjsxiH5xRoUakQBBT4F1SkUh9bUW7n \
+  --owner ./owner-keypair.json \
+  --rpc-url https://api.mainnet-beta.solana.com
+
+# Check flash loan status
+solana-borrow-lending market-info \
+  --market 5ZWj7a1TsYKqN1jjsxiH5xRoUakQBBT4F1SkUh9bUW7n
+```
+
+**Flash Loan Management Strategy:**
+```typescript
+class FlashLoanManager {
+  constructor(
+    private program: Program<BorrowLending>,
+    private marketOwner: Keypair,
+    private lendingMarket: PublicKey
+  ) {}
+  
+  async enableFlashLoansWithChecks(): Promise<boolean> {
+    try {
+      // Perform safety checks before enabling
+      const safetyChecks = await this.performSafetyChecks();
+      
+      if (!safetyChecks.safe) {
+        console.warn("Safety checks failed, not enabling flash loans:", safetyChecks.issues);
+        return false;
+      }
+      
+      const marketData = await this.program.account.lendingMarket.fetch(this.lendingMarket);
+      
+      if (!marketData.enableFlashLoans) {
+        await toggleFlashLoans(this.program, this.marketOwner, this.lendingMarket);
+        console.log("✅ Flash loans enabled successfully");
+        return true;
+      } else {
+        console.log("Flash loans are already enabled");
+        return true;
+      }
+    } catch (error) {
+      console.error("Failed to enable flash loans:", error);
+      return false;
+    }
+  }
+  
+  async disableFlashLoansEmergency(): Promise<boolean> {
+    try {
+      const marketData = await this.program.account.lendingMarket.fetch(this.lendingMarket);
+      
+      if (marketData.enableFlashLoans) {
+        await toggleFlashLoans(this.program, this.marketOwner, this.lendingMarket);
+        console.log("🚨 Flash loans disabled for emergency");
+        return true;
+      } else {
+        console.log("Flash loans are already disabled");
+        return true;
+      }
+    } catch (error) {
+      console.error("Failed to disable flash loans:", error);
+      return false;
+    }
+  }
+  
+  private async performSafetyChecks(): Promise<{ safe: boolean; issues: string[] }> {
+    const issues: string[] = [];
+    
+    // Check reserve health
+    const reserves = await this.getAllMarketReserves();
+    for (const reserve of reserves) {
+      const reserveData = await this.program.account.reserve.fetch(reserve);
+      const utilizationRate = reserveData.liquidity.borrowedAmountWads.toNumber() / 
+                              reserveData.liquidity.availableAmount.toNumber();
+      
+      if (utilizationRate > 0.9) {
+        issues.push(`Reserve ${reserve} has high utilization: ${utilizationRate * 100}%`);
+      }
+    }
+    
+    // Check oracle health
+    // Implementation would verify price feed freshness
+    
+    // Check protocol governance status
+    // Implementation would check for pending governance actions
+    
+    return {
+      safe: issues.length === 0,
+      issues,
+    };
+  }
+  
+  private async getAllMarketReserves(): Promise<PublicKey[]> {
+    // Implementation would fetch all reserves for the market
+    return [];
+  }
+}
+
+// Usage
+const flashLoanManager = new FlashLoanManager(
+  program,
+  marketOwnerKeypair,
+  lendingMarketAddress
+);
+
+// Enable with safety checks
+await flashLoanManager.enableFlashLoansWithChecks();
+
+// Emergency disable
+await flashLoanManager.disableFlashLoansEmergency();
+```
+
+**Governance Integration Example:**
+```typescript
+// Integration with governance system for flash loan decisions
+async function governanceToggleFlashLoans(
+  program: Program<BorrowLending>,
+  governanceProgram: Program<GovernanceProgram>,
+  proposal: PublicKey,
+  lendingMarket: PublicKey
+) {
+  // Verify governance proposal passed
+  const proposalData = await governanceProgram.account.proposal.fetch(proposal);
+  
+  if (proposalData.state !== "Passed") {
+    throw new Error("Governance proposal has not passed");
+  }
+  
+  // Execute flash loan toggle through governance
+  const governanceAuthority = await getGovernanceAuthority(governanceProgram, proposal);
+  
+  await program.rpc.toggleFlashLoans({
+    accounts: {
+      marketOwner: governanceAuthority,
+      lendingMarket: lendingMarket,
+    },
+    // Note: Governance authority would sign this transaction
+  });
+}
+```
+
+**Monitoring Flash Loan Status:**
+```typescript
+async function monitorFlashLoanStatus(
+  program: Program<BorrowLending>,
+  lendingMarket: PublicKey
+) {
+  const marketData = await program.account.lendingMarket.fetch(lendingMarket);
+  
+  return {
+    enabled: marketData.enableFlashLoans,
+    lastToggleSlot: marketData.lastUpdate?.slot || 0,
+    marketOwner: marketData.owner,
+    totalReserves: await getMarketReserveCount(program, lendingMarket),
+  };
+}
+
+// Real-time monitoring
+setInterval(async () => {
+  const status = await monitorFlashLoanStatus(program, lendingMarketAddress);
+  console.log(`Flash loans: ${status.enabled ? '✅ Enabled' : '❌ Disabled'}`);
+}, 30000); // Check every 30 seconds
+```
+
+**Integration Considerations:**
+- Consider the impact on protocol revenue when disabling flash loans
+- Communicate flash loan status changes to users and integrators
+- Monitor flash loan utilization before and after status changes
+- Implement automated monitoring for emergency situations
+- Consider gradual enablement for new markets
+- Document flash loan policies for users
+
+**Related Instructions:**
+- [`flash_loan`](#flash_loan) - Execute flash loans when enabled
+- [`init_lending_market`](#init_lending_market) - Set initial flash loan status
+- [`update_lending_market`](#update_lending_market) - Update market configuration
+
+---
+
+### AMM Integration
+
+AMM (Automated Market Maker) integration instructions enable leveraged yield farming and advanced position management through integration with the Aldrin AMM. These operations allow users to create leveraged positions in liquidity pools using borrowed funds.
+
+#### `compound_position_on_aldrin`
+
+**Function Signature:**
+```rust
+pub fn compound_position_on_aldrin(
+    ctx: Context<CompoundPositionOnAldrin>,
+    lending_market_bump_seed: u8,
+) -> Result<()>
+```
+
+**Description:**
+Compounds a leveraged yield farming position on Aldrin AMM by automatically harvesting rewards, swapping them for underlying tokens, and reinvesting them into the position. This operation maximizes yield by automating the compounding process.
+
+The compounding process:
+1. Harvests pending rewards from the AMM position
+2. Swaps rewards for underlying LP tokens
+3. Adds liquidity back to the AMM pool
+4. Updates the leveraged position accounting
+5. Collects protocol fees on the compounded amount
+
+This automation saves gas costs and ensures optimal compounding frequency for users.
+
+**Parameters:**
+
+- `lending_market_bump_seed: u8` - Bump seed for lending market PDA
+  - Used to derive the lending market authority
+  - Required for signing AMM transactions
+  - Must match the canonical bump for the market
+
+**Accounts:**
+
+1. `admin_bot: Signer<'info>` - Authorized bot for admin operations
+   - Must match the admin bot set in the lending market
+   - Only admin bot can perform automated compounding
+   - Prevents unauthorized position manipulation
+
+2. `lending_market: Box<Account<'info, LendingMarket>>` - The lending market
+   - Must be properly initialized
+   - Provides market configuration and authority
+   - Links to the Aldrin AMM program
+
+3. `obligation: AccountLoader<'info, Obligation>` - Obligation with leveraged position
+   - Must contain a yield farming loan
+   - Must be properly initialized and not stale
+   - Position will be compounded and updated
+
+4. `aldrin_pool: AccountInfo<'info>` - Aldrin AMM pool
+   - The liquidity pool where position is held
+   - Must be a valid Aldrin pool
+   - Source of pending rewards
+
+5. `position_authority: AccountInfo<'info>` - Authority for the leveraged position
+   - Typically the lending market PDA
+   - Controls position management operations
+   - Signs AMM transactions
+
+6. `reward_vault: AccountInfo<'info>` - Vault containing harvestable rewards
+   - Aldrin pool's reward distribution vault
+   - Source of rewards to be compounded
+   - Must contain pending rewards
+
+7. `aldrin_amm_program: AccountInfo<'info>` - Aldrin AMM program
+   - Must match the program configured in lending market
+   - Used for AMM operations
+   - Handles reward harvesting and compounding
+
+8. `token_program: Program<'info, Token>` - SPL Token program
+9. `clock: Sysvar<'info, Clock>` - Clock sysvar for timestamps
+
+**Additional Accounts:**
+The instruction may require additional accounts for:
+- Token accounts for reward tokens
+- Intermediate swap accounts
+- LP token accounts
+- Fee collection accounts
+
+**Account Constraints:**
+- Admin bot must match the configured admin bot
+- Obligation must have an active yield farming position
+- Aldrin pool must be valid and active
+- Position must have pending rewards to compound
+
+**State Changes:**
+- Pending rewards are harvested from AMM position
+- Rewards are swapped and reinvested into LP position
+- Obligation's leveraged position value increases
+- Protocol compound fees are collected
+- Position accounting is updated
+
+**Compound Fee Collection:**
+Protocol collects fees on the compounded amount:
+```rust
+compound_fee = compounded_amount * compound_fee_rate
+net_compound = compounded_amount - compound_fee
+```
+
+**Error Conditions:**
+- `UnauthorizedBot` - If signer is not the configured admin bot
+- `NoCompoundableRewards` - If position has no pending rewards
+- `PositionNotFound` - If obligation doesn't have yield farming position
+- `AmmPoolInvalid` - If Aldrin pool is not valid
+- `CompoundingFailed` - If AMM operations fail
+
+**Security Considerations:**
+- Only authorized admin bot can trigger compounding
+- Verify AMM pool legitimacy before operations
+- Monitor for sandwich attacks during swaps
+- Validate reward token authenticity
+- Check for position ownership
+
+**TypeScript Example:**
+```typescript
+async function compoundAldrinPosition(
+  program: Program<BorrowLending>,
+  adminBot: Keypair,
+  obligation: PublicKey,
+  aldrinPool: PublicKey
+) {
+  // Get obligation and market data
+  const obligationData = await program.account.obligation.fetch(obligation);
+  const lendingMarket = obligationData.lendingMarket;
+  const marketData = await program.account.lendingMarket.fetch(lendingMarket);
+  
+  // Verify admin bot authorization
+  if (!adminBot.publicKey.equals(marketData.adminBot)) {
+    throw new Error("Unauthorized admin bot");
+  }
+  
+  // Derive lending market PDA
+  const [lendingMarketPda, bump] = await PublicKey.findProgramAddress(
+    [lendingMarket.toBuffer()],
+    program.programId
+  );
+  
+  // Get Aldrin pool data
+  const aldrinPoolData = await getAldrinPoolData(aldrinPool);
+  
+  // Check for pending rewards
+  const pendingRewards = await getPendingRewards(obligation, aldrinPool);
+  console.log(`Pending rewards: ${pendingRewards}`);
+  
+  if (pendingRewards === 0) {
+    console.log("No rewards to compound");
+    return null;
+  }
+  
+  // Create compound instruction
+  const signature = await program.rpc.compoundPositionOnAldrin(bump, {
+    accounts: {
+      adminBot: adminBot.publicKey,
+      lendingMarket: lendingMarket,
+      obligation: obligation,
+      aldrinPool: aldrinPool,
+      positionAuthority: lendingMarketPda,
+      rewardVault: aldrinPoolData.rewardVault,
+      aldrinAmmProgram: marketData.aldrinAmm,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      clock: SYSVAR_CLOCK_PUBKEY,
+    },
+    remainingAccounts: [
+      // Additional accounts for token swaps and LP operations
+      { pubkey: aldrinPoolData.tokenAAccount, isWritable: true, isSigner: false },
+      { pubkey: aldrinPoolData.tokenBAccount, isWritable: true, isSigner: false },
+      { pubkey: aldrinPoolData.lpMint, isWritable: true, isSigner: false },
+    ],
+    signers: [adminBot],
+  });
+  
+  console.log(`Position compounded: ${signature}`);
+  
+  // Calculate compound effect
+  const newPendingRewards = await getPendingRewards(obligation, aldrinPool);
+  const compoundedAmount = pendingRewards - newPendingRewards;
+  console.log(`Compounded amount: ${compoundedAmount}`);
+  
+  return signature;
+}
+
+async function getAldrinPoolData(pool: PublicKey) {
+  // Implementation would fetch Aldrin pool data
+  return {
+    rewardVault: new PublicKey("..."),
+    tokenAAccount: new PublicKey("..."),
+    tokenBAccount: new PublicKey("..."),
+    lpMint: new PublicKey("..."),
+  };
+}
+
+async function getPendingRewards(obligation: PublicKey, pool: PublicKey): Promise<number> {
+  // Implementation would calculate pending rewards
+  return 0;
+}
+
+// Example: Compound leveraged yield farming position
+await compoundAldrinPosition(
+  program,
+  adminBotKeypair,
+  leveragedObligationAddress,
+  aldrinPoolAddress
+);
+```
+
+**CLI Example:**
+```bash
+# Compound Aldrin position
+solana-borrow-lending compound-aldrin \
+  --obligation 5ZWj7a1TsYKqN1jjsxiH5xRoUakQBBT4F1SkUh9bUW7n \
+  --pool 8GWTTbNiXdmyZREXbjsZBmCRuzdPrW55dnZGDkTRjWvb \
+  --admin-bot ./admin-bot-keypair.json \
+  --rpc-url https://api.mainnet-beta.solana.com
+```
+
+**Automated Compounding Bot:**
+```typescript
+class AldrinCompoundingBot {
+  constructor(
+    private program: Program<BorrowLending>,
+    private adminBot: Keypair,
+    private minCompoundAmount: number = 10 // Minimum reward amount to compound
+  ) {}
+  
+  async runCompoundingCycle(positions: LeveragedPosition[]) {
+    console.log(`🤖 Running compounding cycle for ${positions.length} positions`);
+    
+    for (const position of positions) {
+      try {
+        await this.compoundPositionIfProfitable(position);
+      } catch (error) {
+        console.error(`Failed to compound position ${position.obligation}:`, error);
+      }
+    }
+  }
+  
+  private async compoundPositionIfProfitable(position: LeveragedPosition) {
+    const pendingRewards = await getPendingRewards(position.obligation, position.aldrinPool);
+    
+    if (pendingRewards < this.minCompoundAmount) {
+      console.log(`Position ${position.obligation}: rewards too small (${pendingRewards})`);
+      return;
+    }
+    
+    // Calculate compounding profitability
+    const compoundFee = await this.getCompoundFee(position);
+    const gasCost = await this.estimateGasCost();
+    const netBenefit = pendingRewards - compoundFee - gasCost;
+    
+    if (netBenefit > 0) {
+      console.log(`💰 Compounding position ${position.obligation}: net benefit ${netBenefit}`);
+      await compoundAldrinPosition(
+        this.program,
+        this.adminBot,
+        position.obligation,
+        position.aldrinPool
+      );
+    } else {
+      console.log(`Position ${position.obligation}: not profitable to compound yet`);
+    }
+  }
+  
+  private async getCompoundFee(position: LeveragedPosition): Promise<number> {
+    const obligationData = await this.program.account.obligation.fetch(position.obligation);
+    const marketData = await this.program.account.lendingMarket.fetch(
+      obligationData.lendingMarket
+    );
+    
+    const leveragedCompoundFee = marketData.leveragedCompoundFee / 10000; // Convert from basis points
+    const pendingRewards = await getPendingRewards(position.obligation, position.aldrinPool);
+    
+    return pendingRewards * leveragedCompoundFee;
+  }
+  
+  private async estimateGasCost(): Promise<number> {
+    // Estimate gas cost in USD
+    const solPrice = 100; // Would fetch from oracle
+    const estimatedGas = 0.005; // SOL
+    return estimatedGas * solPrice;
+  }
+}
+
+interface LeveragedPosition {
+  obligation: PublicKey;
+  aldrinPool: PublicKey;
+  owner: PublicKey;
+}
+
+// Usage
+const compoundingBot = new AldrinCompoundingBot(program, adminBotKeypair, 50);
+
+// Run every hour
+setInterval(async () => {
+  const leveragedPositions = await getAllLeveragedPositions();
+  await compoundingBot.runCompoundingCycle(leveragedPositions);
+}, 3600000); // 1 hour
+```
+
+**Compound Yield Calculation:**
+```typescript
+async function calculateCompoundYield(
+  program: Program<BorrowLending>,
+  obligation: PublicKey,
+  aldrinPool: PublicKey,
+  timeframe: number // days
+): Promise<{
+  dailyYield: number;
+  projectedYield: number;
+  compoundFrequency: number;
+  effectiveApy: number;
+}> {
+  // Get position data
+  const obligationData = await program.account.obligation.fetch(obligation);
+  const positionValue = obligationData.depositedValue.toNumber();
+  
+  // Calculate daily reward rate
+  const dailyRewards = await getDailyRewardRate(aldrinPool);
+  const dailyYield = (dailyRewards / positionValue) * 100;
+  
+  // Calculate optimal compounding frequency
+  const compoundCost = await getCompoundCost(obligation);
+  const optimalFrequency = calculateOptimalCompoundFrequency(dailyRewards, compoundCost);
+  
+  // Project compound yield
+  const dailyCompoundRate = dailyYield / 100 / optimalFrequency;
+  const effectiveApy = Math.pow(1 + dailyCompoundRate, 365 * optimalFrequency) - 1;
+  const projectedYield = positionValue * effectiveApy * (timeframe / 365);
+  
+  return {
+    dailyYield,
+    projectedYield,
+    compoundFrequency: optimalFrequency,
+    effectiveApy: effectiveApy * 100,
+  };
+}
+
+function calculateOptimalCompoundFrequency(
+  dailyRewards: number,
+  compoundCost: number
+): number {
+  // Find frequency where compound cost equals reward benefit
+  // More frequent compounding increases yield but costs more
+  
+  const frequencies = [1, 2, 4, 8, 24]; // Times per day
+  let optimalFrequency = 1;
+  let maxNetYield = 0;
+  
+  for (const freq of frequencies) {
+    const rewardPerCompound = dailyRewards / freq;
+    const netRewardPerCompound = rewardPerCompound - compoundCost;
+    const dailyNetYield = netRewardPerCompound * freq;
+    
+    if (dailyNetYield > maxNetYield) {
+      maxNetYield = dailyNetYield;
+      optimalFrequency = freq;
+    }
+  }
+  
+  return optimalFrequency;
+}
+```
+
+**Integration Considerations:**
+- Only authorized admin bots should trigger compounding
+- Monitor gas costs to ensure compounding remains profitable
+- Implement slippage protection for reward swaps
+- Consider MEV protection for compounding transactions
+- Track compounding effectiveness and optimization
+- Coordinate with Aldrin AMM for pool-specific logic
+
+**Related Instructions:**
+- [`init_leveraged_position`](#init_leveraged_position) - Create leveraged yield farming positions
+- [`close_leveraged_position_on_aldrin`](#close_leveraged_position_on_aldrin) - Close positions
+- [`flash_loan`](#flash_loan) - Flash loans for position creation
+
+---
+
+### Administrative Functions
+
+Administrative functions provide market operators with tools to manage and configure the lending protocol. These functions are restricted to authorized users and enable protocol maintenance, upgrades, and emergency responses.
+
+#### `refresh_reserve`
+
+**Function Signature:**
+```rust
+pub fn refresh_reserve(
+    ctx: Context<RefreshReserve>,
+) -> Result<()>
+```
+
+**Description:**
+Updates a reserve's derived state including interest rates, accumulated interest, and liquidity calculations. This operation must be called before most other reserve operations to ensure accurate calculations based on current market conditions.
+
+The refresh operation:
+1. Calculates elapsed time since last update
+2. Accrues interest on outstanding borrows
+3. Updates supply and borrow rates based on utilization
+4. Refreshes cumulative rate tracking
+5. Updates last update timestamp
+
+Regular refreshing ensures accurate interest calculations and prevents stale data from affecting protocol operations.
+
+**Parameters:**
+This instruction takes no additional parameters beyond the accounts context.
+
+**Accounts:**
+
+1. `reserve: Account<'info, Reserve>` - The reserve to refresh
+   - Must be properly initialized
+   - State will be updated with current calculations
+   - Becomes fresh after successful execution
+
+2. `pyth_price: AccountInfo<'info>` - Pyth price account for the reserve
+   - Must be a valid Pyth price feed
+   - Provides current price data for calculations
+   - Must not be stale or invalid
+
+3. `clock: Sysvar<'info, Clock>` - Clock sysvar for current timestamp
+
+**Account Constraints:**
+- Reserve must be properly initialized
+- Pyth price account must be valid and current
+- Price data must not be stale
+
+**State Changes:**
+- Interest is accrued on outstanding borrows
+- Supply and borrow rates are recalculated
+- Cumulative rate tracking is updated
+- Last update timestamp is set to current slot
+- Reserve becomes marked as fresh
+
+**Interest Rate Calculation:**
+Interest rates are updated based on current utilization:
+```rust
+utilization_rate = total_borrows / (total_borrows + available_liquidity)
+
+// Interest rate model (simplified)
+if utilization_rate <= optimal_utilization {
+    borrow_rate = min_rate + (optimal_rate - min_rate) * (utilization_rate / optimal_utilization)
+} else {
+    excess_utilization = utilization_rate - optimal_utilization
+    borrow_rate = optimal_rate + (max_rate - optimal_rate) * (excess_utilization / (1 - optimal_utilization))
+}
+
+supply_rate = borrow_rate * utilization_rate * (1 - reserve_factor)
+```
+
+**Error Conditions:**
+- `ReserveNotFound` - If reserve account is invalid
+- `InvalidOracle` - If Pyth price account is invalid
+- `StalePriceData` - If price data is too old
+- `CalculationError` - If interest calculations fail
+
+**Security Considerations:**
+- Verify Pyth price feed authenticity
+- Check for reasonable price movements
+- Prevent manipulation of rate calculations
+- Monitor for oracle failures
+
+**TypeScript Example:**
+```typescript
+async function refreshReserve(
+  program: Program<BorrowLending>,
+  reserve: PublicKey
+) {
+  // Get reserve data to find oracle
+  const reserveData = await program.account.reserve.fetch(reserve);
+  const pythPrice = reserveData.liquidity.pythPriceKey;
+  
+  // Check if refresh is needed
+  const currentSlot = await program.provider.connection.getSlot();
+  const lastUpdateSlot = reserveData.lastUpdate.slot.toNumber();
+  const slotsSinceUpdate = currentSlot - lastUpdateSlot;
+  
+  console.log(`Slots since last update: ${slotsSinceUpdate}`);
+  
+  if (slotsSinceUpdate < 1) {
+    console.log("Reserve is already fresh");
+    return null;
+  }
+  
+  // Refresh the reserve
+  const signature = await program.rpc.refreshReserve({
+    accounts: {
+      reserve: reserve,
+      pythPrice: pythPrice,
+      clock: SYSVAR_CLOCK_PUBKEY,
+    },
+  });
+  
+  console.log(`Reserve refreshed: ${signature}`);
+  
+  // Fetch updated data
+  const updatedReserveData = await program.account.reserve.fetch(reserve);
+  console.log(`New borrow rate: ${updatedReserveData.currentBorrowRate}%`);
+  console.log(`New supply rate: ${updatedReserveData.currentSupplyRate}%`);
+  
+  return signature;
+}
+
+// Example: Refresh USDC reserve
+const usdcReserve = new PublicKey("8GWTTbNiXdmyZREXbjsZBmCRuzdPrW55dnZGDkTRjWvb");
+await refreshReserve(program, usdcReserve);
+```
+
+**CLI Example:**
+```bash
+# Refresh a specific reserve
+solana-borrow-lending refresh-reserve \
+  --reserve 8GWTTbNiXdmyZREXbjsZBmCRuzdPrW55dnZGDkTRjWvb \
+  --rpc-url https://api.mainnet-beta.solana.com
+
+# Refresh all reserves in a market
+solana-borrow-lending refresh-all-reserves \
+  --market 5ZWj7a1TsYKqN1jjsxiH5xRoUakQBBT4F1SkUh9bUW7n
+```
+
+**Batch Reserve Refresh:**
+```typescript
+async function refreshAllReserves(
+  program: Program<BorrowLending>,
+  reserves: PublicKey[]
+) {
+  const transaction = new Transaction();
+  
+  // Add refresh instruction for each reserve
+  for (const reserve of reserves) {
+    const reserveData = await program.account.reserve.fetch(reserve);
+    
+    transaction.add(
+      await program.instruction.refreshReserve({
+        accounts: {
+          reserve: reserve,
+          pythPrice: reserveData.liquidity.pythPriceKey,
+          clock: SYSVAR_CLOCK_PUBKEY,
+        },
+      })
+    );
+  }
+  
+  // Send batch transaction
+  const signature = await program.provider.send(transaction);
+  console.log(`All reserves refreshed: ${signature}`);
+  
+  return signature;
+}
+
+// Example: Refresh all market reserves
+const allReserves = await getAllMarketReserves(program, lendingMarketAddress);
+await refreshAllReserves(program, allReserves);
+```
+
+**Automated Refresh Bot:**
+```typescript
+class ReserveRefreshBot {
+  constructor(
+    private program: Program<BorrowLending>,
+    private bot: Keypair,
+    private refreshIntervalSlots: number = 100
+  ) {}
+  
+  async startRefreshCycle(reserves: PublicKey[]) {
+    console.log(`🤖 Starting refresh bot for ${reserves.length} reserves`);
+    
+    setInterval(async () => {
+      await this.refreshStaleReserves(reserves);
+    }, 30000); // Check every 30 seconds
+  }
+  
+  private async refreshStaleReserves(reserves: PublicKey[]) {
+    const currentSlot = await this.program.provider.connection.getSlot();
+    const staleReserves: PublicKey[] = [];
+    
+    // Check which reserves need refreshing
+    for (const reserve of reserves) {
+      try {
+        const reserveData = await this.program.account.reserve.fetch(reserve);
+        const lastUpdateSlot = reserveData.lastUpdate.slot.toNumber();
+        const slotsSinceUpdate = currentSlot - lastUpdateSlot;
+        
+        if (slotsSinceUpdate >= this.refreshIntervalSlots) {
+          staleReserves.push(reserve);
+        }
+      } catch (error) {
+        console.error(`Error checking reserve ${reserve}:`, error);
+      }
+    }
+    
+    if (staleReserves.length > 0) {
+      console.log(`🔄 Refreshing ${staleReserves.length} stale reserves`);
+      await this.batchRefreshReserves(staleReserves);
+    }
+  }
+  
+  private async batchRefreshReserves(reserves: PublicKey[]) {
+    // Split into batches to avoid transaction size limits
+    const batchSize = 10;
+    const batches = [];
+    
+    for (let i = 0; i < reserves.length; i += batchSize) {
+      batches.push(reserves.slice(i, i + batchSize));
+    }
+    
+    for (const batch of batches) {
+      try {
+        await refreshAllReserves(this.program, batch);
+        console.log(`✅ Refreshed batch of ${batch.length} reserves`);
+      } catch (error) {
+        console.error(`❌ Failed to refresh batch:`, error);
+      }
+    }
+  }
+}
+
+// Usage
+const refreshBot = new ReserveRefreshBot(program, botKeypair, 50);
+await refreshBot.startRefreshCycle(monitoredReserves);
+```
+
+**Interest Rate Monitoring:**
+```typescript
+async function monitorInterestRates(
+  program: Program<BorrowLending>,
+  reserve: PublicKey
+): Promise<{
+  utilizationRate: number;
+  borrowRate: number;
+  supplyRate: number;
+  rateChange: number;
+  staleness: number;
+}> {
+  const reserveData = await program.account.reserve.fetch(reserve);
+  
+  // Calculate utilization rate
+  const totalBorrows = reserveData.liquidity.borrowedAmountWads.toNumber();
+  const availableLiquidity = reserveData.liquidity.availableAmount.toNumber();
+  const utilizationRate = totalBorrows / (totalBorrows + availableLiquidity);
+  
+  // Get current rates
+  const borrowRate = reserveData.currentBorrowRate;
+  const supplyRate = reserveData.currentSupplyRate;
+  
+  // Calculate staleness
+  const currentSlot = await program.provider.connection.getSlot();
+  const lastUpdateSlot = reserveData.lastUpdate.slot.toNumber();
+  const staleness = currentSlot - lastUpdateSlot;
+  
+  // Calculate rate change (would need historical data)
+  const rateChange = 0; // Placeholder for rate change calculation
+  
+  return {
+    utilizationRate: utilizationRate * 100,
+    borrowRate: borrowRate * 100,
+    supplyRate: supplyRate * 100,
+    rateChange,
+    staleness,
+  };
+}
+
+// Example: Monitor USDC rates
+const rateInfo = await monitorInterestRates(program, usdcReserve);
+console.log(`USDC Utilization: ${rateInfo.utilizationRate.toFixed(2)}%`);
+console.log(`USDC Borrow Rate: ${rateInfo.borrowRate.toFixed(2)}%`);
+console.log(`USDC Supply Rate: ${rateInfo.supplyRate.toFixed(2)}%`);
+```
+
+**Oracle Health Monitoring:**
+```typescript
+async function checkOracleHealth(
+  program: Program<BorrowLending>,
+  reserve: PublicKey
+): Promise<{
+  healthy: boolean;
+  price: number;
+  confidence: number;
+  lastUpdate: number;
+  staleness: number;
+}> {
+  const reserveData = await program.account.reserve.fetch(reserve);
+  const pythPrice = reserveData.liquidity.pythPriceKey;
+  
+  // Fetch price data from Pyth
+  const priceData = await getPythPriceData(pythPrice);
+  
+  // Check price staleness (implementation depends on Pyth client)
+  const currentTime = Date.now() / 1000;
+  const staleness = currentTime - priceData.publishTime;
+  
+  // Determine health based on staleness and confidence
+  const healthy = staleness < 60 && priceData.confidence < priceData.price * 0.01; // 1% max confidence
+  
+  return {
+    healthy,
+    price: priceData.price,
+    confidence: priceData.confidence,
+    lastUpdate: priceData.publishTime,
+    staleness,
+  };
+}
+
+async function getPythPriceData(pythPrice: PublicKey) {
+  // Implementation would use Pyth client library
+  return {
+    price: 1.0,
+    confidence: 0.001,
+    publishTime: Date.now() / 1000,
+  };
+}
+```
+
+**Integration Considerations:**
+- Refresh reserves before major operations for accuracy
+- Implement automated refresh bots for production systems
+- Monitor oracle health and price feed reliability
+- Consider refresh costs in gas optimization
+- Handle refresh failures gracefully in applications
+- Coordinate refresh timing with high-volume operations
+
+**Related Instructions:**
+- [`refresh_obligation`](#refresh_obligation) - Refresh obligation state
+- [`deposit_reserve_liquidity`](#deposit_reserve_liquidity) - Operations requiring fresh reserves
+- [`borrow_obligation_liquidity`](#borrow_obligation_liquidity) - Borrowing with current rates
+
+---
+
+#### `refresh_obligation`
+
+**Function Signature:**
+```rust
+pub fn refresh_obligation(
+    ctx: Context<RefreshObligation>,
+) -> Result<()>
+```
+
+**Description:**
+Updates an obligation's derived state including deposited value, borrowed value, allowed borrow value, and health factor calculations. This operation must be called before most obligation operations to ensure accurate risk assessments based on current market conditions.
+
+The refresh operation:
+1. Recalculates deposited collateral values using current prices
+2. Updates borrowed value with accrued interest
+3. Computes allowed borrow value based on LTV ratios
+4. Calculates unhealthy borrow value threshold
+5. Updates health factor and liquidation risk
+
+Regular refreshing ensures accurate position monitoring and prevents stale calculations from affecting borrowing and liquidation decisions.
+
+**Parameters:**
+This instruction takes no additional parameters beyond the accounts context.
+
+**Accounts:**
+
+1. `obligation: AccountLoader<'info, Obligation>` - The obligation to refresh
+   - Must be properly initialized
+   - State will be updated with current calculations
+   - Becomes fresh after successful execution
+
+2. `clock: Sysvar<'info, Clock>` - Clock sysvar for current timestamp
+
+**Remaining Accounts:**
+The instruction requires all reserves associated with the obligation as remaining accounts:
+- Each deposit reserve (for collateral value calculations)
+- Each borrow reserve (for debt value calculations)
+- Reserves must be provided in specific order matching obligation arrays
+
+**Account Constraints:**
+- Obligation must be properly initialized
+- All associated reserves must be provided as remaining accounts
+- Reserves must not be stale (recently refreshed)
+
+**State Changes:**
+- Deposited value is recalculated with current prices and exchange rates
+- Borrowed value is updated with accrued interest
+- Allowed borrow value is computed based on LTV ratios
+- Unhealthy borrow value threshold is calculated
+- Health factor is updated
+- Last update timestamp is set to current slot
+- Obligation becomes marked as fresh
+
+**Value Calculations:**
+The refresh process updates several key values:
+
+```rust
+// Deposited value calculation
+for deposit in deposits {
+    reserve_data = get_reserve_data(deposit.reserve);
+    exchange_rate = reserve_data.exchange_rate();
+    token_price = get_oracle_price(reserve_data.oracle);
+    
+    deposit_value = deposit.deposited_amount * exchange_rate * token_price;
+    total_deposited_value += deposit_value;
+}
+
+// Borrowed value calculation  
+for borrow in borrows {
+    reserve_data = get_reserve_data(borrow.reserve);
+    accrued_interest = calculate_accrued_interest(borrow, reserve_data);
+    current_debt = borrow.borrowed_amount + accrued_interest;
+    token_price = get_oracle_price(reserve_data.oracle);
+    
+    borrow_value = current_debt * token_price;
+    total_borrowed_value += borrow_value;
+}
+
+// Allowed borrow value
+for deposit in deposits {
+    ltv_ratio = get_ltv_ratio(deposit.reserve);
+    allowed_value += deposit_value * ltv_ratio;
+}
+
+// Health factor
+health_factor = total_deposited_value / total_borrowed_value;
+```
+
+**Error Conditions:**
+- `ObligationNotFound` - If obligation account is invalid
+- `ReserveStale` - If any associated reserve is stale
+- `MissingReserves` - If not all reserves are provided
+- `CalculationError` - If value calculations fail
+- `OracleError` - If price data is invalid
+
+**Security Considerations:**
+- Verify all associated reserves are provided
+- Check for reasonable price movements
+- Prevent manipulation of health factor calculations
+- Monitor for oracle failures or attacks
+
+**TypeScript Example:**
+```typescript
+async function refreshObligation(
+  program: Program<BorrowLending>,
+  obligation: PublicKey
+) {
+  // Get obligation data to find associated reserves
+  const obligationData = await program.account.obligation.fetch(obligation);
+  
+  // Collect all unique reserves
+  const reserves = new Set<string>();
+  
+  obligationData.deposits.forEach(deposit => {
+    if (deposit.depositReserve) {
+      reserves.add(deposit.depositReserve.toString());
+    }
+  });
+  
+  obligationData.borrows.forEach(borrow => {
+    if (borrow.borrowReserve) {
+      reserves.add(borrow.borrowReserve.toString());
+    }
+  });
+  
+  const reserveKeys = Array.from(reserves).map(r => new PublicKey(r));
+  
+  console.log(`Refreshing obligation with ${reserveKeys.length} associated reserves`);
+  
+  // Check if refresh is needed
+  const currentSlot = await program.provider.connection.getSlot();
+  const lastUpdateSlot = obligationData.lastUpdate.slot.toNumber();
+  const slotsSinceUpdate = currentSlot - lastUpdateSlot;
+  
+  if (slotsSinceUpdate < 1) {
+    console.log("Obligation is already fresh");
+    return null;
+  }
+  
+  // Refresh the obligation
+  const signature = await program.rpc.refreshObligation({
+    accounts: {
+      obligation: obligation,
+      clock: SYSVAR_CLOCK_PUBKEY,
+    },
+    remainingAccounts: reserveKeys.map(reserve => ({
+      pubkey: reserve,
+      isWritable: false,
+      isSigner: false,
+    })),
+  });
+  
+  console.log(`Obligation refreshed: ${signature}`);
+  
+  // Fetch updated data
+  const updatedObligationData = await program.account.obligation.fetch(obligation);
+  const healthFactor = updatedObligationData.depositedValue.toNumber() / 
+                      updatedObligationData.borrowedValue.toNumber();
+  
+  console.log(`Updated health factor: ${healthFactor.toFixed(3)}`);
+  console.log(`Deposited value: $${updatedObligationData.depositedValue.toNumber()}`);
+  console.log(`Borrowed value: $${updatedObligationData.borrowedValue.toNumber()}`);
+  
+  return signature;
+}
+
+// Example: Refresh user's obligation
+await refreshObligation(program, userObligationAddress);
+```
+
+**CLI Example:**
+```bash
+# Refresh a specific obligation
+solana-borrow-lending refresh-obligation \
+  --obligation 5ZWj7a1TsYKqN1jjsxiH5xRoUakQBBT4F1SkUh9bUW7n \
+  --rpc-url https://api.mainnet-beta.solana.com
+
+# Refresh with verbose output
+solana-borrow-lending refresh-obligation \
+  --obligation 5ZWj7a1TsYKqN1jjsxiH5xRoUakQBBT4F1SkUh9bUW7n \
+  --verbose
+```
+
+**Batch Obligation Refresh:**
+```typescript
+async function refreshMultipleObligations(
+  program: Program<BorrowLending>,
+  obligations: PublicKey[]
+) {
+  const results: Array<{ obligation: PublicKey; success: boolean; error?: string }> = [];
+  
+  for (const obligation of obligations) {
+    try {
+      await refreshObligation(program, obligation);
+      results.push({ obligation, success: true });
+    } catch (error) {
+      console.error(`Failed to refresh obligation ${obligation}:`, error);
+      results.push({ 
+        obligation, 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+  
+  const successCount = results.filter(r => r.success).length;
+  console.log(`Successfully refreshed ${successCount}/${obligations.length} obligations`);
+  
+  return results;
+}
+```
+
+**Health Factor Monitoring:**
+```typescript
+async function monitorObligationHealth(
+  program: Program<BorrowLending>,
+  obligation: PublicKey,
+  alertThreshold: number = 1.2
+): Promise<{
+  healthFactor: number;
+  riskLevel: 'Safe' | 'Warning' | 'Danger' | 'Liquidatable';
+  depositedValue: number;
+  borrowedValue: number;
+  availableBorrow: number;
+}> {
+  // Ensure obligation is fresh
+  await refreshObligation(program, obligation);
+  
+  const obligationData = await program.account.obligation.fetch(obligation);
+  
+  const depositedValue = obligationData.depositedValue.toNumber();
+  const borrowedValue = obligationData.borrowedValue.toNumber();
+  const allowedBorrowValue = obligationData.allowedBorrowValue.toNumber();
+  
+  const healthFactor = borrowedValue > 0 ? depositedValue / borrowedValue : Infinity;
+  const availableBorrow = allowedBorrowValue - borrowedValue;
+  
+  // Determine risk level
+  let riskLevel: 'Safe' | 'Warning' | 'Danger' | 'Liquidatable';
+  if (healthFactor < 1.0) {
+    riskLevel = 'Liquidatable';
+  } else if (healthFactor < 1.1) {
+    riskLevel = 'Danger';
+  } else if (healthFactor < alertThreshold) {
+    riskLevel = 'Warning';
+  } else {
+    riskLevel = 'Safe';
+  }
+  
+  return {
+    healthFactor,
+    riskLevel,
+    depositedValue,
+    borrowedValue,
+    availableBorrow,
+  };
+}
+
+// Example: Monitor user's obligation health
+const healthInfo = await monitorObligationHealth(program, userObligationAddress, 1.5);
+console.log(`Health Factor: ${healthInfo.healthFactor.toFixed(3)} (${healthInfo.riskLevel})`);
+
+if (healthInfo.riskLevel !== 'Safe') {
+  console.warn(`⚠️  Position at risk! Consider adding collateral or repaying debt.`);
+}
+```
+
+**Automated Health Monitoring Bot:**
+```typescript
+class ObligationHealthBot {
+  constructor(
+    private program: Program<BorrowLending>,
+    private alertThreshold: number = 1.3,
+    private liquidationThreshold: number = 1.05
+  ) {}
+  
+  async startMonitoring(obligations: PublicKey[]) {
+    console.log(`🏥 Starting health monitoring for ${obligations.length} obligations`);
+    
+    setInterval(async () => {
+      await this.checkAllObligations(obligations);
+    }, 60000); // Check every minute
+  }
+  
+  private async checkAllObligations(obligations: PublicKey[]) {
+    for (const obligation of obligations) {
+      try {
+        const health = await monitorObligationHealth(
+          this.program, 
+          obligation, 
+          this.alertThreshold
+        );
+        
+        await this.handleHealthStatus(obligation, health);
+      } catch (error) {
+        console.error(`Error monitoring obligation ${obligation}:`, error);
+      }
+    }
+  }
+  
+  private async handleHealthStatus(
+    obligation: PublicKey,
+    health: Awaited<ReturnType<typeof monitorObligationHealth>>
+  ) {
+    switch (health.riskLevel) {
+      case 'Liquidatable':
+        console.error(`🚨 LIQUIDATABLE: ${obligation} (HF: ${health.healthFactor.toFixed(3)})`);
+        await this.triggerLiquidationAlert(obligation, health);
+        break;
+        
+      case 'Danger':
+        console.warn(`⚠️  DANGER: ${obligation} (HF: ${health.healthFactor.toFixed(3)})`);
+        await this.triggerDangerAlert(obligation, health);
+        break;
+        
+      case 'Warning':
+        console.log(`⚡ WARNING: ${obligation} (HF: ${health.healthFactor.toFixed(3)})`);
+        await this.triggerWarningAlert(obligation, health);
+        break;
+        
+      case 'Safe':
+        // No action needed
+        break;
+    }
+  }
+  
+  private async triggerLiquidationAlert(obligation: PublicKey, health: any) {
+    // Implementation would:
+    // 1. Notify liquidation bots
+    // 2. Send urgent user notifications
+    // 3. Log liquidation opportunity
+    console.log(`📢 Liquidation opportunity: ${obligation}`);
+  }
+  
+  private async triggerDangerAlert(obligation: PublicKey, health: any) {
+    // Implementation would:
+    // 1. Send user emergency notifications
+    // 2. Suggest specific actions (add collateral, repay debt)
+    // 3. Calculate required amounts
+    const requiredCollateral = this.calculateRequiredCollateral(health);
+    console.log(`💡 Suggestion: Add $${requiredCollateral} collateral or repay debt`);
+  }
+  
+  private async triggerWarningAlert(obligation: PublicKey, health: any) {
+    // Implementation would:
+    // 1. Send user warning notifications
+    // 2. Provide risk management suggestions
+    console.log(`📋 Monitor position closely, consider risk management`);
+  }
+  
+  private calculateRequiredCollateral(health: any): number {
+    const targetHealthFactor = this.alertThreshold;
+    const currentCollateral = health.depositedValue;
+    const currentDebt = health.borrowedValue;
+    
+    const requiredCollateral = (currentDebt * targetHealthFactor) - currentCollateral;
+    return Math.max(0, requiredCollateral);
+  }
+}
+
+// Usage
+const healthBot = new ObligationHealthBot(program, 1.3, 1.05);
+await healthBot.startMonitoring(monitoredObligations);
+```
+
+**Position Analytics:**
+```typescript
+async function analyzeObligationPosition(
+  program: Program<BorrowLending>,
+  obligation: PublicKey
+): Promise<{
+  summary: string;
+  recommendations: string[];
+  riskMetrics: any;
+  projections: any;
+}> {
+  const health = await monitorObligationHealth(program, obligation);
+  const obligationData = await program.account.obligation.fetch(obligation);
+  
+  // Analyze position composition
+  const depositComposition = await analyzeDepositComposition(obligationData);
+  const borrowComposition = await analyzeBorrowComposition(obligationData);
+  
+  // Generate recommendations
+  const recommendations: string[] = [];
+  
+  if (health.healthFactor < 1.5) {
+    recommendations.push("Consider adding more collateral to improve health factor");
+  }
+  
+  if (depositComposition.diversification < 0.5) {
+    recommendations.push("Consider diversifying collateral across multiple assets");
+  }
+  
+  if (borrowComposition.concentration > 0.8) {
+    recommendations.push("Consider diversifying debt across multiple assets");
+  }
+  
+  // Risk metrics
+  const riskMetrics = {
+    healthFactor: health.healthFactor,
+    liquidationDistance: Math.max(0, health.healthFactor - 1.0),
+    collateralizationRatio: health.depositedValue / health.borrowedValue,
+    borrowUtilization: health.borrowedValue / health.depositedValue,
+  };
+  
+  // Projections (simplified)
+  const projections = {
+    timeToLiquidation: estimateTimeToLiquidation(health, obligationData),
+    interestCost: calculateDailyInterestCost(obligationData),
+    yieldEarned: calculateDailyYieldEarned(obligationData),
+  };
+  
+  const summary = generatePositionSummary(health, riskMetrics, projections);
+  
+  return {
+    summary,
+    recommendations,
+    riskMetrics,
+    projections,
+  };
+}
+
+async function analyzeDepositComposition(obligationData: any) {
+  // Analyze collateral diversification
+  return { diversification: 0.7 }; // Placeholder
+}
+
+async function analyzeBorrowComposition(obligationData: any) {
+  // Analyze debt concentration
+  return { concentration: 0.6 }; // Placeholder
+}
+
+function estimateTimeToLiquidation(health: any, obligationData: any): number {
+  // Estimate based on current interest rates and price volatility
+  return 30; // days (placeholder)
+}
+
+function calculateDailyInterestCost(obligationData: any): number {
+  // Calculate daily interest expense
+  return 5; // USD (placeholder)
+}
+
+function calculateDailyYieldEarned(obligationData: any): number {
+  // Calculate daily yield from deposits
+  return 8; // USD (placeholder)
+}
+
+function generatePositionSummary(health: any, riskMetrics: any, projections: any): string {
+  return `Position has ${health.healthFactor.toFixed(2)}x health factor with ${health.riskLevel.toLowerCase()} risk level. Daily net yield: $${(projections.yieldEarned - projections.interestCost).toFixed(2)}.`;
+}
+```
+
+**Integration Considerations:**
+- Always refresh obligations before critical operations
+- Refresh all associated reserves before refreshing obligations
+- Implement automated monitoring for production systems
+- Handle refresh failures gracefully in applications
+- Consider refresh costs in gas optimization
+- Coordinate refresh timing with high-frequency operations
+
+**Related Instructions:**
+- [`refresh_reserve`](#refresh_reserve) - Refresh associated reserves first
+- [`borrow_obligation_liquidity`](#borrow_obligation_liquidity) - Operations requiring fresh obligations
+- [`liquidate_obligation`](#liquidate_obligation) - Liquidation based on fresh health factors
+
+---
+
+## Account Types
+
+The Solana Borrow-Lending Protocol uses several key account types to manage state and operations. Understanding these account structures is essential for developers integrating with the protocol.
+
+### Lending Market
+
+The `LendingMarket` account serves as the top-level configuration container for all reserves and obligations within a market ecosystem.
+
+#### Structure
+
+```rust
+#[account]
+#[derive(Default)]
+pub struct LendingMarket {
+    /// Market owner with administrative privileges
+    pub owner: Pubkey,
+    
+    /// Whether flash loans are enabled for this market
+    pub enable_flash_loans: bool,
+    
+    /// Authorized bot for automated operations
+    pub admin_bot: Pubkey,
+    
+    /// Aldrin AMM program ID for leveraged yield farming
+    pub aldrin_amm: Pubkey,
+    
+    /// Fee percentage for leveraged position compounding
+    pub leveraged_compound_fee: PercentageInt,
+    
+    /// Fee percentage for vault compounding operations
+    pub vault_compound_fee: PercentageInt,
+    
+    /// Minimum collateral value required for leverage
+    pub min_collateral_uac_value_for_leverage: SDecimal,
+    
+    /// Universal asset currency for value calculations
+    pub currency: UniversalAssetCurrency,
+    
+    /// Reserved space for future configuration
+    pub _padding: [u64; 16],
+}
+```
+
+#### Field Descriptions
+
+**owner: Pubkey**
+- The account with administrative control over the market
+- Can update market configuration, add reserves, and modify parameters
+- Should be a multisig or governance program for production deployments
+- Cannot be changed after market initialization except via transfer
+
+**enable_flash_loans: bool**
+- Controls whether flash loans are available in this market
+- Can be toggled by the market owner for emergency or operational reasons
+- Affects all reserves within the market
+- Default: false (disabled for safety)
+
+**admin_bot: Pubkey**
+- Authorized account for automated operations like compounding
+- Can execute admin-only endpoints without being the market owner
+- Typically an automated bot or service account
+- Should be carefully secured as it has operational privileges
+
+**aldrin_amm: Pubkey**
+- Program ID of the Aldrin AMM for leveraged yield farming
+- Must be an executable program account
+- Used for swap operations and liquidity provision
+- Cannot be changed after market initialization
+
+**leveraged_compound_fee: PercentageInt**
+- Fee collected when compounding leveraged positions
+- Expressed in basis points (0-10000, representing 0-100%)
+- Applied to the compounded reward amount
+- Revenue source for protocol and bot operators
+
+**vault_compound_fee: PercentageInt**
+- Fee collected when compounding vault positions
+- Typically lower than leveraged compound fee due to reduced risk
+- Expressed in basis points (0-10000, representing 0-100%)
+- Applies to automated vault compounding operations
+
+**min_collateral_uac_value_for_leverage: SDecimal**
+- Minimum collateral value required to open leveraged positions
+- Denominated in the market's universal asset currency
+- Prevents dust positions that could destabilize the market
+- Must be greater than zero to enable leverage
+
+**currency: UniversalAssetCurrency**
+- Base currency for all value calculations in the market
+- Can be USD or a specific token address
+- All reserves use this currency for pricing
+- Cannot be changed after initialization
+
+#### Account Size
+
+The `LendingMarket` account requires **292 bytes** of space, calculated as:
+- Fixed fields: 164 bytes
+- Padding for future use: 128 bytes (16 × 8 bytes)
+
+#### Creation and Management
+
+```typescript
+// Creating a new lending market
+const lendingMarketKeypair = Keypair.generate();
+const space = 292; // LendingMarket::space()
+const lamports = await connection.getMinimumBalanceForRentExemption(space);
+
+const createMarketInstruction = SystemProgram.createAccount({
+  fromPubkey: payer.publicKey,
+  newAccountPubkey: lendingMarketKeypair.publicKey,
+  space,
+  lamports,
+  programId: borrowLendingProgramId,
+});
+
+// Initialize the market
+const initMarketInstruction = await program.instruction.initLendingMarket(
+  { usd: {} }, // UniversalAssetCurrency::USD
+  50,          // 0.5% leveraged compound fee
+  25,          // 0.25% vault compound fee
+  "100.0",     // $100 minimum collateral for leverage
+  {
+    accounts: {
+      owner: marketOwner.publicKey,
+      adminBot: adminBotAddress,
+      aldrinAmm: aldrinAmmProgramId,
+      lendingMarket: lendingMarketKeypair.publicKey,
+    },
+    signers: [marketOwner, lendingMarketKeypair],
+  }
+);
+```
+
+#### Access Patterns
+
+**Read Access:**
+- Any account can read lending market data
+- Common queries include checking flash loan status, fees, and configuration
+- Used by UI applications to display market information
+
+**Write Access:**
+- Only the market owner can modify configuration
+- Admin bot can execute operational functions
+- Updates typically require specific instruction calls
+
+#### Configuration Examples
+
+```typescript
+// Conservative market configuration
+const conservativeConfig = {
+  leveragedCompoundFee: 100,  // 1% fee
+  vaultCompoundFee: 50,       // 0.5% fee
+  minCollateralValue: "1000", // $1000 minimum
+  enableFlashLoans: false,    // Disabled initially
+};
+
+// Aggressive growth configuration
+const growthConfig = {
+  leveragedCompoundFee: 25,   // 0.25% fee
+  vaultCompoundFee: 10,       // 0.1% fee
+  minCollateralValue: "50",   // $50 minimum
+  enableFlashLoans: true,     // Enabled for advanced users
+};
+
+// Enterprise configuration
+const enterpriseConfig = {
+  leveragedCompoundFee: 30,   // 0.3% fee
+  vaultCompoundFee: 15,       // 0.15% fee
+  minCollateralValue: "500",  // $500 minimum
+  enableFlashLoans: true,     // Full feature set
+};
+```
+
+#### Monitoring and Analytics
+
+```typescript
+async function analyzeLendingMarket(
+  program: Program<BorrowLending>,
+  lendingMarket: PublicKey
+): Promise<MarketAnalytics> {
+  const marketData = await program.account.lendingMarket.fetch(lendingMarket);
+  
+  // Get all reserves in the market
+  const reserves = await getAllMarketReserves(program, lendingMarket);
+  
+  // Calculate market-wide metrics
+  const totalLiquidity = reserves.reduce((sum, reserve) => {
+    return sum + reserve.liquidity.availableAmount.toNumber();
+  }, 0);
+  
+  const totalBorrows = reserves.reduce((sum, reserve) => {
+    return sum + reserve.liquidity.borrowedAmountWads.toNumber();
+  }, 0);
+  
+  const averageUtilization = totalBorrows / (totalBorrows + totalLiquidity);
+  
+  return {
+    owner: marketData.owner,
+    flashLoansEnabled: marketData.enableFlashLoans,
+    totalReserves: reserves.length,
+    totalLiquidity,
+    totalBorrows,
+    averageUtilization,
+    currency: marketData.currency,
+    fees: {
+      leveragedCompound: marketData.leveragedCompoundFee / 10000,
+      vaultCompound: marketData.vaultCompoundFee / 10000,
+    },
+  };
+}
+
+interface MarketAnalytics {
+  owner: PublicKey;
+  flashLoansEnabled: boolean;
+  totalReserves: number;
+  totalLiquidity: number;
+  totalBorrows: number;
+  averageUtilization: number;
+  currency: UniversalAssetCurrency;
+  fees: {
+    leveragedCompound: number;
+    vaultCompound: number;
+  };
+}
+```
+
+#### Best Practices
+
+**Security Considerations:**
+- Use multisig wallets for market owner in production
+- Carefully vet admin bot implementations
+- Monitor market configuration changes
+- Implement gradual parameter updates
+
+**Operational Guidelines:**
+- Start with conservative fee structures
+- Enable flash loans only after thorough testing
+- Monitor market utilization before parameter changes
+- Maintain adequate reserves for liquidity
+
+**Integration Patterns:**
+- Cache market data for UI performance
+- Subscribe to account changes for real-time updates
+- Validate market parameters before operations
+- Handle market configuration gracefully
+
+---
+
+### Reserve
+
+The `Reserve` account represents an individual asset pool within a lending market, tracking all liquidity, borrowing, and configuration data for a specific token.
+
+#### Structure
+
+```rust
+#[account]
+pub struct Reserve {
+    /// The lending market this reserve belongs to
+    pub lending_market: Pubkey,
+    
+    /// Liquidity management data
+    pub liquidity: ReserveLiquidity,
+    
+    /// Collateral token information
+    pub collateral: ReserveCollateral,
+    
+    /// Configuration parameters
+    pub config: ReserveConfig,
+    
+    /// Current interest rates
+    pub current_supply_rate: Decimal,
+    pub current_borrow_rate: Decimal,
+    
+    /// Cumulative interest rate tracking
+    pub cumulative_borrow_rate_wads: Decimal,
+    
+    /// Last update information
+    pub last_update: LastUpdate,
+    
+    /// Additional state data
+    pub deposited_amount: u64,
+    pub borrowed_amount_wads: Decimal,
+    pub liquidity_mint_decimals: u8,
+    
+    /// Reserved space for future fields
+    pub _padding: [u64; 32],
+}
+```
+
+#### ReserveLiquidity Structure
+
+```rust
+pub struct ReserveLiquidity {
+    /// Token mint for the reserve asset
+    pub mint: Pubkey,
+    
+    /// Token account holding the liquidity
+    pub supply: Pubkey,
+    
+    /// Pyth oracle product account
+    pub pyth_product_key: Pubkey,
+    
+    /// Pyth oracle price account
+    pub pyth_price_key: Pubkey,
+    
+    /// Available liquidity amount
+    pub available_amount: u64,
+    
+    /// Total borrowed amount with interest
+    pub borrowed_amount_wads: Decimal,
+    
+    /// Cumulative borrow rate
+    pub cumulative_borrow_rate_wads: Decimal,
+    
+    /// Market value for calculations
+    pub market_value: Decimal,
+    
+    /// Fee receiver account
+    pub fee_receiver: Pubkey,
+}
+```
+
+#### ReserveCollateral Structure
+
+```rust
+pub struct ReserveCollateral {
+    /// Collateral token mint
+    pub mint: Pubkey,
+    
+    /// Collateral token supply account
+    pub supply: Pubkey,
+    
+    /// Total supply of collateral tokens
+    pub mint_total_supply: u64,
+}
+```
+
+#### ReserveConfig Structure
+
+```rust
+pub struct ReserveConfig {
+    /// Optimal utilization rate (0-100)
+    pub optimal_utilization_rate: u8,
+    
+    /// Loan to value ratio (0-100)
+    pub loan_to_value_ratio: u8,
+    
+    /// Liquidation bonus percentage (0-100)
+    pub liquidation_bonus: u8,
+    
+    /// Liquidation threshold percentage (0-100)
+    pub liquidation_threshold: u8,
+    
+    /// Minimum borrow rate in percentage
+    pub min_borrow_rate: u8,
+    
+    /// Optimal borrow rate in percentage
+    pub optimal_borrow_rate: u8,
+    
+    /// Maximum borrow rate in percentage
+    pub max_borrow_rate: u8,
+    
+    /// Fees configuration
+    pub fees: ReserveFees,
+    
+    /// Deposit limit
+    pub deposit_limit: u64,
+    
+    /// Borrow limit
+    pub borrow_limit: u64,
+    
+    /// Fee receiver for this reserve
+    pub fee_receiver: Pubkey,
+}
+```
+
+#### ReserveFees Structure
+
+```rust
+pub struct ReserveFees {
+    /// Borrow fee in WAD format (18 decimals)
+    pub borrow_fee_wad: u64,
+    
+    /// Flash loan fee in WAD format
+    pub flash_loan_fee_wad: u64,
+    
+    /// Host fee percentage (0-100)
+    pub host_fee_percentage: u8,
+}
+```
+
+#### Field Descriptions
+
+**lending_market: Pubkey**
+- Reference to the parent lending market
+- Provides market-wide configuration and authority
+- Used for validation and cross-reserve operations
+- Immutable after reserve creation
+
+**liquidity: ReserveLiquidity**
+- Complete liquidity management data structure
+- Tracks available and borrowed amounts
+- Contains oracle and token account references
+- Core data for lending operations
+
+**collateral: ReserveCollateral**
+- Collateral token mint and supply information
+- Tracks total collateral tokens in circulation
+- Used for deposit/withdrawal exchange rate calculations
+- Represents depositor ownership shares
+
+**config: ReserveConfig**
+- Economic parameters for the reserve
+- Interest rate model configuration
+- Risk parameters (LTV, liquidation thresholds)
+- Fee structures and limits
+
+**Current Rates**
+- `current_supply_rate`: Interest rate paid to depositors
+- `current_borrow_rate`: Interest rate charged to borrowers
+- Updated on each refresh based on utilization
+
+**Cumulative Tracking**
+- `cumulative_borrow_rate_wads`: Tracks cumulative interest over time
+- Used for accurate interest calculations
+- Enables compound interest accounting
+
+#### Account Size
+
+The `Reserve` account requires **619 bytes** of space, calculated as:
+- Core reserve data: 363 bytes
+- Padding for future use: 256 bytes (32 × 8 bytes)
+
+#### Creation and Initialization
+
+```typescript
+async function createReserve(
+  program: Program<BorrowLending>,
+  marketOwner: Keypair,
+  lendingMarket: PublicKey,
+  tokenMint: PublicKey,
+  initialLiquidity: number,
+  config: ReserveConfig
+): Promise<{ reserve: PublicKey; collateralMint: PublicKey }> {
+  
+  // Generate keypairs for new accounts
+  const reserveKeypair = Keypair.generate();
+  const collateralMintKeypair = Keypair.generate();
+  
+  // Create reserve account
+  const reserveSpace = 619;
+  const reserveLamports = await connection.getMinimumBalanceForRentExemption(reserveSpace);
+  
+  const createReserveInstruction = SystemProgram.createAccount({
+    fromPubkey: marketOwner.publicKey,
+    newAccountPubkey: reserveKeypair.publicKey,
+    space: reserveSpace,
+    lamports: reserveLamports,
+    programId: program.programId,
+  });
+  
+  // Create collateral mint
+  const mintSpace = 82;
+  const mintLamports = await connection.getMinimumBalanceForRentExemption(mintSpace);
+  
+  const createMintInstruction = SystemProgram.createAccount({
+    fromPubkey: marketOwner.publicKey,
+    newAccountPubkey: collateralMintKeypair.publicKey,
+    space: mintSpace,
+    lamports: mintLamports,
+    programId: TOKEN_PROGRAM_ID,
+  });
+  
+  // Initialize reserve
+  const initReserveInstruction = await program.instruction.initReserve(
+    initialLiquidity,
+    config,
+    {
+      accounts: {
+        // ... all required accounts
+        reserve: reserveKeypair.publicKey,
+        reserveCollateralMint: collateralMintKeypair.publicKey,
+        // ... other accounts
+      },
+      signers: [marketOwner, reserveKeypair, collateralMintKeypair],
+    }
+  );
+  
+  // Execute transaction
+  const transaction = new Transaction().add(
+    createReserveInstruction,
+    createMintInstruction,
+    initReserveInstruction
+  );
+  
+  await program.provider.send(transaction, [
+    marketOwner,
+    reserveKeypair,
+    collateralMintKeypair,
+  ]);
+  
+  return {
+    reserve: reserveKeypair.publicKey,
+    collateralMint: collateralMintKeypair.publicKey,
+  };
+}
+```
+
+#### Interest Rate Calculations
+
+```typescript
+function calculateInterestRates(
+  reserve: Reserve,
+  additionalBorrows: number = 0,
+  additionalDeposits: number = 0
+): { supplyRate: number; borrowRate: number; utilizationRate: number } {
+  
+  const totalBorrows = reserve.liquidity.borrowedAmountWads.toNumber() + additionalBorrows;
+  const totalLiquidity = reserve.liquidity.availableAmount.toNumber() + additionalDeposits;
+  const utilizationRate = totalBorrows / (totalBorrows + totalLiquidity);
+  
+  const config = reserve.config;
+  const optimalUtil = config.optimal_utilization_rate / 100;
+  
+  let borrowRate: number;
+  
+  if (utilizationRate <= optimalUtil) {
+    // Below optimal utilization
+    const utilizationFactor = utilizationRate / optimalUtil;
+    borrowRate = config.min_borrow_rate + 
+                (config.optimal_borrow_rate - config.min_borrow_rate) * utilizationFactor;
+  } else {
+    // Above optimal utilization
+    const excessUtilization = utilizationRate - optimalUtil;
+    const excessFactor = excessUtilization / (1 - optimalUtil);
+    borrowRate = config.optimal_borrow_rate + 
+                (config.max_borrow_rate - config.optimal_borrow_rate) * excessFactor;
+  }
+  
+  // Supply rate calculation (simplified)
+  const reserveFactor = 0.1; // 10% reserve factor
+  const supplyRate = borrowRate * utilizationRate * (1 - reserveFactor);
+  
+  return {
+    supplyRate: supplyRate / 100,
+    borrowRate: borrowRate / 100,
+    utilizationRate,
+  };
+}
+```
+
+#### Exchange Rate Calculations
+
+```typescript
+function calculateExchangeRate(reserve: Reserve): number {
+  const totalLiquidity = reserve.liquidity.availableAmount.toNumber() + 
+                        reserve.liquidity.borrowedAmountWads.toNumber();
+  const totalCollateral = reserve.collateral.mint_total_supply;
+  
+  if (totalCollateral === 0) {
+    return 1; // Initial 1:1 exchange rate
+  }
+  
+  return totalLiquidity / totalCollateral;
+}
+
+function calculateCollateralAmount(
+  liquidityAmount: number,
+  exchangeRate: number
+): number {
+  return liquidityAmount / exchangeRate;
+}
+
+function calculateLiquidityAmount(
+  collateralAmount: number,
+  exchangeRate: number
+): number {
+  return collateralAmount * exchangeRate;
+}
+```
+
+#### Reserve Analytics
+
+```typescript
+async function analyzeReserve(
+  program: Program<BorrowLending>,
+  reserve: PublicKey
+): Promise<ReserveAnalytics> {
+  const reserveData = await program.account.reserve.fetch(reserve);
+  
+  // Calculate key metrics
+  const totalLiquidity = reserveData.liquidity.availableAmount.toNumber() + 
+                        reserveData.liquidity.borrowedAmountWads.toNumber();
+  const availableLiquidity = reserveData.liquidity.availableAmount.toNumber();
+  const totalBorrows = reserveData.liquidity.borrowedAmountWads.toNumber();
+  const utilizationRate = totalBorrows / totalLiquidity;
+  
+  // Get current rates
+  const rates = calculateInterestRates(reserveData);
+  
+  // Calculate collateral metrics
+  const exchangeRate = calculateExchangeRate(reserveData);
+  const totalCollateralValue = reserveData.collateral.mint_total_supply * exchangeRate;
+  
+  // Get price data (mock implementation)
+  const price = await getTokenPrice(reserveData.liquidity.pyth_price_key);
+  const totalValueLocked = totalLiquidity * price;
+  
+  return {
+    // Basic metrics
+    totalValueLocked,
+    totalLiquidity,
+    availableLiquidity,
+    totalBorrows,
+    utilizationRate,
+    
+    // Rates
+    supplyRate: rates.supplyRate,
+    borrowRate: rates.borrowRate,
+    
+    // Collateral
+    exchangeRate,
+    totalCollateralSupply: reserveData.collateral.mint_total_supply,
+    totalCollateralValue,
+    
+    // Configuration
+    loanToValueRatio: reserveData.config.loan_to_value_ratio / 100,
+    liquidationThreshold: reserveData.config.liquidation_threshold / 100,
+    liquidationBonus: reserveData.config.liquidation_bonus / 100,
+    
+    // Limits
+    depositLimit: reserveData.config.deposit_limit,
+    borrowLimit: reserveData.config.borrow_limit,
+    
+    // Health
+    staleness: await calculateStaleness(reserveData),
+    oracleHealth: await checkOracleHealth(reserveData.liquidity.pyth_price_key),
+  };
+}
+
+interface ReserveAnalytics {
+  totalValueLocked: number;
+  totalLiquidity: number;
+  availableLiquidity: number;
+  totalBorrows: number;
+  utilizationRate: number;
+  supplyRate: number;
+  borrowRate: number;
+  exchangeRate: number;
+  totalCollateralSupply: number;
+  totalCollateralValue: number;
+  loanToValueRatio: number;
+  liquidationThreshold: number;
+  liquidationBonus: number;
+  depositLimit: number;
+  borrowLimit: number;
+  staleness: number;
+  oracleHealth: boolean;
+}
+
+async function getTokenPrice(pythPriceKey: PublicKey): Promise<number> {
+  // Implementation would use Pyth client
+  return 1.0; // Placeholder
+}
+
+async function calculateStaleness(reserve: Reserve): Promise<number> {
+  // Calculate slots since last update
+  const currentSlot = await getCurrentSlot();
+  return currentSlot - reserve.last_update.slot.toNumber();
+}
+
+async function checkOracleHealth(pythPriceKey: PublicKey): Promise<boolean> {
+  // Implementation would check Pyth oracle health
+  return true; // Placeholder
+}
+
+function getCurrentSlot(): Promise<number> {
+  // Implementation would get current slot
+  return Promise.resolve(0);
+}
+```
+
+#### Reserve Monitoring
+
+```typescript
+class ReserveMonitor {
+  constructor(
+    private program: Program<BorrowLending>,
+    private reserve: PublicKey,
+    private alertThresholds: {
+      highUtilization: number;
+      lowLiquidity: number;
+      staleOracle: number;
+    }
+  ) {}
+  
+  async startMonitoring() {
+    setInterval(async () => {
+      await this.checkReserveHealth();
+    }, 30000); // Check every 30 seconds
+  }
+  
+  private async checkReserveHealth() {
+    try {
+      const analytics = await analyzeReserve(this.program, this.reserve);
+      
+      // Check utilization
+      if (analytics.utilizationRate > this.alertThresholds.highUtilization) {
+        console.warn(`🔥 High utilization: ${(analytics.utilizationRate * 100).toFixed(1)}%`);
+      }
+      
+      // Check liquidity
+      if (analytics.availableLiquidity < this.alertThresholds.lowLiquidity) {
+        console.warn(`💧 Low liquidity: ${analytics.availableLiquidity}`);
+      }
+      
+      // Check oracle staleness
+      if (analytics.staleness > this.alertThresholds.staleOracle) {
+        console.warn(`⏰ Stale oracle: ${analytics.staleness} slots`);
+      }
+      
+      // Check oracle health
+      if (!analytics.oracleHealth) {
+        console.error(`🔴 Oracle unhealthy for reserve ${this.reserve}`);
+      }
+      
+    } catch (error) {
+      console.error(`Error monitoring reserve ${this.reserve}:`, error);
+    }
+  }
+}
+
+// Usage
+const reserveMonitor = new ReserveMonitor(
+  program,
+  usdcReserve,
+  {
+    highUtilization: 0.9,  // 90%
+    lowLiquidity: 1000,    // 1000 tokens
+    staleOracle: 100,      // 100 slots
+  }
+);
+
+await reserveMonitor.startMonitoring();
+```
+
+#### Best Practices
+
+**Configuration Guidelines:**
+- Set conservative LTV ratios initially (60-80%)
+- Use gradual liquidation thresholds (LTV + 5-10%)
+- Implement reasonable liquidation bonuses (3-10%)
+- Start with higher interest rates and adjust based on demand
+
+**Operational Patterns:**
+- Refresh reserves before major operations
+- Monitor utilization rates for rate adjustments
+- Track oracle health and price feed reliability
+- Implement automated reserve health monitoring
+
+**Integration Considerations:**
+- Cache reserve data for UI performance
+- Subscribe to account changes for real-time updates
+- Handle rate calculations client-side for projections
+- Validate reserve limits before transactions
+
+**Security Measures:**
+- Verify oracle authenticity and freshness
+- Monitor for unusual utilization patterns
+- Implement circuit breakers for extreme conditions
+- Track large deposits/withdrawals for risk management
+
+---
+
+### Obligation
+
+The `Obligation` account represents an individual borrower's position across multiple reserves, tracking all collateral deposits and outstanding loans within a lending market.
+
+#### Structure
+
+```rust
+#[account(zero_copy)]
+pub struct Obligation {
+    /// Owner of the obligation
+    pub owner: Pubkey,
+    
+    /// Lending market this obligation belongs to
+    pub lending_market: Pubkey,
+    
+    /// Last update information
+    pub last_update: LastUpdate,
+    
+    /// Array of reserves (deposits and borrows)
+    pub reserves: [ObligationReserve; 10],
+    
+    /// Total market value of deposits in UAC
+    pub deposited_value: SDecimal,
+    
+    /// Collateralized borrowed value in UAC
+    pub collateralized_borrowed_value: SDecimal,
+    
+    /// Total borrowed value including leverage
+    pub total_borrowed_value: SDecimal,
+    
+    /// Maximum allowed borrow value
+    pub allowed_borrow_value: SDecimal,
+    
+    /// Unhealthy borrow value threshold
+    pub unhealthy_borrow_value: SDecimal,
+}
+```
+
+#### ObligationReserve Enum
+
+```rust
+#[derive(AnchorDeserialize, AnchorSerialize, Copy, Clone, Debug, PartialEq)]
+pub enum ObligationReserve {
+    Empty,
+    Liquidity { inner: ObligationLiquidity },
+    Collateral { inner: ObligationCollateral },
+}
+```
+
+#### ObligationCollateral Structure
+
+```rust
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Eq, PartialEq, Default)]
+pub struct ObligationCollateral {
+    /// Reserve where collateral is deposited
+    pub deposit_reserve: Pubkey,
+    
+    /// Amount of collateral tokens deposited
+    pub deposited_amount: u64,
+    
+    /// Current market value in UAC
+    pub market_value: SDecimal,
+    
+    /// Slot when deposit was made (for emissions)
+    pub emissions_claimable_from_slot: u64,
+}
+```
+
+#### ObligationLiquidity Structure
+
+```rust
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ObligationLiquidity {
+    /// Reserve where liquidity is borrowed
+    pub borrow_reserve: Pubkey,
+    
+    /// Type of loan (standard or leveraged)
+    pub loan_kind: LoanKind,
+    
+    /// Cumulative borrow rate at loan origination
+    pub cumulative_borrow_rate: SDecimal,
+    
+    /// Borrowed amount including accrued interest
+    pub borrowed_amount: SDecimal,
+    
+    /// Current market value in UAC
+    pub market_value: SDecimal,
+    
+    /// Slot when borrow was made (for emissions)
+    pub emissions_claimable_from_slot: u64,
+}
+```
+
+#### LoanKind Enum
+
+```rust
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LoanKind {
+    /// Standard collateralized loan
+    Standard,
+    
+    /// Leveraged yield farming position
+    YieldFarming {
+        leverage: Leverage,
+    },
+}
+```
+
+#### Field Descriptions
+
+**owner: Pubkey**
+- Account that controls the obligation
+- Can deposit collateral, borrow funds, and manage the position
+- Cannot be changed after obligation creation
+- Used for authorization in all obligation operations
+
+**lending_market: Pubkey**
+- Reference to the parent lending market
+- Determines which reserves can be used
+- Provides market-wide configuration
+- Immutable after obligation creation
+
+**last_update: LastUpdate**
+- Tracks when obligation was last refreshed
+- Contains slot number for staleness checking
+- Updated on every refresh operation
+- Critical for accurate health calculations
+
+**reserves: [ObligationReserve; 10]**
+- Array of up to 10 reserve positions
+- Can contain both collateral deposits and liquidity borrows
+- Empty slots are marked as `ObligationReserve::Empty`
+- Enables multi-asset positions
+
+**Value Tracking Fields:**
+- `deposited_value`: Total collateral value in Universal Asset Currency
+- `collateralized_borrowed_value`: Standard loan value requiring collateral
+- `total_borrowed_value`: All borrowed value including leveraged positions
+- `allowed_borrow_value`: Maximum borrowing capacity based on LTV ratios
+- `unhealthy_borrow_value`: Liquidation threshold value
+
+#### Account Size
+
+The `Obligation` account uses zero-copy serialization and requires **916 bytes** of space:
+- Fixed header: 64 bytes
+- Reserve array: 852 bytes (10 × 85.2 bytes per reserve)
+
+#### Health Factor Calculation
+
+The health factor determines the safety of an obligation:
+
+```typescript
+function calculateHealthFactor(obligation: Obligation): number {
+  const totalCollateralValue = obligation.deposited_value.toNumber();
+  const totalBorrowedValue = obligation.collateralized_borrowed_value.toNumber();
+  
+  if (totalBorrowedValue === 0) {
+    return Infinity; // No debt, infinite health
+  }
+  
+  return totalCollateralValue / totalBorrowedValue;
+}
+
+function isObligationHealthy(obligation: Obligation): boolean {
+  return calculateHealthFactor(obligation) >= 1.0;
+}
+
+function getLiquidationRisk(healthFactor: number): string {
+  if (healthFactor < 1.0) return "Liquidatable";
+  if (healthFactor < 1.1) return "Critical";
+  if (healthFactor < 1.3) return "High";
+  if (healthFactor < 1.5) return "Medium";
+  return "Low";
+}
+```
+
+#### Position Management
+
+```typescript
+class ObligationManager {
+  constructor(
+    private program: Program<BorrowLending>,
+    private obligation: PublicKey,
+    private owner: Keypair
+  ) {}
+  
+  async getPositionSummary(): Promise<PositionSummary> {
+    const obligationData = await this.program.account.obligation.fetch(this.obligation);
+    
+    // Parse deposits and borrows
+    const deposits = this.parseDeposits(obligationData.reserves);
+    const borrows = this.parseBorrows(obligationData.reserves);
+    
+    // Calculate metrics
+    const healthFactor = calculateHealthFactor(obligationData);
+    const utilizationRate = obligationData.collateralized_borrowed_value.toNumber() / 
+                           obligationData.allowed_borrow_value.toNumber();
+    
+    return {
+      owner: obligationData.owner,
+      lendingMarket: obligationData.lending_market,
+      healthFactor,
+      utilizationRate,
+      totalCollateralValue: obligationData.deposited_value.toNumber(),
+      totalBorrowedValue: obligationData.total_borrowed_value.toNumber(),
+      availableBorrowValue: obligationData.allowed_borrow_value.toNumber() - 
+                           obligationData.collateralized_borrowed_value.toNumber(),
+      deposits,
+      borrows,
+      lastUpdate: obligationData.last_update,
+    };
+  }
+  
+  private parseDeposits(reserves: ObligationReserve[]): DepositPosition[] {
+    return reserves
+      .filter(reserve => 'Collateral' in reserve)
+      .map(reserve => {
+        const collateral = (reserve as any).Collateral.inner;
+        return {
+          reserve: collateral.deposit_reserve,
+          amount: collateral.deposited_amount,
+          value: collateral.market_value.toNumber(),
+          emissionsSlot: collateral.emissions_claimable_from_slot,
+        };
+      });
+  }
+  
+  private parseBorrows(reserves: ObligationReserve[]): BorrowPosition[] {
+    return reserves
+      .filter(reserve => 'Liquidity' in reserve)
+      .map(reserve => {
+        const liquidity = (reserve as any).Liquidity.inner;
+        return {
+          reserve: liquidity.borrow_reserve,
+          amount: liquidity.borrowed_amount.toNumber(),
+          value: liquidity.market_value.toNumber(),
+          loanKind: liquidity.loan_kind,
+          cumulativeRate: liquidity.cumulative_borrow_rate.toNumber(),
+          emissionsSlot: liquidity.emissions_claimable_from_slot,
+        };
+      });
+  }
+  
+  async addCollateral(
+    reserve: PublicKey,
+    amount: number
+  ): Promise<string> {
+    // Implementation would call deposit_obligation_collateral
+    return "signature";
+  }
+  
+  async borrowLiquidity(
+    reserve: PublicKey,
+    amount: number,
+    loanKind: LoanKind = { standard: {} }
+  ): Promise<string> {
+    // Implementation would call borrow_obligation_liquidity
+    return "signature";
+  }
+  
+  async repayDebt(
+    reserve: PublicKey,
+    amount: number,
+    loanKind: LoanKind = { standard: {} }
+  ): Promise<string> {
+    // Implementation would call repay_obligation_liquidity
+    return "signature";
+  }
+  
+  async withdrawCollateral(
+    reserve: PublicKey,
+    amount: number
+  ): Promise<string> {
+    // Implementation would call withdraw_obligation_collateral
+    return "signature";
+  }
+}
+
+interface PositionSummary {
+  owner: PublicKey;
+  lendingMarket: PublicKey;
+  healthFactor: number;
+  utilizationRate: number;
+  totalCollateralValue: number;
+  totalBorrowedValue: number;
+  availableBorrowValue: number;
+  deposits: DepositPosition[];
+  borrows: BorrowPosition[];
+  lastUpdate: LastUpdate;
+}
+
+interface DepositPosition {
+  reserve: PublicKey;
+  amount: number;
+  value: number;
+  emissionsSlot: number;
+}
+
+interface BorrowPosition {
+  reserve: PublicKey;
+  amount: number;
+  value: number;
+  loanKind: LoanKind;
+  cumulativeRate: number;
+  emissionsSlot: number;
+}
+```
+
+#### Risk Management
+
+```typescript
+class ObligationRiskManager {
+  constructor(
+    private obligationManager: ObligationManager,
+    private riskParameters: RiskParameters
+  ) {}
+  
+  async assessRisk(): Promise<RiskAssessment> {
+    const position = await this.obligationManager.getPositionSummary();
+    
+    const risks: Risk[] = [];
+    const recommendations: string[] = [];
+    
+    // Health factor risk
+    if (position.healthFactor < this.riskParameters.minHealthFactor) {
+      risks.push({
+        type: 'HealthFactor',
+        severity: position.healthFactor < 1.1 ? 'Critical' : 'High',
+        description: `Health factor ${position.healthFactor.toFixed(3)} is below safe threshold`,
+      });
+      recommendations.push('Add more collateral or repay debt to improve health factor');
+    }
+    
+    // Concentration risk
+    const concentrationRisk = this.assessConcentrationRisk(position);
+    if (concentrationRisk.severity !== 'Low') {
+      risks.push(concentrationRisk);
+      recommendations.push('Diversify collateral across multiple assets');
+    }
+    
+    // Leverage risk
+    const leverageRisk = this.assessLeverageRisk(position);
+    if (leverageRisk.severity !== 'Low') {
+      risks.push(leverageRisk);
+      recommendations.push('Consider reducing leverage exposure');
+    }
+    
+    // Interest rate risk
+    const interestRisk = await this.assessInterestRateRisk(position);
+    if (interestRisk.severity !== 'Low') {
+      risks.push(interestRisk);
+      recommendations.push('Monitor interest rate changes and consider fixed-rate alternatives');
+    }
+    
+    return {
+      overallRisk: this.calculateOverallRisk(risks),
+      risks,
+      recommendations,
+      healthScore: this.calculateHealthScore(position),
+    };
+  }
+  
+  private assessConcentrationRisk(position: PositionSummary): Risk {
+    // Check if position is too concentrated in single asset
+    const maxCollateralRatio = Math.max(
+      ...position.deposits.map(d => d.value / position.totalCollateralValue)
+    );
+    
+    if (maxCollateralRatio > 0.8) {
+      return {
+        type: 'Concentration',
+        severity: 'High',
+        description: `${(maxCollateralRatio * 100).toFixed(1)}% of collateral in single asset`,
+      };
+    } else if (maxCollateralRatio > 0.6) {
+      return {
+        type: 'Concentration',
+        severity: 'Medium',
+        description: `${(maxCollateralRatio * 100).toFixed(1)}% of collateral in single asset`,
+      };
+    }
+    
+    return {
+      type: 'Concentration',
+      severity: 'Low',
+      description: 'Well-diversified collateral',
+    };
+  }
+  
+  private assessLeverageRisk(position: PositionSummary): Risk {
+    const leverageRatio = position.totalBorrowedValue / position.totalCollateralValue;
+    
+    if (leverageRatio > 0.8) {
+      return {
+        type: 'Leverage',
+        severity: 'High',
+        description: `High leverage ratio: ${leverageRatio.toFixed(2)}x`,
+      };
+    } else if (leverageRatio > 0.6) {
+      return {
+        type: 'Leverage',
+        severity: 'Medium',
+        description: `Moderate leverage ratio: ${leverageRatio.toFixed(2)}x`,
+      };
+    }
+    
+    return {
+      type: 'Leverage',
+      severity: 'Low',
+      description: `Conservative leverage ratio: ${leverageRatio.toFixed(2)}x`,
+    };
+  }
+  
+  private async assessInterestRateRisk(position: PositionSummary): Promise<Risk> {
+    // Calculate weighted average borrow rate
+    let totalBorrowValue = 0;
+    let weightedRate = 0;
+    
+    for (const borrow of position.borrows) {
+      // Would fetch current rate from reserve
+      const currentRate = 0.08; // 8% placeholder
+      totalBorrowValue += borrow.value;
+      weightedRate += currentRate * borrow.value;
+    }
+    
+    const avgRate = weightedRate / totalBorrowValue;
+    
+    if (avgRate > 0.15) {
+      return {
+        type: 'InterestRate',
+        severity: 'High',
+        description: `High average borrow rate: ${(avgRate * 100).toFixed(1)}%`,
+      };
+    } else if (avgRate > 0.1) {
+      return {
+        type: 'InterestRate',
+        severity: 'Medium',
+        description: `Moderate average borrow rate: ${(avgRate * 100).toFixed(1)}%`,
+      };
+    }
+    
+    return {
+      type: 'InterestRate',
+      severity: 'Low',
+      description: `Low average borrow rate: ${(avgRate * 100).toFixed(1)}%`,
+    };
+  }
+  
+  private calculateOverallRisk(risks: Risk[]): string {
+    const criticalCount = risks.filter(r => r.severity === 'Critical').length;
+    const highCount = risks.filter(r => r.severity === 'High').length;
+    
+    if (criticalCount > 0) return 'Critical';
+    if (highCount > 1) return 'High';
+    if (highCount > 0) return 'Medium';
+    return 'Low';
+  }
+  
+  private calculateHealthScore(position: PositionSummary): number {
+    // 0-100 score based on multiple factors
+    let score = 100;
+    
+    // Health factor component (40% of score)
+    const healthFactor = Math.min(position.healthFactor, 3);
+    score *= 0.6 + 0.4 * (healthFactor / 3);
+    
+    // Diversification component (30% of score)
+    const diversificationScore = this.calculateDiversificationScore(position);
+    score *= 0.7 + 0.3 * diversificationScore;
+    
+    // Utilization component (30% of score)
+    const utilizationPenalty = Math.min(position.utilizationRate, 1) * 0.3;
+    score *= (1 - utilizationPenalty);
+    
+    return Math.round(score);
+  }
+  
+  private calculateDiversificationScore(position: PositionSummary): number {
+    if (position.deposits.length <= 1) return 0;
+    
+    // Calculate Herfindahl index for diversification
+    const totalValue = position.totalCollateralValue;
+    const herfindahl = position.deposits.reduce((sum, deposit) => {
+      const share = deposit.value / totalValue;
+      return sum + share * share;
+    }, 0);
+    
+    // Convert to diversification score (0-1)
+    const maxHerfindahl = 1; // Complete concentration
+    const minHerfindahl = 1 / position.deposits.length; // Perfect diversification
+    
+    return (maxHerfindahl - herfindahl) / (maxHerfindahl - minHerfindahl);
+  }
+}
+
+interface RiskParameters {
+  minHealthFactor: number;
+  maxConcentration: number;
+  maxLeverageRatio: number;
+  maxInterestRate: number;
+}
+
+interface Risk {
+  type: string;
+  severity: 'Low' | 'Medium' | 'High' | 'Critical';
+  description: string;
+}
+
+interface RiskAssessment {
+  overallRisk: string;
+  risks: Risk[];
+  recommendations: string[];
+  healthScore: number;
+}
+
+// Usage
+const obligationManager = new ObligationManager(program, obligationAddress, userKeypair);
+const riskManager = new ObligationRiskManager(obligationManager, {
+  minHealthFactor: 1.3,
+  maxConcentration: 0.7,
+  maxLeverageRatio: 0.8,
+  maxInterestRate: 0.12,
+});
+
+const riskAssessment = await riskManager.assessRisk();
+console.log(`Overall risk: ${riskAssessment.overallRisk}`);
+console.log(`Health score: ${riskAssessment.healthScore}/100`);
+```
+
+#### Leveraged Positions
+
+```typescript
+class LeveragedPositionManager extends ObligationManager {
+  async createLeveragedPosition(
+    collateralReserve: PublicKey,
+    borrowReserve: PublicKey,
+    collateralAmount: number,
+    leverage: number,
+    ammPool: PublicKey
+  ): Promise<string> {
+    // 1. Deposit initial collateral
+    await this.addCollateral(collateralReserve, collateralAmount);
+    
+    // 2. Calculate borrow amount for desired leverage
+    const borrowAmount = collateralAmount * (leverage - 1);
+    
+    // 3. Borrow additional funds
+    await this.borrowLiquidity(
+      borrowReserve, 
+      borrowAmount, 
+      { yieldFarming: { leverage: { value: leverage } } }
+    );
+    
+    // 4. Add liquidity to AMM (would require AMM integration)
+    const ammSignature = await this.addLiquidityToAmm(
+      ammPool,
+      collateralAmount + borrowAmount
+    );
+    
+    return ammSignature;
+  }
+  
+  async closeLeveragedPosition(
+    ammPool: PublicKey,
+    borrowReserve: PublicKey
+  ): Promise<string> {
+    // 1. Remove liquidity from AMM
+    await this.removeLiquidityFromAmm(ammPool);
+    
+    // 2. Repay borrowed amount
+    const position = await this.getPositionSummary();
+    const leveragedBorrow = position.borrows.find(
+      b => 'yieldFarming' in b.loanKind
+    );
+    
+    if (leveragedBorrow) {
+      await this.repayDebt(
+        leveragedBorrow.reserve,
+        leveragedBorrow.amount,
+        leveragedBorrow.loanKind
+      );
+    }
+    
+    // 3. Withdraw remaining collateral
+    return "signature";
+  }
+  
+  private async addLiquidityToAmm(pool: PublicKey, amount: number): Promise<string> {
+    // Integration with Aldrin AMM
+    return "signature";
+  }
+  
+  private async removeLiquidityFromAmm(pool: PublicKey): Promise<string> {
+    // Integration with Aldrin AMM
+    return "signature";
+  }
+}
+```
+
+#### Obligation Analytics
+
+```typescript
+async function analyzeObligationPerformance(
+  program: Program<BorrowLending>,
+  obligation: PublicKey,
+  historicalData: HistoricalPosition[]
+): Promise<PerformanceAnalytics> {
+  const currentPosition = await new ObligationManager(
+    program, 
+    obligation, 
+    null as any
+  ).getPositionSummary();
+  
+  // Calculate performance metrics
+  const initialValue = historicalData[0]?.totalCollateralValue || 0;
+  const currentValue = currentPosition.totalCollateralValue;
+  const totalReturn = (currentValue - initialValue) / initialValue;
+  
+  // Calculate interest costs and yield earned
+  const interestPaid = calculateInterestPaid(historicalData);
+  const yieldEarned = calculateYieldEarned(historicalData);
+  const netYield = yieldEarned - interestPaid;
+  
+  // Risk-adjusted returns
+  const volatility = calculateVolatility(historicalData);
+  const sharpeRatio = netYield / volatility;
+  
+  // Health factor analysis
+  const healthFactorHistory = historicalData.map(h => h.healthFactor);
+  const minHealthFactor = Math.min(...healthFactorHistory);
+  const avgHealthFactor = healthFactorHistory.reduce((a, b) => a + b, 0) / healthFactorHistory.length;
+  
+  return {
+    totalReturn,
+    netYield,
+    interestPaid,
+    yieldEarned,
+    sharpeRatio,
+    volatility,
+    minHealthFactor,
+    avgHealthFactor,
+    currentHealthFactor: currentPosition.healthFactor,
+    liquidationEvents: countLiquidationEvents(historicalData),
+    maxDrawdown: calculateMaxDrawdown(historicalData),
+  };
+}
+
+interface HistoricalPosition {
+  timestamp: number;
+  totalCollateralValue: number;
+  totalBorrowedValue: number;
+  healthFactor: number;
+  interestPaid: number;
+  yieldEarned: number;
+}
+
+interface PerformanceAnalytics {
+  totalReturn: number;
+  netYield: number;
+  interestPaid: number;
+  yieldEarned: number;
+  sharpeRatio: number;
+  volatility: number;
+  minHealthFactor: number;
+  avgHealthFactor: number;
+  currentHealthFactor: number;
+  liquidationEvents: number;
+  maxDrawdown: number;
+}
+
+function calculateInterestPaid(history: HistoricalPosition[]): number {
+  return history.reduce((sum, pos) => sum + pos.interestPaid, 0);
+}
+
+function calculateYieldEarned(history: HistoricalPosition[]): number {
+  return history.reduce((sum, pos) => sum + pos.yieldEarned, 0);
+}
+
+function calculateVolatility(history: HistoricalPosition[]): number {
+  const returns = [];
+  for (let i = 1; i < history.length; i++) {
+    const prevValue = history[i - 1].totalCollateralValue;
+    const currentValue = history[i].totalCollateralValue;
+    returns.push((currentValue - prevValue) / prevValue);
+  }
+  
+  const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - avgReturn, 2), 0) / returns.length;
+  
+  return Math.sqrt(variance);
+}
+
+function countLiquidationEvents(history: HistoricalPosition[]): number {
+  return history.filter(pos => pos.healthFactor < 1.0).length;
+}
+
+function calculateMaxDrawdown(history: HistoricalPosition[]): number {
+  let maxValue = 0;
+  let maxDrawdown = 0;
+  
+  for (const pos of history) {
+    maxValue = Math.max(maxValue, pos.totalCollateralValue);
+    const drawdown = (maxValue - pos.totalCollateralValue) / maxValue;
+    maxDrawdown = Math.max(maxDrawdown, drawdown);
+  }
+  
+  return maxDrawdown;
+}
+```
+
+#### Best Practices
+
+**Position Management:**
+- Maintain health factor above 1.3 for safety buffer
+- Diversify collateral across multiple assets
+- Monitor interest rate changes and impact on costs
+- Use stop-loss strategies for leveraged positions
+
+**Risk Management:**
+- Set up automated health factor monitoring
+- Implement gradual position building and unwinding
+- Consider correlation between collateral and borrowed assets
+- Plan for market stress scenarios
+
+**Operational Guidelines:**
+- Refresh obligations before major operations
+- Use batch transactions for complex position changes
+- Monitor gas costs for frequent position adjustments
+- Keep detailed records for tax and performance tracking
+
+**Integration Patterns:**
+- Subscribe to obligation account changes for real-time updates
+- Cache obligation data for UI performance
+- Implement retry logic for failed transactions
+- Provide clear position visualizations for users
+
+---
+
+## Data Structures
+
+The protocol uses sophisticated data structures to manage financial calculations, state tracking, and configuration parameters.
+
+### Mathematical Types
+
+#### Decimal
+
+The `Decimal` type provides high-precision arithmetic for financial calculations:
+
+```rust
+pub struct Decimal {
+    pub value: u128,
+}
+
+impl Decimal {
+    pub const DECIMALS: u8 = 18;
+    pub const WAD: u128 = 1_000_000_000_000_000_000; // 10^18
+    
+    pub fn zero() -> Self {
+        Self { value: 0 }
+    }
+    
+    pub fn one() -> Self {
+        Self { value: Self::WAD }
+    }
+    
+    pub fn from_scaled_val(scaled_val: u128) -> Self {
+        Self { value: scaled_val }
+    }
+    
+    pub fn to_scaled_val(&self) -> u128 {
+        self.value
+    }
+}
+```
+
+**Usage Examples:**
+```typescript
+// TypeScript wrapper for Decimal operations
+class DecimalMath {
+  static readonly WAD = BigInt("1000000000000000000"); // 10^18
+  
+  static fromNumber(num: number): BigInt {
+    return BigInt(Math.floor(num * Number(this.WAD)));
+  }
+  
+  static toNumber(decimal: BigInt): number {
+    return Number(decimal) / Number(this.WAD);
+  }
+  
+  static add(a: BigInt, b: BigInt): BigInt {
+    return a + b;
+  }
+  
+  static subtract(a: BigInt, b: BigInt): BigInt {
+    return a - b;
+  }
+  
+  static multiply(a: BigInt, b: BigInt): BigInt {
+    return (a * b) / this.WAD;
+  }
+  
+  static divide(a: BigInt, b: BigInt): BigInt {
+    return (a * this.WAD) / b;
+  }
+  
+  static percentage(amount: BigInt, percent: number): BigInt {
+    const percentDecimal = this.fromNumber(percent / 100);
+    return this.multiply(amount, percentDecimal);
+  }
+}
+
+// Example usage
+const amount = DecimalMath.fromNumber(1000); // 1000 tokens
+const feeRate = DecimalMath.fromNumber(0.005); // 0.5%
+const fee = DecimalMath.multiply(amount, feeRate);
+console.log(`Fee: ${DecimalMath.toNumber(fee)} tokens`);
+```
+
+#### SDecimal (Signed Decimal)
+
+Extended decimal type supporting negative values:
+
+```rust
+pub struct SDecimal {
+    pub value: i128,
+}
+
+impl SDecimal {
+    pub const DECIMALS: u8 = 18;
+    pub const WAD: i128 = 1_000_000_000_000_000_000; // 10^18
+    
+    pub fn zero() -> Self {
+        Self { value: 0 }
+    }
+    
+    pub fn from_decimal(decimal: Decimal) -> Self {
+        Self { value: decimal.value as i128 }
+    }
+    
+    pub fn is_negative(&self) -> bool {
+        self.value < 0
+    }
+    
+    pub fn abs(&self) -> Self {
+        Self { value: self.value.abs() }
+    }
+}
+```
+
+**Financial Calculations:**
+```typescript
+class FinancialMath {
+  // Calculate compound interest
+  static compoundInterest(
+    principal: BigInt,
+    rate: BigInt,
+    periods: number
+  ): BigInt {
+    let result = principal;
+    const oneWad = DecimalMath.WAD;
+    
+    for (let i = 0; i < periods; i++) {
+      result = DecimalMath.multiply(result, oneWad + rate);
+    }
+    
+    return result;
+  }
+  
+  // Calculate net present value
+  static netPresentValue(
+    cashFlows: BigInt[],
+    discountRate: BigInt
+  ): BigInt {
+    let npv = BigInt(0);
+    const oneWad = DecimalMath.WAD;
+    
+    for (let i = 0; i < cashFlows.length; i++) {
+      const discountFactor = DecimalMath.divide(
+        oneWad,
+        this.compoundInterest(oneWad, discountRate, i + 1)
+      );
+      npv = DecimalMath.add(
+        npv,
+        DecimalMath.multiply(cashFlows[i], discountFactor)
+      );
+    }
+    
+    return npv;
+  }
+  
+  // Calculate loan payment amount
+  static loanPayment(
+    principal: BigInt,
+    rate: BigInt,
+    periods: number
+  ): BigInt {
+    if (rate === BigInt(0)) {
+      return DecimalMath.divide(principal, BigInt(periods));
+    }
+    
+    const onePlusRate = DecimalMath.WAD + rate;
+    const numerator = DecimalMath.multiply(
+      principal,
+      rate
+    );
+    
+    const denominator = DecimalMath.WAD - DecimalMath.divide(
+      DecimalMath.WAD,
+      this.compoundInterest(onePlusRate, rate, periods)
+    );
+    
+    return DecimalMath.divide(numerator, denominator);
+  }
+}
+```
+
+#### PercentageInt
+
+Integer-based percentage representation:
+
+```rust
+pub struct PercentageInt {
+    pub value: u16,
+}
+
+impl PercentageInt {
+    pub const BASIS_POINTS_SCALE: u16 = 10000; // 100% = 10000 basis points
+    
+    pub fn new(basis_points: u16) -> Self {
+        assert!(basis_points <= Self::BASIS_POINTS_SCALE);
+        Self { value: basis_points }
+    }
+    
+    pub fn from_percent(percent: f64) -> Self {
+        let basis_points = (percent * 100.0) as u16;
+        Self::new(basis_points)
+    }
+    
+    pub fn to_decimal(&self) -> Decimal {
+        Decimal::from_scaled_val(
+            (self.value as u128) * Decimal::WAD / (Self::BASIS_POINTS_SCALE as u128)
+        )
+    }
+}
+```
+
+**Usage in Configuration:**
+```typescript
+class PercentageConverter {
+  static readonly BASIS_POINTS_SCALE = 10000;
+  
+  static fromPercent(percent: number): number {
+    return Math.round(percent * 100); // Convert to basis points
+  }
+  
+  static toPercent(basisPoints: number): number {
+    return basisPoints / 100;
+  }
+  
+  static toDecimal(basisPoints: number): BigInt {
+    return BigInt(basisPoints) * DecimalMath.WAD / BigInt(this.BASIS_POINTS_SCALE);
+  }
+  
+  // Validate percentage range
+  static validate(basisPoints: number): boolean {
+    return basisPoints >= 0 && basisPoints <= this.BASIS_POINTS_SCALE;
+  }
+}
+
+// Configuration examples
+const configs = {
+  // Interest rates
+  minBorrowRate: PercentageConverter.fromPercent(1.0),    // 1%
+  optimalBorrowRate: PercentageConverter.fromPercent(8.0), // 8%
+  maxBorrowRate: PercentageConverter.fromPercent(25.0),   // 25%
+  
+  // Risk parameters
+  loanToValueRatio: PercentageConverter.fromPercent(75.0),      // 75%
+  liquidationThreshold: PercentageConverter.fromPercent(80.0),  // 80%
+  liquidationBonus: PercentageConverter.fromPercent(5.0),      // 5%
+  
+  // Fees
+  borrowFee: PercentageConverter.fromPercent(0.5),      // 0.5%
+  flashLoanFee: PercentageConverter.fromPercent(0.3),  // 0.3%
+  hostFeeShare: PercentageConverter.fromPercent(20.0), // 20%
+};
+```
+
+### Rate Models
+
+#### Interest Rate Model
+
+The protocol implements a kinked interest rate model:
+
+```rust
+pub struct InterestRateModel {
+    pub optimal_utilization_rate: PercentageInt,
+    pub min_borrow_rate: PercentageInt,
+    pub optimal_borrow_rate: PercentageInt,
+    pub max_borrow_rate: PercentageInt,
+}
+
+impl InterestRateModel {
+    pub fn calculate_borrow_rate(&self, utilization_rate: Decimal) -> Decimal {
+        let optimal_util = self.optimal_utilization_rate.to_decimal();
+        
+        if utilization_rate <= optimal_util {
+            // Below optimal: linear interpolation
+            let utilization_factor = utilization_rate / optimal_util;
+            let rate_range = self.optimal_borrow_rate.to_decimal() - 
+                           self.min_borrow_rate.to_decimal();
+            
+            self.min_borrow_rate.to_decimal() + (rate_range * utilization_factor)
+        } else {
+            // Above optimal: steeper slope
+            let excess_utilization = utilization_rate - optimal_util;
+            let excess_factor = excess_utilization / (Decimal::one() - optimal_util);
+            let rate_range = self.max_borrow_rate.to_decimal() - 
+                           self.optimal_borrow_rate.to_decimal();
+            
+            self.optimal_borrow_rate.to_decimal() + (rate_range * excess_factor)
+        }
+    }
+    
+    pub fn calculate_supply_rate(
+        &self,
+        utilization_rate: Decimal,
+        borrow_rate: Decimal,
+        reserve_factor: Decimal,
+    ) -> Decimal {
+        borrow_rate * utilization_rate * (Decimal::one() - reserve_factor)
+    }
+}
+```
+
+**Rate Model Analysis:**
+```typescript
+class InterestRateAnalyzer {
+  constructor(
+    private optimalUtilization: number,
+    private minRate: number,
+    private optimalRate: number,
+    private maxRate: number
+  ) {}
+  
+  calculateRates(utilization: number): { borrowRate: number; supplyRate: number } {
+    let borrowRate: number;
+    
+    if (utilization <= this.optimalUtilization) {
+      // Below optimal utilization
+      const factor = utilization / this.optimalUtilization;
+      borrowRate = this.minRate + (this.optimalRate - this.minRate) * factor;
+    } else {
+      // Above optimal utilization
+      const excessUtilization = utilization - this.optimalUtilization;
+      const excessFactor = excessUtilization / (1 - this.optimalUtilization);
+      borrowRate = this.optimalRate + (this.maxRate - this.optimalRate) * excessFactor;
+    }
+    
+    // Supply rate calculation (assuming 10% reserve factor)
+    const reserveFactor = 0.1;
+    const supplyRate = borrowRate * utilization * (1 - reserveFactor);
+    
+    return { borrowRate, supplyRate };
+  }
+  
+  findOptimalUtilization(): number {
+    return this.optimalUtilization;
+  }
+  
+  calculateSpread(utilization: number): number {
+    const rates = this.calculateRates(utilization);
+    return rates.borrowRate - rates.supplyRate;
+  }
+  
+  // Generate rate curve data for visualization
+  generateRateCurve(points: number = 100): Array<{
+    utilization: number;
+    borrowRate: number;
+    supplyRate: number;
+    spread: number;
+  }> {
+    const curve = [];
+    
+    for (let i = 0; i <= points; i++) {
+      const utilization = i / points;
+      const rates = this.calculateRates(utilization);
+      const spread = this.calculateSpread(utilization);
+      
+      curve.push({
+        utilization,
+        borrowRate: rates.borrowRate,
+        supplyRate: rates.supplyRate,
+        spread,
+      });
+    }
+    
+    return curve;
+  }
+}
+
+// Example: USDC rate model
+const usdcRateModel = new InterestRateAnalyzer(
+  0.8,   // 80% optimal utilization
+  0.02,  // 2% minimum rate
+  0.08,  // 8% optimal rate
+  0.25   // 25% maximum rate
+);
+
+// Generate rate curve for charts
+const rateCurve = usdcRateModel.generateRateCurve();
+console.log("Rates at 90% utilization:", usdcRateModel.calculateRates(0.9));
+```
+
+#### Risk Model
+
+Risk calculation framework:
+
+```rust
+pub struct RiskModel {
+    pub loan_to_value_ratio: PercentageInt,
+    pub liquidation_threshold: PercentageInt,
+    pub liquidation_bonus: PercentageInt,
+    pub debt_ceiling: u64,
+    pub isolation_mode: bool,
+}
+
+impl RiskModel {
+    pub fn calculate_max_borrow_value(
+        &self,
+        collateral_value: Decimal,
+    ) -> Decimal {
+        collateral_value * self.loan_to_value_ratio.to_decimal()
+    }
+    
+    pub fn calculate_liquidation_threshold_value(
+        &self,
+        collateral_value: Decimal,
+    ) -> Decimal {
+        collateral_value * self.liquidation_threshold.to_decimal()
+    }
+    
+    pub fn is_liquidatable(
+        &self,
+        collateral_value: Decimal,
+        borrowed_value: Decimal,
+    ) -> bool {
+        let threshold_value = self.calculate_liquidation_threshold_value(collateral_value);
+        borrowed_value > threshold_value
+    }
+}
+```
+
+**Risk Calculation Engine:**
+```typescript
+class RiskCalculator {
+  constructor(
+    private ltvRatio: number,
+    private liquidationThreshold: number,
+    private liquidationBonus: number
+  ) {}
+  
+  calculateHealthFactor(
+    collateralValue: number,
+    borrowedValue: number
+  ): number {
+    if (borrowedValue === 0) return Infinity;
+    
+    const adjustedCollateralValue = collateralValue * this.liquidationThreshold;
+    return adjustedCollateralValue / borrowedValue;
+  }
+  
+  calculateMaxBorrowAmount(collateralValue: number): number {
+    return collateralValue * this.ltvRatio;
+  }
+  
+  calculateLiquidationPrice(
+    collateralAmount: number,
+    borrowedValue: number,
+    currentPrice: number
+  ): number {
+    // Price at which position becomes liquidatable
+    const requiredCollateralValue = borrowedValue / this.liquidationThreshold;
+    return requiredCollateralValue / collateralAmount;
+  }
+  
+  calculateLiquidationIncentive(
+    liquidatedCollateralValue: number
+  ): number {
+    return liquidatedCollateralValue * this.liquidationBonus;
+  }
+  
+  assessRiskLevel(healthFactor: number): {
+    level: string;
+    description: string;
+    recommendations: string[];
+  } {
+    if (healthFactor < 1.0) {
+      return {
+        level: "Liquidatable",
+        description: "Position is subject to liquidation",
+        recommendations: [
+          "Add collateral immediately",
+          "Repay debt to improve health factor",
+          "Close position if necessary"
+        ]
+      };
+    } else if (healthFactor < 1.1) {
+      return {
+        level: "Critical",
+        description: "Very high risk of liquidation",
+        recommendations: [
+          "Add significant collateral",
+          "Repay substantial portion of debt",
+          "Monitor position closely"
+        ]
+      };
+    } else if (healthFactor < 1.3) {
+      return {
+        level: "High",
+        description: "High risk of liquidation",
+        recommendations: [
+          "Consider adding collateral",
+          "Reduce debt exposure",
+          "Set up monitoring alerts"
+        ]
+      };
+    } else if (healthFactor < 1.5) {
+      return {
+        level: "Medium",
+        description: "Moderate risk",
+        recommendations: [
+          "Monitor market conditions",
+          "Consider position size",
+          "Maintain safety buffer"
+        ]
+      };
+    } else {
+      return {
+        level: "Low",
+        description: "Low risk position",
+        recommendations: [
+          "Position is well-collateralized",
+          "Continue monitoring",
+          "Consider optimizing yield"
+        ]
+      };
+    }
+  }
+  
+  // Calculate Value at Risk (VaR)
+  calculateVaR(
+    portfolioValue: number,
+    volatility: number,
+    confidence: number = 0.95,
+    timeHorizon: number = 1 // days
+  ): number {
+    // Simplified VaR calculation using normal distribution
+    const zScore = this.getZScore(confidence);
+    const adjustedVolatility = volatility * Math.sqrt(timeHorizon);
+    
+    return portfolioValue * zScore * adjustedVolatility;
+  }
+  
+  private getZScore(confidence: number): number {
+    // Approximate z-scores for common confidence levels
+    const zScores: { [key: number]: number } = {
+      0.90: 1.28,
+      0.95: 1.645,
+      0.99: 2.326,
+    };
+    
+    return zScores[confidence] || 1.645; // Default to 95%
+  }
+  
+  // Stress test scenarios
+  stressTest(
+    collateralValue: number,
+    borrowedValue: number,
+    priceShocks: number[]
+  ): Array<{
+    priceShock: number;
+    newCollateralValue: number;
+    healthFactor: number;
+    liquidatable: boolean;
+  }> {
+    return priceShocks.map(shock => {
+      const newCollateralValue = collateralValue * (1 + shock);
+      const healthFactor = this.calculateHealthFactor(newCollateralValue, borrowedValue);
+      
+      return {
+        priceShock: shock,
+        newCollateralValue,
+        healthFactor,
+        liquidatable: healthFactor < 1.0,
+      };
+    });
+  }
+}
+
+// Usage examples
+const riskCalc = new RiskCalculator(0.75, 0.8, 0.05);
+
+// Calculate health factor
+const healthFactor = riskCalc.calculateHealthFactor(10000, 7500);
+console.log(`Health factor: ${healthFactor.toFixed(3)}`);
+
+// Assess risk
+const riskAssessment = riskCalc.assessRiskLevel(healthFactor);
+console.log(`Risk level: ${riskAssessment.level}`);
+
+// Stress test
+const stressResults = riskCalc.stressTest(
+  10000, // $10k collateral
+  7500,  // $7.5k borrowed
+  [-0.1, -0.2, -0.3, -0.4, -0.5] // Price shock scenarios
+);
+
+stressResults.forEach(result => {
+  console.log(
+    `${(result.priceShock * 100).toFixed(0)}% shock: ` +
+    `HF=${result.healthFactor.toFixed(2)}, ` +
+    `Liquidatable=${result.liquidatable}`
+  );
+});
+```
+
+### Fee Structures
+
+#### Comprehensive Fee Model
+
+```rust
+pub struct FeeStructure {
+    pub borrow_fee_wad: u64,
+    pub flash_loan_fee_wad: u64,
+    pub liquidation_fee_wad: u64,
+    pub protocol_take_rate_wad: u64,
+    pub insurance_fee_wad: u64,
+    pub host_fee_percentage: u8,
+}
+
+impl FeeStructure {
+    pub fn calculate_borrow_fee(&self, borrow_amount: u64) -> u64 {
+        (borrow_amount as u128 * self.borrow_fee_wad as u128 / Decimal::WAD) as u64
+    }
+    
+    pub fn calculate_flash_loan_fee(&self, loan_amount: u64) -> u64 {
+        (loan_amount as u128 * self.flash_loan_fee_wad as u128 / Decimal::WAD) as u64
+    }
+    
+    pub fn distribute_fees(&self, total_fee: u64) -> FeeDistribution {
+        let host_fee = total_fee * self.host_fee_percentage as u64 / 100;
+        let protocol_fee = total_fee - host_fee;
+        
+        FeeDistribution {
+            protocol_fee,
+            host_fee,
+            insurance_fee: protocol_fee * self.insurance_fee_wad as u64 / Decimal::WAD as u64,
+        }
+    }
+}
+
+pub struct FeeDistribution {
+    pub protocol_fee: u64,
+    pub host_fee: u64,
+    pub insurance_fee: u64,
+}
+```
+
+**Fee Management System:**
+```typescript
+class FeeManager {
+  constructor(
+    private borrowFeeWad: BigInt,
+    private flashLoanFeeWad: BigInt,
+    private protocolTakeRate: BigInt,
+    private hostFeePercentage: number
+  ) {}
+  
+  calculateBorrowFees(amount: BigInt): {
+    principalFee: BigInt;
+    totalWithFee: BigInt;
+    feeDistribution: FeeDistribution;
+  } {
+    const principalFee = DecimalMath.multiply(amount, this.borrowFeeWad);
+    const totalWithFee = DecimalMath.add(amount, principalFee);
+    const feeDistribution = this.distributeFees(principalFee);
+    
+    return {
+      principalFee,
+      totalWithFee,
+      feeDistribution,
+    };
+  }
+  
+  calculateFlashLoanFees(amount: BigInt): {
+    flashLoanFee: BigInt;
+    totalRepayment: BigInt;
+    feeDistribution: FeeDistribution;
+  } {
+    const flashLoanFee = DecimalMath.multiply(amount, this.flashLoanFeeWad);
+    const totalRepayment = DecimalMath.add(amount, flashLoanFee);
+    const feeDistribution = this.distributeFees(flashLoanFee);
+    
+    return {
+      flashLoanFee,
+      totalRepayment,
+      feeDistribution,
+    };
+  }
+  
+  calculateLiquidationFees(liquidatedValue: BigInt, liquidationBonus: BigInt): {
+    liquidatorReward: BigInt;
+    protocolFee: BigInt;
+    totalSeized: BigInt;
+  } {
+    const liquidatorReward = DecimalMath.multiply(liquidatedValue, liquidationBonus);
+    const protocolFeeRate = DecimalMath.fromNumber(0.005); // 0.5%
+    const protocolFee = DecimalMath.multiply(liquidatedValue, protocolFeeRate);
+    const totalSeized = DecimalMath.add(liquidatedValue, liquidatorReward);
+    
+    return {
+      liquidatorReward,
+      protocolFee,
+      totalSeized,
+    };
+  }
+  
+  private distributeFees(totalFee: BigInt): FeeDistribution {
+    const hostFeeRate = DecimalMath.fromNumber(this.hostFeePercentage / 100);
+    const hostFee = DecimalMath.multiply(totalFee, hostFeeRate);
+    const protocolFee = DecimalMath.subtract(totalFee, hostFee);
+    
+    // Insurance fund gets 10% of protocol fees
+    const insuranceFeeRate = DecimalMath.fromNumber(0.1);
+    const insuranceFee = DecimalMath.multiply(protocolFee, insuranceFeeRate);
+    const netProtocolFee = DecimalMath.subtract(protocolFee, insuranceFee);
+    
+    return {
+      protocolFee: netProtocolFee,
+      hostFee,
+      insuranceFee,
+      totalFee,
+    };
+  }
+  
+  // Calculate annualized fee rates
+  calculateAnnualizedFees(
+    borrowAmount: BigInt,
+    borrowDurationDays: number
+  ): {
+    dailyFeeRate: number;
+    annualizedFeeRate: number;
+    totalFeesAnnualized: BigInt;
+  } {
+    const fees = this.calculateBorrowFees(borrowAmount);
+    const feeRate = Number(fees.principalFee) / Number(borrowAmount);
+    
+    // Assuming fee is charged upfront for the duration
+    const dailyFeeRate = feeRate / borrowDurationDays;
+    const annualizedFeeRate = dailyFeeRate * 365;
+    const totalFeesAnnualized = DecimalMath.multiply(
+      borrowAmount,
+      DecimalMath.fromNumber(annualizedFeeRate)
+    );
+    
+    return {
+      dailyFeeRate,
+      annualizedFeeRate,
+      totalFeesAnnualized,
+    };
+  }
+  
+  // Fee comparison across different scenarios
+  compareFeeStructures(
+    amount: BigInt,
+    scenarios: FeeScenario[]
+  ): FeeComparison[] {
+    return scenarios.map(scenario => {
+      const feeManager = new FeeManager(
+        scenario.borrowFeeWad,
+        scenario.flashLoanFeeWad,
+        scenario.protocolTakeRate,
+        scenario.hostFeePercentage
+      );
+      
+      const borrowFees = feeManager.calculateBorrowFees(amount);
+      const flashLoanFees = feeManager.calculateFlashLoanFees(amount);
+      
+      return {
+        scenario: scenario.name,
+        borrowFee: borrowFees.principalFee,
+        flashLoanFee: flashLoanFees.flashLoanFee,
+        protocolRevenue: DecimalMath.add(
+          borrowFees.feeDistribution.protocolFee,
+          flashLoanFees.feeDistribution.protocolFee
+        ),
+        userCost: DecimalMath.add(
+          borrowFees.principalFee,
+          flashLoanFees.flashLoanFee
+        ),
+      };
+    });
+  }
+}
+
+interface FeeDistribution {
+  protocolFee: BigInt;
+  hostFee: BigInt;
+  insuranceFee: BigInt;
+  totalFee: BigInt;
+}
+
+interface FeeScenario {
+  name: string;
+  borrowFeeWad: BigInt;
+  flashLoanFeeWad: BigInt;
+  protocolTakeRate: BigInt;
+  hostFeePercentage: number;
+}
+
+interface FeeComparison {
+  scenario: string;
+  borrowFee: BigInt;
+  flashLoanFee: BigInt;
+  protocolRevenue: BigInt;
+  userCost: BigInt;
+}
+
+// Usage examples
+const feeManager = new FeeManager(
+  DecimalMath.fromNumber(0.005), // 0.5% borrow fee
+  DecimalMath.fromNumber(0.003), // 0.3% flash loan fee
+  DecimalMath.fromNumber(0.1),   // 10% protocol take rate
+  20 // 20% host fee
+);
+
+const borrowAmount = DecimalMath.fromNumber(10000); // $10,000
+const borrowFees = feeManager.calculateBorrowFees(borrowAmount);
+
+console.log(`Borrow fee: $${DecimalMath.toNumber(borrowFees.principalFee)}`);
+console.log(`Total with fee: $${DecimalMath.toNumber(borrowFees.totalWithFee)}`);
+console.log(`Protocol fee: $${DecimalMath.toNumber(borrowFees.feeDistribution.protocolFee)}`);
+
+// Fee scenarios comparison
+const scenarios: FeeScenario[] = [
+  {
+    name: "Conservative",
+    borrowFeeWad: DecimalMath.fromNumber(0.01),
+    flashLoanFeeWad: DecimalMath.fromNumber(0.005),
+    protocolTakeRate: DecimalMath.fromNumber(0.15),
+    hostFeePercentage: 15,
+  },
+  {
+    name: "Competitive",
+    borrowFeeWad: DecimalMath.fromNumber(0.003),
+    flashLoanFeeWad: DecimalMath.fromNumber(0.002),
+    protocolTakeRate: DecimalMath.fromNumber(0.08),
+    hostFeePercentage: 25,
+  },
+  {
+    name: "Aggressive",
+    borrowFeeWad: DecimalMath.fromNumber(0.001),
+    flashLoanFeeWad: DecimalMath.fromNumber(0.001),
+    protocolTakeRate: DecimalMath.fromNumber(0.05),
+    hostFeePercentage: 30,
+  },
+];
+
+const comparison = feeManager.compareFeeStructures(borrowAmount, scenarios);
+comparison.forEach(comp => {
+  console.log(`${comp.scenario}:`);
+  console.log(`  User cost: $${DecimalMath.toNumber(comp.userCost)}`);
+  console.log(`  Protocol revenue: $${DecimalMath.toNumber(comp.protocolRevenue)}`);
+});
+```
+
+### Configuration Types
+
+#### Market Configuration
+
+```rust
+pub struct MarketConfiguration {
+    pub name: String,
+    pub description: String,
+    pub currency: UniversalAssetCurrency,
+    pub flash_loans_enabled: bool,
+    pub liquidation_enabled: bool,
+    pub risk_parameters: RiskParameters,
+    pub fee_structure: FeeStructure,
+    pub oracle_configuration: OracleConfiguration,
+    pub emergency_mode: bool,
+}
+
+pub struct RiskParameters {
+    pub max_reserves: u8,
+    pub max_obligations_per_user: u8,
+    pub min_health_factor: Decimal,
+    pub liquidation_close_factor: PercentageInt,
+    pub liquidation_incentive: PercentageInt,
+    pub debt_ceiling_usd: u64,
+}
+
+pub struct OracleConfiguration {
+    pub max_staleness_slots: u64,
+    pub price_deviation_threshold: PercentageInt,
+    pub confidence_threshold: PercentageInt,
+    pub fallback_oracle: Option<Pubkey>,
+}
+```
+
+**Configuration Management:**
+```typescript
+class ConfigurationManager {
+  async createMarketConfig(params: MarketConfigParams): Promise<MarketConfiguration> {
+    return {
+      name: params.name,
+      description: params.description,
+      currency: params.currency,
+      flashLoansEnabled: params.flashLoansEnabled ?? false,
+      liquidationEnabled: params.liquidationEnabled ?? true,
+      riskParameters: {
+        maxReserves: params.maxReserves ?? 20,
+        maxObligationsPerUser: params.maxObligationsPerUser ?? 10,
+        minHealthFactor: DecimalMath.fromNumber(params.minHealthFactor ?? 1.1),
+        liquidationCloseFactor: PercentageConverter.fromPercent(params.liquidationCloseFactor ?? 50),
+        liquidationIncentive: PercentageConverter.fromPercent(params.liquidationIncentive ?? 5),
+        debtCeilingUsd: params.debtCeilingUsd ?? 100_000_000, // $100M default
+      },
+      feeStructure: {
+        borrowFeeWad: DecimalMath.fromNumber(params.borrowFeeRate ?? 0.005),
+        flashLoanFeeWad: DecimalMath.fromNumber(params.flashLoanFeeRate ?? 0.003),
+        protocolTakeRate: DecimalMath.fromNumber(params.protocolTakeRate ?? 0.1),
+        hostFeePercentage: params.hostFeePercentage ?? 20,
+      },
+      oracleConfiguration: {
+        maxStalenessSlots: params.maxOracleStaleness ?? 100,
+        priceDeviationThreshold: PercentageConverter.fromPercent(params.maxPriceDeviation ?? 5),
+        confidenceThreshold: PercentageConverter.fromPercent(params.maxConfidenceInterval ?? 1),
+        fallbackOracle: params.fallbackOracle,
+      },
+      emergencyMode: false,
+    };
+  }
+  
+  validateConfiguration(config: MarketConfiguration): ValidationResult {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    
+    // Risk parameter validation
+    if (config.riskParameters.maxReserves > 50) {
+      warnings.push("High maximum reserves count may impact performance");
+    }
+    
+    if (DecimalMath.toNumber(config.riskParameters.minHealthFactor) < 1.05) {
+      errors.push("Minimum health factor must be at least 1.05");
+    }
+    
+    // Fee validation
+    const borrowFeeRate = DecimalMath.toNumber(config.feeStructure.borrowFeeWad);
+    if (borrowFeeRate > 0.02) {
+      warnings.push("Borrow fee rate above 2% may discourage usage");
+    }
+    
+    // Oracle validation
+    if (config.oracleConfiguration.maxStalenessSlots > 300) {
+      warnings.push("High oracle staleness threshold increases risk");
+    }
+    
+    return {
+      valid: errors.length === 0,
+      errors,
+      warnings,
+    };
+  }
+  
+  // Generate configuration templates
+  generateTemplate(marketType: MarketType): MarketConfiguration {
+    const baseConfig = {
+      name: "",
+      description: "",
+      currency: { usd: {} },
+      flashLoansEnabled: true,
+      liquidationEnabled: true,
+      maxReserves: 20,
+      maxObligationsPerUser: 10,
+      debtCeilingUsd: 100_000_000,
+      maxOracleStaleness: 100,
+      maxPriceDeviation: 5,
+      maxConfidenceInterval: 1,
+      fallbackOracle: null,
+    };
+    
+    switch (marketType) {
+      case MarketType.Conservative:
+        return this.createMarketConfig({
+          ...baseConfig,
+          name: "Conservative Market",
+          minHealthFactor: 1.3,
+          liquidationCloseFactor: 30,
+          liquidationIncentive: 8,
+          borrowFeeRate: 0.008,
+          flashLoanFeeRate: 0.005,
+          protocolTakeRate: 0.15,
+          hostFeePercentage: 15,
+        });
+        
+      case MarketType.Balanced:
+        return this.createMarketConfig({
+          ...baseConfig,
+          name: "Balanced Market",
+          minHealthFactor: 1.2,
+          liquidationCloseFactor: 40,
+          liquidationIncentive: 6,
+          borrowFeeRate: 0.005,
+          flashLoanFeeRate: 0.003,
+          protocolTakeRate: 0.1,
+          hostFeePercentage: 20,
+        });
+        
+      case MarketType.Aggressive:
+        return this.createMarketConfig({
+          ...baseConfig,
+          name: "Aggressive Market",
+          minHealthFactor: 1.1,
+          liquidationCloseFactor: 50,
+          liquidationIncentive: 5,
+          borrowFeeRate: 0.003,
+          flashLoanFeeRate: 0.002,
+          protocolTakeRate: 0.08,
+          hostFeePercentage: 25,
+        });
+        
+      default:
+        return this.createMarketConfig(baseConfig);
+    }
+  }
+}
+
+interface MarketConfigParams {
+  name: string;
+  description: string;
+  currency: any;
+  flashLoansEnabled?: boolean;
+  liquidationEnabled?: boolean;
+  maxReserves?: number;
+  maxObligationsPerUser?: number;
+  minHealthFactor?: number;
+  liquidationCloseFactor?: number;
+  liquidationIncentive?: number;
+  debtCeilingUsd?: number;
+  borrowFeeRate?: number;
+  flashLoanFeeRate?: number;
+  protocolTakeRate?: number;
+  hostFeePercentage?: number;
+  maxOracleStaleness?: number;
+  maxPriceDeviation?: number;
+  maxConfidenceInterval?: number;
+  fallbackOracle?: PublicKey;
+}
+
+enum MarketType {
+  Conservative,
+  Balanced,
+  Aggressive,
+}
+
+interface MarketConfiguration {
+  name: string;
+  description: string;
+  currency: any;
+  flashLoansEnabled: boolean;
+  liquidationEnabled: boolean;
+  riskParameters: any;
+  feeStructure: any;
+  oracleConfiguration: any;
+  emergencyMode: boolean;
+}
+
+interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+// Usage
+const configManager = new ConfigurationManager();
+const conservativeMarket = configManager.generateTemplate(MarketType.Conservative);
+const validation = configManager.validateConfiguration(conservativeMarket);
+
+if (validation.valid) {
+  console.log("Configuration is valid");
+  if (validation.warnings.length > 0) {
+    console.log("Warnings:", validation.warnings);
+  }
+} else {
+  console.error("Configuration errors:", validation.errors);
+}
+```
+
 #### `update_lending_market`
 
 Updates the configuration of an existing lending market.
