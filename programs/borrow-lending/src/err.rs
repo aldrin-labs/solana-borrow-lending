@@ -104,6 +104,12 @@ pub enum ErrorCode {
     InsufficientFunds,
     #[msg("Invalid argument")]
     InvalidArgument,
+    #[msg("Account data size does not match expected size")]
+    AccountDataSizeMismatch,
+    #[msg("Ring buffer overflow - cannot add more entries")]
+    RingBufferOverflow,
+    #[msg("Insufficient funds for rent exemption")]
+    InsufficientFundsForRentExemption,
 }
 
 impl From<decimal::ErrorCode> for ErrorCode {

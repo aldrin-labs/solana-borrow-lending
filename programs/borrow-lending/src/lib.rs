@@ -1,8 +1,24 @@
-// We use zero copy for obligation. Zero copy uses
-// [repr(packed)](https://doc.rust-lang.org/nomicon/other-reprs.html). In future
-// releases, taking a reference to a field which is packed will not compile.
-// We will need to, eventually, copy out fields we want to use, or create
-// pointers [manually](https://github.com/rust-lang/rust/issues/82523).
+// SAFETY NOTICE: Zero-Copy and repr(packed) Usage
+// 
+// This program uses zero-copy patterns with repr(packed) for performance optimization.
+// However, repr(packed) has known safety issues with future Rust compiler versions:
+// 
+// 1. CURRENT STATUS: repr(packed) usage is being phased out in favor of repr(C)
+//    where possible. See zero_copy_utils.rs for safer alternatives.
+// 
+// 2. ALIGNMENT SAFETY: Taking references to packed fields will not compile in
+//    future Rust releases. Use copy-out patterns or manual pointer creation.
+//    Reference: https://github.com/rust-lang/rust/issues/82523
+// 
+// 3. MIGRATION PLAN: 
+//    - New code should use ZeroCopyHelpers utilities for safety validation
+//    - AccountInfo usage should prefer validate_account_safety! macro over manual CHECK comments
+//    - Existing repr(packed) structs are being evaluated for repr(C) conversion
+// 
+// 4. UNSAFE CODE DOCUMENTATION: See UNSAFE_CODES.md for detailed safety rationale
+//    and zero_copy_utils.rs for compile-time safety utilities.
+//
+// TEMPORARY ALLOWANCES (to be removed as code is migrated):
 #![allow(unaligned_references, renamed_and_removed_lints, safe_packed_borrows)]
 
 #[cfg(test)]
@@ -17,6 +33,7 @@ pub mod err;
 pub mod math;
 pub mod models;
 pub mod prelude;
+pub mod zero_copy_utils;
 
 use endpoints::*;
 use prelude::*;
@@ -28,6 +45,26 @@ declare_id!("HH6BiQtvsL6mh7En2knBeTDqmGjYCJFiXiqixrG8nndB");
 pub mod borrow_lending {
     use super::*;
 
+    /// Initializes a new lending market with global configuration.
+    /// 
+    /// A lending market serves as the root account that manages all reserves
+    /// and global settings like fees and oracle configuration.
+    /// 
+    /// # Arguments
+    /// * `currency` - Universal asset currency (e.g., USD) for price calculations
+    /// * `leveraged_compound_fee` - Fee percentage for leveraged compound operations
+    /// * `vault_compound_fee` - Fee percentage for vault compound operations
+    /// * `min_collateral_uac_value_for_leverage` - Minimum collateral value required for leverage
+    /// 
+    /// # Example
+    /// ```ignore
+    /// let currency = UniversalAssetCurrency::Usd;
+    /// let leveraged_fee = PercentageInt::from_percent(0.5); // 0.5%
+    /// let vault_fee = PercentageInt::from_percent(0.5);     // 0.5%
+    /// let min_collateral = SDecimal::from(1000);            // $1000 minimum
+    /// 
+    /// program.init_lending_market(ctx, currency, leveraged_fee, vault_fee, min_collateral)?;
+    /// ```
     pub fn init_lending_market(
         ctx: Context<InitLendingMarket>,
         currency: UniversalAssetCurrency,
@@ -44,6 +81,15 @@ pub mod borrow_lending {
         )
     }
 
+    /// Updates the configuration of an existing lending market.
+    /// 
+    /// Only the market owner can update these settings. This allows for
+    /// dynamic adjustment of fees and leverage requirements.
+    /// 
+    /// # Arguments
+    /// * `leveraged_compound_fee` - Updated fee percentage for leveraged operations
+    /// * `vault_compound_fee` - Updated fee percentage for vault operations  
+    /// * `min_collateral_uac_value_for_leverage` - Updated minimum collateral requirement
     pub fn update_lending_market(
         ctx: Context<UpdateLendingMarket>,
         leveraged_compound_fee: PercentageInt,
@@ -58,12 +104,35 @@ pub mod borrow_lending {
         )
     }
 
+    /// Transfers ownership of a lending market to a new owner.
+    /// 
+    /// This is a security-critical operation that permanently changes
+    /// who has control over the market configuration.
     pub fn set_lending_market_owner(
         ctx: Context<SetLendingMarketOwner>,
     ) -> Result<()> {
         endpoints::set_lending_market_owner::handle(ctx)
     }
 
+    /// Initializes a new reserve for a specific token in the lending market.
+    /// 
+    /// A reserve represents a token pool that users can deposit into for lending
+    /// or borrow from using collateral. Each reserve has its own configuration
+    /// including interest rates, loan-to-value ratios, and liquidation parameters.
+    /// 
+    /// # Arguments
+    /// * `lending_market_bump_seed` - Bump seed for the lending market PDA
+    /// * `liquidity_amount` - Initial amount of liquidity to deposit
+    /// * `config` - Reserve configuration including rates and ratios
+    /// 
+    /// # Reserve Configuration
+    /// The config parameter includes:
+    /// - `optimal_utilization_rate`: Target utilization for optimal rates (0-100)
+    /// - `loan_to_value_ratio`: Max borrow ratio against collateral (0-100)
+    /// - `liquidation_threshold`: Unhealthy borrow threshold (0-100)
+    /// - `liquidation_bonus`: Bonus for liquidators (0-100)
+    /// - Interest rate parameters (min/optimal/max borrow rates)
+    /// - Fee structure (borrow fees, flash loan fees, host fees)
     pub fn init_reserve(
         ctx: Context<InitReserve>,
         lending_market_bump_seed: u8,
@@ -97,6 +166,13 @@ pub mod borrow_lending {
         )
     }
 
+    /// Updates the configuration parameters of an existing reserve.
+    /// 
+    /// Allows the market owner to modify reserve settings such as interest rates,
+    /// loan-to-value ratios, and fee structures. Changes take effect immediately.
+    /// 
+    /// # Arguments
+    /// * `config` - New reserve configuration to apply
     pub fn update_reserve_config(
         ctx: Context<UpdateReserveConfig>,
         config: InputReserveConfig,
@@ -104,16 +180,49 @@ pub mod borrow_lending {
         endpoints::update_reserve_config::handle(ctx, config)
     }
 
+    /// Updates a reserve's state with current market conditions and interest accrual.
+    /// 
+    /// This instruction must be called periodically to ensure accurate interest
+    /// calculations and current market prices from oracles. Many other instructions
+    /// require reserves to be "fresh" (recently refreshed).
+    /// 
+    /// # Oracle Integration
+    /// This instruction reads from Pyth price oracles to update the reserve's
+    /// market price, which affects collateral valuations and health calculations.
     pub fn refresh_reserve(ctx: Context<RefreshReserve>) -> Result<()> {
         endpoints::refresh_reserve::handle(ctx)
     }
 
+    /// Refreshes a reserve that holds Aldrin AMM LP tokens.
+    /// 
+    /// Similar to `refresh_reserve` but includes special logic for calculating
+    /// the value of LP tokens based on the underlying pool assets.
     pub fn refresh_reserve_aldrin_unstable_lp_token(
         ctx: Context<RefreshReserveAldrinUnstableLpToken>,
     ) -> Result<()> {
         endpoints::refresh_reserve_aldrin_unstable_lp_token::handle(ctx)
     }
 
+    /// Deposits liquidity tokens into a reserve in exchange for collateral tokens.
+    /// 
+    /// This is the primary lending operation. Users deposit tokens to earn interest,
+    /// receiving collateral tokens that represent their share of the reserve.
+    /// The exchange rate between liquidity and collateral improves over time as
+    /// borrowers pay interest.
+    /// 
+    /// # Arguments
+    /// * `lending_market_bump_seed` - Bump seed for the lending market PDA
+    /// * `liquidity_amount` - Amount of liquidity tokens to deposit
+    /// 
+    /// # Process
+    /// 1. Transfer liquidity tokens from user to reserve
+    /// 2. Calculate collateral tokens to mint based on current exchange rate
+    /// 3. Mint collateral tokens to user's wallet
+    /// 4. Update reserve state with new liquidity and collateral amounts
+    /// 
+    /// # Exchange Rate
+    /// The exchange rate starts at 1:5 (1 liquidity = 5 collateral) and improves
+    /// as interest accumulates in the reserve's liquidity supply.
     pub fn deposit_reserve_liquidity(
         ctx: Context<DepositReserveLiquidity>,
         lending_market_bump_seed: u8,
