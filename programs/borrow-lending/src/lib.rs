@@ -1,8 +1,24 @@
-// We use zero copy for obligation. Zero copy uses
-// [repr(packed)](https://doc.rust-lang.org/nomicon/other-reprs.html). In future
-// releases, taking a reference to a field which is packed will not compile.
-// We will need to, eventually, copy out fields we want to use, or create
-// pointers [manually](https://github.com/rust-lang/rust/issues/82523).
+// SAFETY NOTICE: Zero-Copy and repr(packed) Usage
+// 
+// This program uses zero-copy patterns with repr(packed) for performance optimization.
+// However, repr(packed) has known safety issues with future Rust compiler versions:
+// 
+// 1. CURRENT STATUS: repr(packed) usage is being phased out in favor of repr(C)
+//    where possible. See zero_copy_utils.rs for safer alternatives.
+// 
+// 2. ALIGNMENT SAFETY: Taking references to packed fields will not compile in
+//    future Rust releases. Use copy-out patterns or manual pointer creation.
+//    Reference: https://github.com/rust-lang/rust/issues/82523
+// 
+// 3. MIGRATION PLAN: 
+//    - New code should use ZeroCopyHelpers utilities for safety validation
+//    - AccountInfo usage should prefer validate_account_safety! macro over manual CHECK comments
+//    - Existing repr(packed) structs are being evaluated for repr(C) conversion
+// 
+// 4. UNSAFE CODE DOCUMENTATION: See UNSAFE_CODES.md for detailed safety rationale
+//    and zero_copy_utils.rs for compile-time safety utilities.
+//
+// TEMPORARY ALLOWANCES (to be removed as code is migrated):
 #![allow(unaligned_references, renamed_and_removed_lints, safe_packed_borrows)]
 
 #[cfg(test)]

@@ -95,7 +95,7 @@ pub struct ReserveCapSnapshots {
     Eq,
     PartialEq,
 )]
-#[repr(packed)]
+#[repr(C)]
 pub struct ReserveCap {
     pub available_amount: u64,
     pub borrowed_amount: u64,

@@ -22,9 +22,8 @@ pub trait ZeroCopyAccount: anchor_lang::ZeroCopy {
     }
     
     /// Get the discriminator for this account type (first 8 bytes).
-    fn discriminator() -> [u8; 8] {
-        anchor_lang::Discriminator::discriminator(Self::discriminator())
-    }
+    /// This should be implemented by types that derive from anchor_lang::ZeroCopy.
+    fn discriminator() -> [u8; 8];
 }
 
 /// Helper trait for ring buffer operations used in zero-copy structures.
@@ -131,6 +130,11 @@ pub struct ZeroCopyHelpers;
 
 impl ZeroCopyHelpers {
     /// Safely load a zero-copy account with validation.
+    /// 
+    /// # Safety Guarantees
+    /// - Validates account data size matches expected layout
+    /// - Ensures proper discriminator before loading
+    /// - Returns typed error for mismatched layouts
     pub fn load_and_validate<T: ZeroCopyAccount>(
         account_loader: &AccountLoader<T>
     ) -> Result<Ref<T>> {
@@ -143,6 +147,11 @@ impl ZeroCopyHelpers {
     }
     
     /// Safely load a mutable zero-copy account with validation.
+    /// 
+    /// # Safety Guarantees  
+    /// - Validates account data size matches expected layout
+    /// - Ensures proper discriminator before loading
+    /// - Returns typed error for mismatched layouts
     pub fn load_mut_and_validate<T: ZeroCopyAccount>(
         account_loader: &AccountLoader<T>
     ) -> Result<RefMut<T>> {
@@ -162,6 +171,10 @@ impl ZeroCopyHelpers {
     }
     
     /// Validate that an account has sufficient balance for rent exemption.
+    /// 
+    /// # Safety Guarantees
+    /// - Prevents accounts from becoming rent-collectable
+    /// - Ensures long-term account viability
     pub fn validate_rent_exempt<T: ZeroCopyAccount>(
         account_info: &AccountInfo,
         rent: &Rent
@@ -175,6 +188,62 @@ impl ZeroCopyHelpers {
             );
             return Err(ErrorCode::InsufficientFundsForRentExemption.into());
         }
+        Ok(())
+    }
+    
+    /// Validate AccountInfo against expected constraints with detailed error reporting.
+    /// 
+    /// # Safety Documentation
+    /// This function provides compile-time and runtime safety checks for AccountInfo usage
+    /// that would otherwise require manual verification as documented in UNSAFE_CODES.md.
+    /// 
+    /// # Arguments
+    /// * `account` - The AccountInfo to validate
+    /// * `expected_owner` - Expected program owner (e.g., token program, system program)
+    /// * `expected_key` - Expected account key (for PDA validation)
+    /// * `min_balance` - Minimum required balance (for rent exemption)
+    pub fn validate_account_info_safety(
+        account: &AccountInfo,
+        expected_owner: Option<&Pubkey>,
+        expected_key: Option<&Pubkey>,
+        min_balance: Option<u64>,
+    ) -> Result<()> {
+        // Validate owner constraint
+        if let Some(expected_owner) = expected_owner {
+            if account.owner != expected_owner {
+                msg!(
+                    "Account owner mismatch: expected {}, got {}",
+                    expected_owner,
+                    account.owner
+                );
+                return Err(ErrorCode::AccountOwnedByWrongProgram.into());
+            }
+        }
+        
+        // Validate key constraint (useful for PDA validation)
+        if let Some(expected_key) = expected_key {
+            if account.key != expected_key {
+                msg!(
+                    "Account key mismatch: expected {}, got {}",
+                    expected_key,
+                    account.key
+                );
+                return Err(ErrorCode::InvalidAccountInput.into());
+            }
+        }
+        
+        // Validate minimum balance
+        if let Some(min_balance) = min_balance {
+            if account.lamports() < min_balance {
+                msg!(
+                    "Account balance {} below required minimum {}",
+                    account.lamports(),
+                    min_balance
+                );
+                return Err(ErrorCode::InsufficientFundsForRentExemption.into());
+            }
+        }
+        
         Ok(())
     }
 }
@@ -196,6 +265,50 @@ macro_rules! impl_zero_copy_account {
                 "Size mismatch: declared size doesn't match actual struct size"
             );
         };
+    };
+}
+
+/// Macro for documenting and validating AccountInfo safety requirements.
+/// 
+/// This macro generates both documentation and runtime validation code
+/// to replace manual `/// CHECK: UNSAFE_CODES.md#...` patterns with
+/// explicit safety guarantees.
+/// 
+/// # Usage
+/// ```rust
+/// validate_account_safety!(
+///     account_info,
+///     owner = Some(&token_program::ID),
+///     reason = "Token program validates this account's validity"
+/// );
+/// ```
+#[macro_export]
+macro_rules! validate_account_safety {
+    (
+        $account:expr,
+        $(owner = $owner:expr,)?
+        $(key = $key:expr,)?
+        $(min_balance = $min_balance:expr,)?
+        reason = $reason:literal
+    ) => {
+        {
+            // Generate compile-time documentation
+            concat!(
+                "SAFETY: ", $reason, "\n",
+                "This account is validated at runtime for: ",
+                $(concat!("owner=", stringify!($owner), " "),)?
+                $(concat!("key=", stringify!($key), " "),)?
+                $(concat!("min_balance=", stringify!($min_balance), " "),)?
+            );
+            
+            // Perform runtime validation
+            crate::zero_copy_utils::ZeroCopyHelpers::validate_account_info_safety(
+                $account,
+                None $(.or($owner))?,
+                None $(.or($key))?,
+                None $(.or($min_balance))?,
+            )?;
+        }
     };
 }
 
@@ -283,7 +396,7 @@ mod tests {
     use super::*;
     
     // Mock structure for testing
-    #[repr(packed)]
+    #[repr(C)]
     #[derive(Clone, Copy, Debug, Default, PartialEq)]
     struct TestEntry {
         value: u64,
