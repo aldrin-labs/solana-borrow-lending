@@ -6,7 +6,7 @@
   publish = "ui/out"
   
   # Node.js version to use
-  environment = { NODE_VERSION = "18", NPM_FLAGS = "--legacy-peer-deps" }
+  environment = { NODE_VERSION = "22", NPM_FLAGS = "--legacy-peer-deps" }
 
 [build.processing]
   skip_processing = false
@@ -66,7 +66,6 @@
     X-XSS-Protection = "1; mode=block"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
     Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: wss: *.solana.com *.rpcpool.com; frame-src 'self';"
 
 # Cache static assets
