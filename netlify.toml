@@ -6,7 +6,7 @@
   publish = "ui/out"
   
   # Node.js version to use
-  environment = { NODE_VERSION = "18" }
+  environment = { NODE_VERSION = "20" }
 
 [build.processing]
   skip_processing = false

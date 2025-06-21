@@ -44,6 +44,10 @@ git clone https://github.com/aldrin-labs/solana-borrow-lending.git
 cd solana-borrow-lending
 yarn install
 
+# For UI development (requires Node.js v20.x LTS)
+cd ui
+npm install --legacy-peer-deps
+
 # Build
 anchor build
 
@@ -846,6 +850,46 @@ function u192ToBN(u192: U192 | BN[] | { u192: U192 | BN[] }): BN {
   );
 }
 ```
+
+## 🛠️ Troubleshooting
+
+### UI Build Issues with Sharp
+
+The UI uses Next.js which includes Sharp for image optimization. If you encounter Sharp-related errors during development or CI/CD:
+
+**Common errors:**
+- `Error loading sharp: Cannot dynamically require "../src/build/Release/sharp-linux-x64.node"`
+- `Cannot find module sharp-wasm32.node`
+
+**Solutions:**
+
+1. **Use Node.js v20.x LTS** (recommended for optimal compatibility):
+   ```bash
+   nvm use 20  # or install Node.js v20.x LTS
+   ```
+
+2. **Rebuild Sharp for your environment:**
+   ```bash
+   cd ui
+   npm rebuild sharp
+   ```
+
+3. **Clean install:**
+   ```bash
+   cd ui
+   rm -rf node_modules package-lock.json
+   npm install --legacy-peer-deps
+   ```
+
+4. **For CI/CD environments**, ensure your workflow uses Node.js v20.x:
+   ```yaml
+   - name: Setup Node.js
+     uses: actions/setup-node@v4
+     with:
+       node-version: '20.x'
+   ```
+
+The project configuration includes fallbacks to disable image optimization during static export to prevent Sharp-related build failures in production.
 
 <!-- References -->
 
