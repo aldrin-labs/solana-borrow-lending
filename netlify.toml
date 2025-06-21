@@ -1,12 +1,12 @@
 [build]
   # Build command to run
-  command = "cd ui && npm ci --legacy-peer-deps && npm run build"
+  command = "cd ui && npm install --legacy-peer-deps && npm run build"
   
   # Directory to publish (relative to repo root)
   publish = "ui/out"
   
   # Node.js version to use
-  environment = { NODE_VERSION = "18" }
+  environment = { NODE_VERSION = "22", NPM_FLAGS = "--legacy-peer-deps" }
 
 [build.processing]
   skip_processing = false
@@ -19,11 +19,44 @@
   bundle = true
   minify = true
 
+# Build caching for faster builds
+[build.environment]
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# Functions (if needed for future API endpoints)
+[functions]
+  directory = "netlify/functions"
+
 # Handle client-side routing for SPA
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Optimize for analytics dashboard routes
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# Pre-render key routes for better SEO and performance
+[[redirects]]
+  from = "/lend"
+  to = "/lend.html"
+  status = 200
+  force = false
+
+[[redirects]]
+  from = "/borrow"  
+  to = "/borrow.html"
+  status = 200
+  force = false
+
+[[redirects]]
+  from = "/farm"
+  to = "/farm.html"
+  status = 200
+  force = false
 
 # Security headers
 [[headers]]
@@ -33,7 +66,7 @@
     X-XSS-Protection = "1; mode=block"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: wss:; frame-src 'self';"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https: wss: *.solana.com *.rpcpool.com; frame-src 'self';"
 
 # Cache static assets
 [[headers]]
@@ -41,7 +74,28 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
+# Cache images and fonts
 [[headers]]
   for = "*.ico"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "*.woff2"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "*.png"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "*.jpg"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "*.svg"
   [headers.values]
     Cache-Control = "public, max-age=86400"

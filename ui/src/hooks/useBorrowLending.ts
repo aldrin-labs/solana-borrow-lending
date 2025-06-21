@@ -1,4 +1,4 @@
-import { FC, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 
 // Mock data for demonstration purposes
@@ -71,6 +71,68 @@ const mockBorrowedPositions = [
   },
 ];
 
+// Generate mock trend data for analytics
+const generateTrendData = (baseValue: number, days: number = 7) => {
+  const data = [];
+  const now = new Date();
+  
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - i);
+    const variance = (Math.random() - 0.5) * 0.1; // ±5% variance
+    const value = baseValue * (1 + variance);
+    
+    data.push({
+      time: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      value: Math.round(value),
+    });
+  }
+  
+  return data;
+};
+
+// Generate utilization trend data
+const generateUtilizationData = (baseRate: number, days: number = 7) => {
+  const data = [];
+  const now = new Date();
+  
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - i);
+    const variance = (Math.random() - 0.5) * 10; // ±5% variance
+    const utilization = Math.max(0, Math.min(100, baseRate + variance));
+    
+    data.push({
+      time: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      utilization: Math.round(utilization * 10) / 10,
+    });
+  }
+  
+  return data;
+};
+
+// Generate APY comparison data
+const generateAPYComparisonData = () => {
+  return mockMarkets.map(market => ({
+    token: market.token,
+    supplyAPY: parseFloat(market.supplyApy.replace('%', '')),
+    borrowAPY: parseFloat(market.borrowApy.replace('%', '')),
+  }));
+};
+
+// Protocol analytics data
+const getProtocolAnalytics = () => {
+  return {
+    totalValueLocked: generateTrendData(123456789),
+    totalBorrowed: generateTrendData(45678901),
+    totalSupplied: generateTrendData(78901234),
+    utilizationTrend: generateUtilizationData(48),
+    apyComparison: generateAPYComparisonData(),
+    healthFactor: 1.85,
+    liquidationThreshold: 80,
+  };
+};
+
 export const useBorrowLending = () => {
   const { connected } = useWallet();
   const [isLoading, setIsLoading] = useState(true);
@@ -78,6 +140,33 @@ export const useBorrowLending = () => {
   const [markets, setMarkets] = useState<any[]>([]);
   const [suppliedPositions, setSuppliedPositions] = useState<any[]>([]);
   const [borrowedPositions, setBorrowedPositions] = useState<any[]>([]);
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+
+  // Simulated real-time updates
+  useEffect(() => {
+    if (!connected) return;
+
+    const interval = setInterval(() => {
+      // Simulate small data fluctuations for real-time effect
+      setAnalytics((prev: any) => {
+        if (!prev) return prev;
+        
+        return {
+          ...prev,
+          healthFactor: Math.max(1.0, prev.healthFactor + (Math.random() - 0.5) * 0.1),
+          totalValueLocked: prev.totalValueLocked.map((item: any, index: number) => 
+            index === prev.totalValueLocked.length - 1 
+              ? { ...item, value: Math.round(item.value * (1 + (Math.random() - 0.5) * 0.02)) }
+              : item
+          ),
+        };
+      });
+      setLastUpdated(new Date());
+    }, 10000); // Update every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [connected]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -89,6 +178,7 @@ export const useBorrowLending = () => {
 
         // Set mock data
         setMarkets(mockMarkets);
+        setAnalytics(getProtocolAnalytics());
 
         if (connected) {
           setSuppliedPositions(mockSuppliedPositions);
@@ -116,5 +206,7 @@ export const useBorrowLending = () => {
     markets,
     suppliedPositions,
     borrowedPositions,
+    analytics,
+    lastUpdated,
   };
 };

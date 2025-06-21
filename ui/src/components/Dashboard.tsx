@@ -5,10 +5,11 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { MarketOverview } from "./MarketOverview";
 import { UserPositions } from "./UserPositions";
 import { StatsCard } from "./StatsCard";
+import { AnalyticsDashboard } from "./AnalyticsDashboard";
 
 export const Dashboard: FC = () => {
   const { connected } = useWallet();
-  const [activeTab, setActiveTab] = useState<"overview" | "positions">(
+  const [activeTab, setActiveTab] = useState<"overview" | "positions" | "analytics">(
     "overview",
   );
 
@@ -61,10 +62,22 @@ export const Dashboard: FC = () => {
               >
                 Your Positions
               </button>
+              <button
+                className={`py-3 px-4 font-medium transition-colors ${
+                  activeTab === "analytics"
+                    ? "text-white border-b-2 border-secondary"
+                    : "text-text-secondary hover:text-white"
+                }`}
+                onClick={() => setActiveTab("analytics")}
+              >
+                Analytics
+              </button>
             </div>
           </div>
 
-          {activeTab === "overview" ? <MarketOverview /> : <UserPositions />}
+          {activeTab === "overview" && <MarketOverview />}
+          {activeTab === "positions" && <UserPositions />}
+          {activeTab === "analytics" && <AnalyticsDashboard userType="overview" />}
         </div>
       ) : (
         <div className="card text-center py-12 bg-surface rounded-lg shadow-card border border-border">
