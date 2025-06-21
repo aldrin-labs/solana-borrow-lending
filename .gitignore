@@ -16,3 +16,13 @@ yarn.lock
 target
 test-ledger
 grcov.log
+
+# UI specific
+ui/.next/
+ui/out/
+ui/node_modules/
+
+# Build artifacts
+*.log
+npm-debug.log*
+.npm

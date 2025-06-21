@@ -1,5 +1,65 @@
 # Solana Borrow-Lending Platform Documentation
 
+## Table of Contents
+1. [Overview](#overview)
+2. [System Architecture](#system-architecture)
+...
+
+## Developer Setup
+
+### Prerequisites
+- Node.js v20.x LTS (required for optimal compatibility with sharp image optimization)
+- Rust (for Solana program development)
+- Anchor CLI (for smart contract testing)
+
+### Installation
+
+1. Clone the repository
+2. Install Node.js dependencies:
+   ```bash
+   cd ui
+   npm install --legacy-peer-deps
+   ```
+
+### Troubleshooting Sharp Installation Issues
+
+The UI uses Next.js which includes Sharp for image optimization. If you encounter errors related to Sharp module loading (especially in CI/CD environments), follow these steps:
+
+#### Common Sharp Errors
+- `Error loading sharp: Cannot dynamically require "../src/build/Release/sharp-linux-x64.node"`
+- `Cannot find module sharp-wasm32.node`
+
+#### Solutions
+
+1. **Rebuild Sharp for your environment:**
+   ```bash
+   cd ui
+   npm rebuild sharp
+   ```
+
+2. **Clear node_modules and reinstall:**
+   ```bash
+   cd ui
+   rm -rf node_modules package-lock.json
+   npm install --legacy-peer-deps
+   ```
+
+3. **For CI/CD environments**, ensure you're using Node.js v20.x:
+   ```yaml
+   - name: Setup Node.js
+     uses: actions/setup-node@v4
+     with:
+       node-version: '20.x'
+   ```
+
+4. **If issues persist**, the Next.js configuration is set to disable image optimization during static export to prevent Sharp-related build failures.
+
+### Build Commands
+
+- Development: `npm run dev`
+- Production build: `npm run build`
+- Linting: `npm run lint`
+
 ## 1. Introduction
 
 ### 1.1 Overview
