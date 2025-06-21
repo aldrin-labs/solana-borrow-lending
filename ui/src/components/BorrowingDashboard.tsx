@@ -5,6 +5,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { TokenIcon } from "./TokenIcon";
 import { MarketActionModal } from "./MarketActionModal";
 import { StatsCard } from "./StatsCard";
+import { AnalyticsDashboard } from "./AnalyticsDashboard";
 import { useBorrowLending } from "@/hooks/useBorrowLending";
 
 export const BorrowingDashboard: FC = () => {
@@ -12,6 +13,7 @@ export const BorrowingDashboard: FC = () => {
   const { markets, borrowedPositions, isLoading, error } = useBorrowLending();
   const [selectedMarket, setSelectedMarket] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"markets" | "positions" | "analytics">("markets");
 
   const handleBorrow = (market: any) => {
     setSelectedMarket(market);
@@ -47,102 +49,90 @@ export const BorrowingDashboard: FC = () => {
         />
       </div>
 
-      <div className="card">
-        <h2 className="section-title">Borrow Markets</h2>
-        <div className="table-container overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left">
-                <th className="table-header font-medium">Asset</th>
-                <th className="table-header font-medium">Total Borrowed</th>
-                <th className="table-header font-medium">Available</th>
-                <th className="table-header font-medium">Borrow APY</th>
-                <th className="table-header font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {markets.map((market) => (
-                <tr key={market.id} className="table-row">
-                  <td className="table-cell">
-                    <div className="flex items-center space-x-3">
-                      <TokenIcon token={market.token} />
-                      <span className="font-medium text-white">
-                        {market.token}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="table-cell">{market.totalBorrow}</td>
-                  <td className="table-cell">
-                    {(
-                      parseFloat(market.totalSupply.replace(/[$,]/g, "")) -
-                      parseFloat(market.totalBorrow.replace(/[$,]/g, ""))
-                    ).toLocaleString("en-US", {
-                      style: "currency",
-                      currency: "USD",
-                    })}
-                  </td>
-                  <td className="table-cell text-error">{market.borrowApy}</td>
-                  <td className="table-cell">
-                    <button
-                      onClick={() => handleBorrow(market)}
-                      className="btn-secondary text-sm py-1 px-3"
-                      disabled={!connected}
-                    >
-                      Borrow
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Tab Navigation */}
+      <div className="border-b border-border">
+        <div className="flex space-x-6">
+          <button
+            className={`py-3 px-4 font-medium transition-colors ${
+              activeTab === "markets"
+                ? "text-white border-b-2 border-secondary"
+                : "text-text-secondary hover:text-white"
+            }`}
+            onClick={() => setActiveTab("markets")}
+          >
+            Borrow Markets
+          </button>
+          {connected && (
+            <>
+              <button
+                className={`py-3 px-4 font-medium transition-colors ${
+                  activeTab === "positions"
+                    ? "text-white border-b-2 border-secondary"
+                    : "text-text-secondary hover:text-white"
+                }`}
+                onClick={() => setActiveTab("positions")}
+              >
+                Your Borrows
+              </button>
+              <button
+                className={`py-3 px-4 font-medium transition-colors ${
+                  activeTab === "analytics"
+                    ? "text-white border-b-2 border-secondary"
+                    : "text-text-secondary hover:text-white"
+                }`}
+                onClick={() => setActiveTab("analytics")}
+              >
+                Analytics
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {connected && borrowedPositions.length > 0 && (
+      {/* Tab Content */}
+      {activeTab === "markets" && (
         <div className="card">
-          <h2 className="section-title">Your Borrows</h2>
+          <h2 className="section-title">Borrow Markets</h2>
           <div className="table-container overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="text-left">
                   <th className="table-header font-medium">Asset</th>
-                  <th className="table-header font-medium">Amount</th>
-                  <th className="table-header font-medium">Value</th>
-                  <th className="table-header font-medium">APY</th>
-                  <th className="table-header font-medium">Health Factor</th>
+                  <th className="table-header font-medium">Total Borrowed</th>
+                  <th className="table-header font-medium">Available</th>
+                  <th className="table-header font-medium">Borrow APY</th>
                   <th className="table-header font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {borrowedPositions.map((position) => (
-                  <tr key={position.id} className="table-row">
+                {markets.map((market) => (
+                  <tr key={market.id} className="table-row">
                     <td className="table-cell">
                       <div className="flex items-center space-x-3">
-                        <TokenIcon token={position.token} />
+                        <TokenIcon token={market.token} />
                         <span className="font-medium text-white">
-                          {position.token}
+                          {market.token}
                         </span>
                       </div>
                     </td>
-                    <td className="table-cell">{position.amount}</td>
-                    <td className="table-cell">{position.value}</td>
-                    <td className="table-cell text-error">{position.apy}</td>
+                    <td className="table-cell">{market.totalBorrow}</td>
                     <td className="table-cell">
-                      <div className="flex items-center">
-                        <span className="text-success font-medium mr-2">
-                          1.8
-                        </span>
-                        <div className="w-24 bg-border rounded-full h-2.5">
-                          <div
-                            className="bg-success h-2.5 rounded-full"
-                            style={{ width: "80%" }}
-                          ></div>
-                        </div>
-                      </div>
+                      {(
+                        parseFloat(market.totalSupply.replace(/[$,]/g, "")) -
+                        parseFloat(market.totalBorrow.replace(/[$,]/g, ""))
+                      ).toLocaleString("en-US", {
+                        style: "currency",
+                        currency: "USD",
+                      })}
                     </td>
+                    <td className="table-cell text-error">{market.borrowApy}</td>
                     <td className="table-cell">
-                      <button className="btn-primary text-sm py-1 px-3">
-                        Repay
+                      <button
+                        onClick={() => handleBorrow(market)}
+                        className="btn-secondary text-sm py-1 px-3"
+                        disabled={!connected}
+                      >
+                        Borrow
                       </button>
                     </td>
                   </tr>
@@ -151,6 +141,80 @@ export const BorrowingDashboard: FC = () => {
             </table>
           </div>
         </div>
+      )}
+
+      {activeTab === "positions" && connected && (
+        <div className="card">
+          <h2 className="section-title">Your Borrows</h2>
+          {borrowedPositions.length > 0 ? (
+            <div className="table-container overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left">
+                    <th className="table-header font-medium">Asset</th>
+                    <th className="table-header font-medium">Amount</th>
+                    <th className="table-header font-medium">Value</th>
+                    <th className="table-header font-medium">APY</th>
+                    <th className="table-header font-medium">Health Factor</th>
+                    <th className="table-header font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {borrowedPositions.map((position) => (
+                    <tr key={position.id} className="table-row">
+                      <td className="table-cell">
+                        <div className="flex items-center space-x-3">
+                          <TokenIcon token={position.token} />
+                          <span className="font-medium text-white">
+                            {position.token}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="table-cell">{position.amount}</td>
+                      <td className="table-cell">{position.value}</td>
+                      <td className="table-cell text-error">{position.apy}</td>
+                      <td className="table-cell">
+                        <div className="flex items-center">
+                          <span className="text-success font-medium mr-2">
+                            1.8
+                          </span>
+                          <div className="w-24 bg-border rounded-full h-2.5">
+                            <div
+                              className="bg-success h-2.5 rounded-full"
+                              style={{ width: "80%" }}
+                            ></div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="table-cell">
+                        <button className="btn-primary text-sm py-1 px-3">
+                          Repay
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <h3 className="text-xl font-semibold mb-4">No Borrows Yet</h3>
+              <p className="text-text-secondary mb-6">
+                Borrow assets against your collateral to unlock liquidity
+              </p>
+              <button
+                onClick={() => setActiveTab("markets")}
+                className="btn-secondary"
+              >
+                Explore Markets
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "analytics" && connected && (
+        <AnalyticsDashboard userType="borrower" />
       )}
 
       {!connected && (

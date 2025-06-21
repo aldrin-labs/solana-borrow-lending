@@ -5,6 +5,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { TokenIcon } from "./TokenIcon";
 import { MarketActionModal } from "./MarketActionModal";
 import { StatsCard } from "./StatsCard";
+import { AnalyticsDashboard } from "./AnalyticsDashboard";
 import { useBorrowLending } from "@/hooks/useBorrowLending";
 
 export const LendingDashboard: FC = () => {
@@ -12,6 +13,7 @@ export const LendingDashboard: FC = () => {
   const { markets, suppliedPositions, isLoading, error } = useBorrowLending();
   const [selectedMarket, setSelectedMarket] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"markets" | "positions" | "analytics">("markets");
 
   const handleSupply = (market: any) => {
     setSelectedMarket(market);
@@ -47,106 +49,89 @@ export const LendingDashboard: FC = () => {
         />
       </div>
 
-      <div className="card">
-        <h2 className="section-title">Supply Markets</h2>
-        <div className="table-container overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left">
-                <th className="table-header font-medium">Asset</th>
-                <th className="table-header font-medium">Total Supply</th>
-                <th className="table-header font-medium">Supply APY</th>
-                <th className="table-header font-medium">Can Be Collateral</th>
-                <th className="table-header font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {markets.map((market) => (
-                <tr key={market.id} className="table-row">
-                  <td className="table-cell">
-                    <div className="flex items-center space-x-3">
-                      <TokenIcon token={market.token} />
-                      <span className="font-medium text-white">
-                        {market.token}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="table-cell">{market.totalSupply}</td>
-                  <td className="table-cell text-success">
-                    {market.supplyApy}
-                  </td>
-                  <td className="table-cell">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/20 text-success">
-                      Yes
-                    </span>
-                  </td>
-                  <td className="table-cell">
-                    <button
-                      onClick={() => handleSupply(market)}
-                      className="btn-primary text-sm py-1 px-3"
-                      disabled={!connected}
-                    >
-                      Supply
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Tab Navigation */}
+      <div className="border-b border-border">
+        <div className="flex space-x-6">
+          <button
+            className={`py-3 px-4 font-medium transition-colors ${
+              activeTab === "markets"
+                ? "text-white border-b-2 border-secondary"
+                : "text-text-secondary hover:text-white"
+            }`}
+            onClick={() => setActiveTab("markets")}
+          >
+            Supply Markets
+          </button>
+          {connected && (
+            <>
+              <button
+                className={`py-3 px-4 font-medium transition-colors ${
+                  activeTab === "positions"
+                    ? "text-white border-b-2 border-secondary"
+                    : "text-text-secondary hover:text-white"
+                }`}
+                onClick={() => setActiveTab("positions")}
+              >
+                Your Positions
+              </button>
+              <button
+                className={`py-3 px-4 font-medium transition-colors ${
+                  activeTab === "analytics"
+                    ? "text-white border-b-2 border-secondary"
+                    : "text-text-secondary hover:text-white"
+                }`}
+                onClick={() => setActiveTab("analytics")}
+              >
+                Analytics
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {connected && suppliedPositions.length > 0 && (
+      {/* Tab Content */}
+      {activeTab === "markets" && (
         <div className="card">
-          <h2 className="section-title">Your Supplies</h2>
+          <h2 className="section-title">Supply Markets</h2>
           <div className="table-container overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="text-left">
                   <th className="table-header font-medium">Asset</th>
-                  <th className="table-header font-medium">Amount</th>
-                  <th className="table-header font-medium">Value</th>
-                  <th className="table-header font-medium">APY</th>
-                  <th className="table-header font-medium">Collateral</th>
+                  <th className="table-header font-medium">Total Supply</th>
+                  <th className="table-header font-medium">Supply APY</th>
+                  <th className="table-header font-medium">Can Be Collateral</th>
                   <th className="table-header font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {suppliedPositions.map((position) => (
-                  <tr key={position.id} className="table-row">
+                {markets.map((market) => (
+                  <tr key={market.id} className="table-row">
                     <td className="table-cell">
                       <div className="flex items-center space-x-3">
-                        <TokenIcon token={position.token} />
+                        <TokenIcon token={market.token} />
                         <span className="font-medium text-white">
-                          {position.token}
+                          {market.token}
                         </span>
                       </div>
                     </td>
-                    <td className="table-cell">{position.amount}</td>
-                    <td className="table-cell">{position.value}</td>
-                    <td className="table-cell text-success">{position.apy}</td>
-                    <td className="table-cell">
-                      {position.collateral ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/20 text-success">
-                          Yes
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-border text-text-secondary">
-                          No
-                        </span>
-                      )}
+                    <td className="table-cell">{market.totalSupply}</td>
+                    <td className="table-cell text-success">
+                      {market.supplyApy}
                     </td>
                     <td className="table-cell">
-                      <div className="flex space-x-2">
-                        <button className="btn-primary text-sm py-1 px-3">
-                          Withdraw
-                        </button>
-                        {position.collateral && (
-                          <button className="btn-secondary text-sm py-1 px-3">
-                            Disable as Collateral
-                          </button>
-                        )}
-                      </div>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/20 text-success">
+                        Yes
+                      </span>
+                    </td>
+                    <td className="table-cell">
+                      <button
+                        onClick={() => handleSupply(market)}
+                        className="btn-primary text-sm py-1 px-3"
+                        disabled={!connected}
+                      >
+                        Supply
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -154,6 +139,85 @@ export const LendingDashboard: FC = () => {
             </table>
           </div>
         </div>
+      )}
+
+      {activeTab === "positions" && connected && (
+        <div className="card">
+          <h2 className="section-title">Your Supplies</h2>
+          {suppliedPositions.length > 0 ? (
+            <div className="table-container overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left">
+                    <th className="table-header font-medium">Asset</th>
+                    <th className="table-header font-medium">Amount</th>
+                    <th className="table-header font-medium">Value</th>
+                    <th className="table-header font-medium">APY</th>
+                    <th className="table-header font-medium">Collateral</th>
+                    <th className="table-header font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {suppliedPositions.map((position) => (
+                    <tr key={position.id} className="table-row">
+                      <td className="table-cell">
+                        <div className="flex items-center space-x-3">
+                          <TokenIcon token={position.token} />
+                          <span className="font-medium text-white">
+                            {position.token}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="table-cell">{position.amount}</td>
+                      <td className="table-cell">{position.value}</td>
+                      <td className="table-cell text-success">{position.apy}</td>
+                      <td className="table-cell">
+                        {position.collateral ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/20 text-success">
+                            Yes
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-border text-text-secondary">
+                            No
+                          </span>
+                        )}
+                      </td>
+                      <td className="table-cell">
+                        <div className="flex space-x-2">
+                          <button className="btn-primary text-sm py-1 px-3">
+                            Withdraw
+                          </button>
+                          {position.collateral && (
+                            <button className="btn-secondary text-sm py-1 px-3">
+                              Disable as Collateral
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <h3 className="text-xl font-semibold mb-4">No Supplies Yet</h3>
+              <p className="text-text-secondary mb-6">
+                Start lending to earn interest on your assets
+              </p>
+              <button
+                onClick={() => setActiveTab("markets")}
+                className="btn-primary"
+              >
+                Explore Markets
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "analytics" && connected && (
+        <AnalyticsDashboard userType="lender" />
       )}
 
       {!connected && (
