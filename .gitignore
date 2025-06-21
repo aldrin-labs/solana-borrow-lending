@@ -11,7 +11,6 @@ node_modules
 .next
 out
 next-env.d.ts
-package-lock.json
 yarn.lock
 target
 test-ledger
