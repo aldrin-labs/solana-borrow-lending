@@ -110,6 +110,12 @@ pub enum ErrorCode {
     RingBufferOverflow,
     #[msg("Insufficient funds for rent exemption")]
     InsufficientFundsForRentExemption,
+    #[msg("Invalid discriminator - account type mismatch")]
+    InvalidDiscriminator,
+    #[msg("Recursion depth exceeded during validation")]
+    RecursionDepthExceeded,
+    #[msg("Account owned by wrong program")]
+    AccountOwnedByWrongProgram,
 }
 
 impl From<decimal::ErrorCode> for ErrorCode {
