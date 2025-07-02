@@ -1,7 +1,7 @@
 "use client";
 
 import { FC, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletConnection } from "@/hooks/useWalletConnection";
 import { TokenIcon } from "./TokenIcon";
 import { MarketActionModal } from "./MarketActionModal";
 import { StatsCard } from "./StatsCard";
@@ -9,7 +9,7 @@ import { AnalyticsDashboard } from "./AnalyticsDashboard";
 import { useBorrowLending } from "@/hooks/useBorrowLending";
 
 export const BorrowingDashboard: FC = () => {
-  const { connected } = useWallet();
+  const { connected } = useWalletConnection();
   const { markets, borrowedPositions, isLoading, error } = useBorrowLending();
   const [selectedMarket, setSelectedMarket] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);

@@ -1,7 +1,7 @@
 "use client";
 
 import { FC, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletConnection } from "@/hooks/useWalletConnection";
 import { TokenIcon } from "./TokenIcon";
 import { YieldFarmModal } from "./YieldFarmModal";
 import { StatsCard } from "./StatsCard";
@@ -57,7 +57,7 @@ const userFarmingPositions = [
 ];
 
 export const YieldFarmingDashboard: FC = () => {
-  const { connected } = useWallet();
+  const { connected } = useWalletConnection();
   const [selectedPool, setSelectedPool] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 

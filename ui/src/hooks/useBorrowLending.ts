@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletConnection } from "./useWalletConnection";
 
 // Mock data for demonstration purposes
 const mockMarkets = [
@@ -134,7 +134,7 @@ const getProtocolAnalytics = () => {
 };
 
 export const useBorrowLending = () => {
-  const { connected } = useWallet();
+  const { connected } = useWalletConnection();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [markets, setMarkets] = useState<any[]>([]);

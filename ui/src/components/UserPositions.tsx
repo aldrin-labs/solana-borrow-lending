@@ -1,5 +1,5 @@
 import { FC, useState, useEffect } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletConnection } from "@/hooks/useWalletConnection";
 import { Card } from "./Card";
 import { Button } from "./Button";
 
@@ -41,7 +41,7 @@ const mockBorrowPositions = [
 export const UserPositions: FC<UserPositionsProps> = ({
   positionType = "supply",
 }) => {
-  const { connected } = useWallet();
+  const { connected } = useWalletConnection();
   const [positions, setPositions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
