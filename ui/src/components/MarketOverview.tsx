@@ -193,7 +193,7 @@ export const MarketOverview: FC = () => {
                   </td>
                   <td className="table-cell">
                     <div className="status-positive inline-flex items-center gap-1.5">
-                      <span className="typography-number-sm font-semibold">{market.supplyApy}</span>
+                      <span className="typography-number-sm font-semibold">{market.supplyApyFormatted}</span>
                       <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                       </svg>
@@ -207,7 +207,7 @@ export const MarketOverview: FC = () => {
                   </td>
                   <td className="table-cell">
                     <div className="inline-flex items-center gap-1.5" style={{ color: 'var(--theme-error)' }}>
-                      <span className="typography-number-sm font-semibold">{market.borrowApy}</span>
+                      <span className="typography-number-sm font-semibold">{market.borrowApyFormatted}</span>
                       <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
@@ -284,7 +284,7 @@ export const MarketOverview: FC = () => {
             </div>
             <div className="typography-number-lg font-bold status-positive">
               {markets.length > 0 ? 
-                (markets.reduce((acc, market) => acc + (market.supplyApy || 0), 0) / markets.length).toFixed(1) + '%' : 
+                (markets.reduce((acc, market) => acc + (market.supplyApy || 0), 0) / markets.length).toFixed(2) + '%' : 
                 '0%'
               }
             </div>
@@ -324,7 +324,7 @@ export const MarketOverview: FC = () => {
             </div>
             <div className="typography-body-sm mt-1 status-positive">
               {markets.length > 0 ? 
-                Math.max(...markets.map(m => m.supplyApy || 0)).toFixed(1) + '% APY' : 
+                Math.max(...markets.map(m => m.supplyApy || 0)).toFixed(2) + '% APY' : 
                 '0% APY'
               }
             </div>
@@ -358,7 +358,7 @@ export const MarketOverview: FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="typography-number-sm font-semibold status-positive">{market.supplyApy}</div>
+                        <div className="typography-number-sm font-semibold status-positive">{market.supplyApyFormatted}</div>
                         <div className="typography-caption">#{index + 1} yield</div>
                       </div>
                     </div>

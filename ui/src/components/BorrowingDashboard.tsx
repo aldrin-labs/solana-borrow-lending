@@ -125,7 +125,7 @@ export const BorrowingDashboard: FC = () => {
                         currency: "USD",
                       })}
                     </td>
-                    <td className="table-cell text-error">{market.borrowApy}</td>
+                    <td className="table-cell text-error">{market.borrowApyFormatted}</td>
                     <td className="table-cell">
                       <button
                         onClick={() => handleBorrow(market)}

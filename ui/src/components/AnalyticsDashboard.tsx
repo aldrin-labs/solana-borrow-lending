@@ -142,7 +142,7 @@ export const AnalyticsDashboard: FC<AnalyticsDashboardProps> = ({
       <StatsCard
         title="Total Borrowed"
         value={`$${realTimeMetrics.totalBorrowedValue.toLocaleString()}`}
-        change={realTimeMetrics.totalBorrowedValue > 0 ? `${realTimeMetrics.avgBorrowAPY.toFixed(1)}% APY` : "No debt"}
+        change={realTimeMetrics.totalBorrowedValue > 0 ? `${realTimeMetrics.avgBorrowAPY.toFixed(2)}% APY` : "No debt"}
         isPositive={realTimeMetrics.totalBorrowedValue === 0}
         subtitle="Your borrow value"
         tooltip="Total USD value of your borrowed assets"
@@ -284,13 +284,13 @@ export const AnalyticsDashboard: FC<AnalyticsDashboardProps> = ({
               </div>
               <div className="text-center">
                 <div className="typography-number-lg font-semibold mb-1 status-positive">
-                  {markets.length > 0 ? (markets.reduce((acc, m) => acc + (m.supplyApy || 0), 0) / markets.length).toFixed(1) + '%' : '0%'}
+                  {markets.length > 0 ? (markets.reduce((acc, m) => acc + (m.supplyApy || 0), 0) / markets.length).toFixed(2) + '%' : '0%'}
                 </div>
                 <div className="typography-caption">AVG SUPPLY APY</div>
               </div>
               <div className="text-center">
                 <div className="typography-number-lg font-semibold mb-1" style={{ color: 'var(--theme-error)' }}>
-                  {markets.length > 0 ? (markets.reduce((acc, m) => acc + (m.borrowApy || 0), 0) / markets.length).toFixed(1) + '%' : '0%'}
+                  {markets.length > 0 ? (markets.reduce((acc, m) => acc + (m.borrowApy || 0), 0) / markets.length).toFixed(2) + '%' : '0%'}
                 </div>
                 <div className="typography-caption">AVG BORROW APY</div>
               </div>

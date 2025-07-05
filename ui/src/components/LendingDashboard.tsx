@@ -117,7 +117,7 @@ export const LendingDashboard: FC = () => {
                     </td>
                     <td className="table-cell">{market.totalSupply}</td>
                     <td className="table-cell text-success">
-                      {market.supplyApy}
+                      {market.supplyApyFormatted}
                     </td>
                     <td className="table-cell">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success/20 text-success">

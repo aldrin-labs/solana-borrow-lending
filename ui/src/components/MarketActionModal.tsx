@@ -89,8 +89,8 @@ export const MarketActionModal: FC<MarketActionModalProps> = ({
                   }
                 >
                   {actionType === "supply"
-                    ? market.supplyApy
-                    : market.borrowApy}
+                    ? market.supplyApyFormatted
+                    : market.borrowApyFormatted}
                 </span>
               </p>
             </div>

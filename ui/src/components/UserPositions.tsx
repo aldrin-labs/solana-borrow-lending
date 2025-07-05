@@ -325,7 +325,7 @@ export const UserPositions: FC<UserPositionsProps> = ({
           </div>
           <div className="typography-number-lg font-semibold">
             {positions.length > 0 ? 
-              (positions.reduce((acc, pos) => acc + parseFloat(pos.apy), 0) / positions.length).toFixed(1) + '%' : 
+              (positions.reduce((acc, pos) => acc + parseFloat(pos.apy), 0) / positions.length).toFixed(2) + '%' : 
               '0%'
             }
           </div>
