@@ -9,39 +9,49 @@ module.exports = {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#3D85C6', // Aldrin blue
-          dark: '#2D6DA8',
-          light: '#5A9AD6',
+          DEFAULT: '#00FF00', // Classic terminal green
+          dark: '#00CC00',
+          light: '#33FF33',
         },
         secondary: {
-          DEFAULT: '#00C2FF', // OpenSVM accent blue
-          dark: '#00A3D9',
-          light: '#33CFFF',
+          DEFAULT: '#FFFF00', // Classic terminal yellow
+          dark: '#CCCC00',
+          light: '#FFFF33',
         },
-        background: '#121212', // Dark background matching both platforms
-        surface: '#1E1E1E', // Card/component background
-        accent: '#FF5722', // Accent color for important actions
-        success: '#4CAF50', // Success indicators
-        warning: '#FFC107', // Warning indicators
-        error: '#F44336', // Error indicators
+        background: '#000000', // Pure black background
+        surface: '#1A1A1A', // Dark surface for terminals
+        accent: '#FF0000', // Classic terminal red
+        success: '#00FF00', // Terminal green
+        warning: '#FFFF00', // Terminal yellow
+        error: '#FF0000', // Terminal red
         text: {
-          primary: '#FFFFFF', // Primary text
-          secondary: '#B0BEC5', // Secondary/muted text
-          muted: '#6B7280', // Very muted text
+          primary: '#00FF00', // Classic terminal green
+          secondary: '#FFFF00', // Terminal yellow
+          muted: '#808080', // Terminal gray
         },
         border: {
-          DEFAULT: '#2D3748', // Default border color
-          light: '#4A5568', // Lighter border for hover states
+          DEFAULT: '#808080', // Gray border
+          light: '#C0C0C0', // Light gray for hover
+        },
+        terminal: {
+          amber: '#FFB000',
+          cyan: '#00FFFF',
+          magenta: '#FF00FF',
+          white: '#FFFFFF',
+          blue: '#0000FF',
         },
       },
       borderRadius: {
-        DEFAULT: '0.5rem',
+        DEFAULT: '0px', // No rounded corners for terminal look
+        terminal: '2px', // Slight radius for retro feel
       },
       boxShadow: {
         card: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1)',
       },
       fontFamily: {
-        sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        sans: ['Courier New', 'Monaco', 'Menlo', 'Consolas', 'monospace'],
+        mono: ['Courier New', 'Monaco', 'Menlo', 'Consolas', 'monospace'],
+        terminal: ['Courier New', 'Monaco', 'Menlo', 'Consolas', 'monospace'],
       },
     },
   },
