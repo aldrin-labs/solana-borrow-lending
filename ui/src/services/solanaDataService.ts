@@ -1,16 +1,24 @@
 import { Connection, PublicKey } from '@solana/web3.js';
 
-// Solana RPC endpoints
+// Solana RPC endpoints with fallback
 const RPC_ENDPOINTS = [
+  'https://solana-mainnet.g.alchemy.com/v2/demo',
   'https://api.mainnet-beta.solana.com',
-  'https://solana-api.projectserum.com',
+  'https://mainnet.helius-rpc.com/?api-key=demo',
   'https://rpc.ankr.com/solana',
+  'https://solana-api.projectserum.com',
 ];
 
 // Create connection with fallback endpoints
 export const createConnection = (): Connection => {
-  const endpoint = RPC_ENDPOINTS[0]; // Primary endpoint
-  return new Connection(endpoint, 'confirmed');
+  // Try endpoints in order, start with most reliable free endpoints
+  const endpoint = RPC_ENDPOINTS[0];
+  return new Connection(endpoint, {
+    commitment: 'confirmed',
+    confirmTransactionInitialTimeout: 30000,
+    disableRetryOnRateLimit: true,
+    wsEndpoint: undefined, // Disable WebSocket for demo to avoid connection issues
+  });
 };
 
 // Interface definitions
@@ -318,15 +326,41 @@ export class SolanaDataService {
     }
   }
 
-  // Health check for connection
+  // Health check for connection with fallback
   async healthCheck(): Promise<boolean> {
-    try {
-      const slot = await this.connection.getSlot();
-      return slot > 0;
-    } catch (error) {
-      console.error('Solana connection health check failed:', error);
-      return false;
+    for (let i = 0; i < RPC_ENDPOINTS.length; i++) {
+      try {
+        const testConnection = new Connection(RPC_ENDPOINTS[i], {
+          commitment: 'confirmed',
+          confirmTransactionInitialTimeout: 10000,
+          disableRetryOnRateLimit: true,
+          wsEndpoint: undefined,
+        });
+        
+        // Test with a simple, lightweight call
+        const slot = await Promise.race([
+          testConnection.getSlot(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout')), 5000)
+          )
+        ]) as number;
+        
+        if (slot > 0) {
+          // If this endpoint works, update our main connection
+          if (i !== 0) {
+            this.connection = testConnection;
+            console.log(`Switched to RPC endpoint: ${RPC_ENDPOINTS[i]}`);
+          }
+          return true;
+        }
+      } catch (error) {
+        console.warn(`RPC endpoint ${RPC_ENDPOINTS[i]} failed:`, error);
+        continue;
+      }
     }
+    
+    console.error('All Solana RPC endpoints failed');
+    return false;
   }
 }
 

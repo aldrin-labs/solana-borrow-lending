@@ -26,7 +26,18 @@ export const Tooltip: React.FC<TooltipProps> = ({
     }
     
     timeoutRef.current = setTimeout(() => {
-      const rect = event.currentTarget.getBoundingClientRect();
+      const target = event.currentTarget;
+      if (!target) {
+        console.warn('Tooltip: currentTarget is null');
+        return;
+      }
+      
+      const rect = target.getBoundingClientRect();
+      if (!rect) {
+        console.warn('Tooltip: getBoundingClientRect returned null');
+        return;
+      }
+      
       let x = 0;
       let y = 0;
 

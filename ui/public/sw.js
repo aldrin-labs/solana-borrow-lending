@@ -1,9 +1,9 @@
-// Solana Lending Terminal Service Worker
-// Bloomberg terminal-style PWA with offline support
+// MAGA Service Worker
+// Banking-grade PWA with offline support
 
-const CACHE_NAME = 'solana-lending-terminal-v1';
-const STATIC_CACHE_NAME = 'solana-lending-static-v1';
-const DATA_CACHE_NAME = 'solana-lending-data-v1';
+const CACHE_NAME = 'maga-app-v1';
+const STATIC_CACHE_NAME = 'maga-static-v1';
+const DATA_CACHE_NAME = 'maga-data-v1';
 
 // Static assets to cache
 const STATIC_ASSETS = [
@@ -161,12 +161,12 @@ function createOfflineResponse() {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Offline - Solana Lending Terminal</title>
+      <title>Offline - MAGA</title>
       <style>
         body {
-          font-family: 'Courier New', monospace;
-          background: #000000;
-          color: #00FF00;
+          font-family: 'Inter', sans-serif;
+          background: #f7fafc;
+          color: #2d3748;
           margin: 0;
           padding: 20px;
           text-align: center;
@@ -176,48 +176,75 @@ function createOfflineResponse() {
           justify-content: center;
           align-items: center;
         }
-        .terminal-window {
-          border: 2px solid #00FF00;
-          padding: 20px;
+        .offline-container {
+          background: white;
+          border-radius: 12px;
+          padding: 40px;
           max-width: 600px;
-          box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
-        }
-        .blink {
-          animation: blink 1s infinite;
-        }
-        @keyframes blink {
-          0%, 50% { opacity: 1; }
-          51%, 100% { opacity: 0; }
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+          border: 1px solid #e2e8f0;
         }
         .error-code {
-          color: #FF0000;
+          color: #e53e3e;
           font-size: 1.2em;
+          font-weight: 600;
           margin-bottom: 20px;
         }
+        .logo {
+          color: #3182ce;
+          font-size: 2em;
+          font-weight: bold;
+          margin-bottom: 20px;
+        }
+        .message {
+          color: #4a5568;
+          margin-bottom: 10px;
+          line-height: 1.5;
+        }
         .retry-btn {
-          background: #000000;
-          border: 2px solid #00FF00;
-          color: #00FF00;
-          padding: 10px 20px;
-          font-family: 'Courier New', monospace;
+          background: #3182ce;
+          border: none;
+          color: white;
+          padding: 12px 24px;
+          font-family: 'Inter', sans-serif;
+          font-weight: 500;
+          border-radius: 8px;
           cursor: pointer;
           margin-top: 20px;
+          transition: all 0.2s;
         }
         .retry-btn:hover {
-          background: #00FF00;
-          color: #000000;
+          background: #2c5aa0;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(49, 130, 206, 0.3);
+        }
+        .status-indicator {
+          display: inline-block;
+          width: 8px;
+          height: 8px;
+          background: #ed8936;
+          border-radius: 50%;
+          margin-right: 8px;
+          animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
         }
       </style>
     </head>
     <body>
-      <div class="terminal-window">
-        <div class="error-code">ERROR 503: NETWORK UNAVAILABLE</div>
-        <h1>SOLANA LENDING TERMINAL</h1>
-        <p>CONNECTION TO SOLANA NETWORK LOST</p>
-        <p>CACHED DATA MAY BE AVAILABLE</p>
-        <p class="blink">█</p>
+      <div class="offline-container">
+        <div class="error-code">
+          <span class="status-indicator"></span>
+          CONNECTION UNAVAILABLE
+        </div>
+        <div class="logo">MAGA</div>
+        <p class="message">Unable to connect to the network</p>
+        <p class="message">Please check your internet connection and try again</p>
+        <p class="message">Some cached data may still be available</p>
         <button class="retry-btn" onclick="window.location.reload()">
-          RETRY CONNECTION
+          Retry Connection
         </button>
       </div>
     </body>
@@ -278,12 +305,12 @@ self.addEventListener('push', event => {
       body: data.body || 'Market update available',
       icon: '/icon-192x192.png',
       badge: '/icon-72x72.png',
-      tag: 'solana-update',
+      tag: 'maga-update',
       renotify: true,
       actions: [
         {
           action: 'view',
-          title: 'View Terminal',
+          title: 'View Dashboard',
           icon: '/icon-96x96.png'
         },
         {
@@ -299,7 +326,7 @@ self.addEventListener('push', event => {
     
     event.waitUntil(
       self.registration.showNotification(
-        data.title || 'Solana Lending Terminal',
+        data.title || 'MAGA - Make Aldrin Great Again',
         options
       )
     );
