@@ -62,6 +62,33 @@ export const REFRESH_INTERVALS = {
   CONNECTION_HEALTH_MS: 30000, // 30 seconds
 } as const;
 
+// Enhanced intervals for throttling and debouncing
+export const INTERVALS = {
+  // Real-time data updates
+  REAL_TIME_UPDATE: 15000,        // 15 seconds for healthy connections
+  SLOW_UPDATE: 60000,             // 1 minute for unhealthy connections
+  
+  // Health monitoring
+  HEALTH_CHECK: 60000,            // 1 minute health checks
+  HEALTH_TIMEOUT: 5000,           // 5 seconds health check timeout
+  
+  // Cache durations
+  MARKET_DATA_CACHE: 60000,       // 1 minute for market data
+  ANALYTICS_CACHE: 60000,         // 1 minute for analytics
+  USER_POSITION_CACHE: 30000,     // 30 seconds for user positions
+  PRICE_CACHE: 30000,             // 30 seconds for price data
+  
+  // Rate limiting
+  MIN_FETCH_INTERVAL: 1000,       // Minimum 1 second between fetches
+  MANUAL_REFRESH_LIMIT: 5000,     // 5 seconds between manual refreshes
+  DEBOUNCE_DELAY: 2000,           // 2 seconds for debounced operations
+  
+  // UI update intervals
+  CHART_UPDATE: 30000,            // 30 seconds for chart updates
+  NOTIFICATION_TIMEOUT: 8000,     // 8 seconds for notifications
+  TOAST_DISPLAY_DURATION: 4000,   // 4 seconds for toast messages
+} as const;
+
 // Network and Connection Settings
 export const NETWORK = {
   COMMITMENT: 'confirmed' as const,

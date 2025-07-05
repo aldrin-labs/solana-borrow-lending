@@ -1,3 +1,72 @@
 {
-  "extends": ["next/core-web-vitals"]
+  "extends": [
+    "next/core-web-vitals",
+    "@typescript-eslint/recommended"
+  ],
+  "rules": {
+    // Prevent string parsing violations for numeric data
+    "@typescript-eslint/no-explicit-any": "error",
+    "prefer-const": "error",
+    "no-var": "error",
+    
+    // Custom rules to prevent legacy string parsing
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "CallExpression[callee.name='parseInt'][arguments.0.type='CallExpression'][arguments.0.callee.property.name='replace']",
+        "message": "Avoid parsing formatted strings. Use numeric fields from API directly. Example: use 'valueNumeric' instead of 'parseInt(value.replace(/[$,]/g, \"\"))'"
+      },
+      {
+        "selector": "CallExpression[callee.name='parseFloat'][arguments.0.type='CallExpression'][arguments.0.callee.property.name='replace']",
+        "message": "Avoid parsing formatted strings. Use numeric fields from API directly. Example: use 'valueNumeric' instead of 'parseFloat(value.replace(/[$,]/g, \"\"))'"
+      },
+      {
+        "selector": "CallExpression[callee.name='Number'][arguments.0.type='CallExpression'][arguments.0.callee.property.name='replace']",
+        "message": "Avoid parsing formatted strings. Use numeric fields from API directly. Example: use 'valueNumeric' instead of 'Number(value.replace(/[$,]/g, \"\"))'"
+      },
+      {
+        "selector": "BinaryExpression[operator='+'][left.type='CallExpression'][left.callee.name=/parseInt|parseFloat|Number/]",
+        "message": "Mathematical operations should use numeric fields directly. Avoid string parsing in calculations."
+      }
+    ],
+    
+    // Enforce typed data interfaces
+    "@typescript-eslint/explicit-function-return-type": ["warn", {
+      "allowExpressions": true,
+      "allowTypedFunctionExpressions": true
+    }],
+    
+    // Prevent unsafe type assertions
+    "@typescript-eslint/no-non-null-assertion": "error",
+    "@typescript-eslint/no-unsafe-assignment": "error",
+    "@typescript-eslint/no-unsafe-member-access": "error",
+    "@typescript-eslint/no-unsafe-call": "error",
+    
+    // Ensure proper error handling
+    "@typescript-eslint/no-floating-promises": "error",
+    "@typescript-eslint/await-thenable": "error",
+    
+    // Data formatting rules
+    "no-magic-numbers": ["warn", { 
+      "ignore": [0, 1, -1, 100, 1000, 10000],
+      "ignoreArrayIndexes": true,
+      "ignoreDefaultValues": true
+    }]
+  },
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2020,
+    "sourceType": "module",
+    "project": "./tsconfig.json"
+  },
+  "plugins": ["@typescript-eslint"],
+  "overrides": [
+    {
+      "files": ["*.test.ts", "*.test.tsx"],
+      "rules": {
+        "no-magic-numbers": "off",
+        "@typescript-eslint/no-explicit-any": "off"
+      }
+    }
+  ]
 }

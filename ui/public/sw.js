@@ -173,65 +173,173 @@ self.addEventListener('fetch', event => {
   }
 });
 
-// Enhanced network first strategy for data requests
+// Enhanced stale-while-revalidate strategy for data requests
 async function handleDataRequest(request) {
   const cache = await caches.open(CACHE_NAMES.DATA);
+  const url = new URL(request.url);
   
-  try {
-    // Try network first
-    const response = await fetch(request);
+  // Check if this is a high-priority request that needs fresh data
+  const isHighPriority = url.pathname.includes('/api/health') || 
+                        url.pathname.includes('/api/prices') ||
+                        url.searchParams.has('fresh');
+  
+  // Get cached response immediately
+  const cachedResponse = await cache.match(request);
+  
+  // Define cache thresholds based on endpoint type
+  const getCacheThresholds = (pathname) => {
+    if (pathname.includes('/api/markets') || pathname.includes('/api/analytics')) {
+      return { fresh: 60000, stale: 300000 }; // 1min fresh, 5min stale
+    } else if (pathname.includes('/api/positions')) {
+      return { fresh: 30000, stale: 120000 }; // 30sec fresh, 2min stale
+    } else if (pathname.includes('/api/health')) {
+      return { fresh: 5000, stale: 15000 };   // 5sec fresh, 15sec stale
+    } else {
+      return { fresh: 120000, stale: 600000 }; // 2min fresh, 10min stale
+    }
+  };
+  
+  const thresholds = getCacheThresholds(url.pathname);
+  
+  // Check cache freshness
+  let cacheStatus = 'miss';
+  let shouldRevalidate = true;
+  
+  if (cachedResponse) {
+    const cachedAt = cachedResponse.headers.get('sw-cached-at');
+    const cacheAge = cachedAt ? Date.now() - parseInt(cachedAt) : Infinity;
     
-    if (response.ok) {
-      // Cache successful responses with expiration
-      const responseClone = response.clone();
-      const cacheResponse = new Response(responseClone.body, {
-        status: responseClone.status,
-        statusText: responseClone.statusText,
-        headers: {
-          ...Object.fromEntries(responseClone.headers.entries()),
-          'sw-cached-at': Date.now().toString(),
-          'sw-cache-expires': (Date.now() + 300000).toString(), // 5 minutes
-        }
-      });
-      cache.put(request, cacheResponse);
+    if (cacheAge < thresholds.fresh) {
+      cacheStatus = 'fresh';
+      shouldRevalidate = false;
+    } else if (cacheAge < thresholds.stale) {
+      cacheStatus = 'stale';
+      shouldRevalidate = true;
+    } else {
+      cacheStatus = 'expired';
+      shouldRevalidate = true;
+    }
+  }
+  
+  // For high-priority requests, always try network first
+  if (isHighPriority) {
+    try {
+      const networkResponse = await fetch(request);
+      if (networkResponse.ok) {
+        // Cache the fresh response
+        await cacheResponse(cache, request, networkResponse.clone());
+        return networkResponse;
+      }
+    } catch (error) {
+      debugLog.warn('High-priority network request failed:', error);
     }
     
-    return response;
-  } catch (error) {
-    // Network failed, try cache
-    const cachedResponse = await cache.match(request);
+    // Fall back to cache if network fails
+    if (cachedResponse && cacheStatus !== 'expired') {
+      return createCachedResponse(cachedResponse, cacheStatus);
+    }
+  }
+  
+  // Stale-while-revalidate strategy
+  if (cachedResponse && cacheStatus !== 'expired') {
+    // Return cached response immediately
+    const responseToReturn = createCachedResponse(cachedResponse, cacheStatus);
     
-    if (cachedResponse) {
-      const cachedAt = cachedResponse.headers.get('sw-cached-at');
-      const expiresAt = cachedResponse.headers.get('sw-cache-expires');
+    // Revalidate in background if needed
+    if (shouldRevalidate) {
+      debugLog.info('Revalidating stale cache in background');
       
-      // Check if cache is still valid
-      if (expiresAt && Date.now() < parseInt(expiresAt)) {
-        debugLog.info('Serving fresh cached data');
-        return cachedResponse;
-      } else {
-        debugLog.info('Serving stale cached data');
-        return new Response(cachedResponse.body, {
-          status: cachedResponse.status,
-          statusText: cachedResponse.statusText,
-          headers: {
-            ...Object.fromEntries(cachedResponse.headers.entries()),
-            'sw-cache-status': 'stale'
+      // Don't await - revalidate in background
+      fetch(request)
+        .then(async networkResponse => {
+          if (networkResponse.ok) {
+            await cacheResponse(cache, request, networkResponse.clone());
+            debugLog.info('Background revalidation completed');
           }
+        })
+        .catch(error => {
+          debugLog.warn('Background revalidation failed:', error);
         });
-      }
+    }
+    
+    return responseToReturn;
+  }
+  
+  // No cache or expired cache - try network
+  try {
+    const networkResponse = await fetch(request);
+    
+    if (networkResponse.ok) {
+      // Cache successful responses
+      await cacheResponse(cache, request, networkResponse.clone());
+      return networkResponse;
+    }
+    
+    // Network response not ok, fall back to expired cache if available
+    if (cachedResponse) {
+      debugLog.info('Serving expired cache due to network error');
+      return createCachedResponse(cachedResponse, 'expired');
+    }
+    
+    // No cache available, return error response
+    return createOfflineResponse();
+  } catch (error) {
+    debugLog.warn('Network request failed:', error);
+    
+    // Network failed, try expired cache
+    if (cachedResponse) {
+      debugLog.info('Serving expired cache due to network failure');
+      return createCachedResponse(cachedResponse, 'expired');
     }
     
     // No cache available, return offline response
-    return new Response(JSON.stringify({
-      error: 'Network unavailable',
-      offline: true,
-      timestamp: Date.now()
-    }), {
-      status: 503,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return createOfflineResponse();
   }
+}
+
+// Helper function to cache responses with metadata
+async function cacheResponse(cache, request, response) {
+  const responseToCache = new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: {
+      ...Object.fromEntries(response.headers.entries()),
+      'sw-cached-at': Date.now().toString(),
+      'sw-cache-version': CACHE_VERSION,
+      'sw-cache-url': request.url,
+    }
+  });
+  
+  await cache.put(request, responseToCache);
+}
+
+// Helper function to create cached response with status
+function createCachedResponse(cachedResponse, status) {
+  return new Response(cachedResponse.body, {
+    status: cachedResponse.status,
+    statusText: cachedResponse.statusText,
+    headers: {
+      ...Object.fromEntries(cachedResponse.headers.entries()),
+      'sw-cache-status': status,
+      'sw-served-at': Date.now().toString(),
+    }
+  });
+}
+
+// Helper function to create offline response
+function createOfflineResponse() {
+  return new Response(JSON.stringify({
+    error: 'Network unavailable',
+    offline: true,
+    timestamp: Date.now(),
+    message: 'Please check your internet connection and try again.',
+  }), {
+    status: 503,
+    headers: { 
+      'Content-Type': 'application/json',
+      'sw-cache-status': 'offline'
+    }
+  });
 }
 
 // Cache first strategy for static assets

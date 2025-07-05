@@ -1,0 +1,43 @@
+{
+  "name": "@maga-finance/custom-element-guard",
+  "version": "1.0.0",
+  "description": "Production-ready custom element protection library with comprehensive test suite",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "custom-elements",
+    "webcomponents",
+    "browser-protection",
+    "conflict-resolution",
+    "maga-finance"
+  ],
+  "author": "MAGA Finance",
+  "license": "MIT",
+  "peerDependencies": {
+    "typescript": ">=4.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "typescript": "^5.3.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aldrin-labs/solana-borrow-lending",
+    "directory": "ui/src/lib/custom-element-guard"
+  },
+  "bugs": {
+    "url": "https://github.com/aldrin-labs/solana-borrow-lending/issues"
+  },
+  "homepage": "https://github.com/aldrin-labs/solana-borrow-lending#readme"
+}
