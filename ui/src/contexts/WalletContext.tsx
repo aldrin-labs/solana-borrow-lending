@@ -163,9 +163,9 @@ export const WalletContextProvider: React.FC<{
   });
   
   // Refs for managing timers and operations
-  const healthCheckTimer = useRef<NodeJS.Timer | null>(null);
-  const errorTimer = useRef<NodeJS.Timer | null>(null);
-  const lastOperationRef = useRef<(() => Promise<void>) | null>(null);
+  const healthCheckTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastOperationRef = useRef<(() => Promise<any>) | null>(null);
   const mountedRef = useRef(true);
   
   // Update state when base wallet changes
@@ -184,9 +184,9 @@ export const WalletContextProvider: React.FC<{
   
   // Error handling utility
   const handleError = useCallback((error: any, operation: string) => {
-    if (!mountedRef.current) return;
-    
     const walletError = WalletError.fromError(error);
+    
+    if (!mountedRef.current) return walletError;
     
     if (config.debug) {
       debugLog.error(`Wallet ${operation} error:`, walletError);
@@ -498,7 +498,7 @@ export const WalletContextProvider: React.FC<{
   const isReady = connected && state.isHealthy && !state.isRecovering;
   const canConnect = !connected && !connecting && !state.isRecovering;
   const canDisconnect = connected && !disconnecting && !state.isRecovering;
-  const shouldShowError = state.lastError && !state.isRecovering;
+  const shouldShowError = !!state.lastError && !state.isRecovering;
   
   // Context value
   const contextValue: WalletContextValue = {

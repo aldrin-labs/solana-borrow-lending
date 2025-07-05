@@ -12,7 +12,7 @@ import { INTERVALS } from "@/utils/constants";
 // Custom hook for throttled and debounced intervals
 const useThrottledInterval = (callback: () => void, delay: number, deps: any[] = []) => {
   const savedCallback = useRef<() => void>();
-  const throttleTimerRef = useRef<NodeJS.Timer | null>(null);
+  const throttleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastExecutionRef = useRef<number>(0);
 
   // Remember the latest callback
@@ -61,7 +61,7 @@ const useDebouncedCallback = <T extends (...args: any[]) => any>(
   callback: T,
   delay: number
 ): T => {
-  const timeoutRef = useRef<NodeJS.Timer | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const callbackRef = useRef<T>(callback);
 
   // Update callback ref when callback changes
@@ -227,9 +227,7 @@ export const useBorrowLending = () => {
       const isHealthy = await solanaDataService.healthCheck();
       setConnectionHealth(isHealthy);
       
-      if (!isHealthy && error?.includes("connection")) {
-        setError("Solana network connection issues detected");
-      } else if (isHealthy && error?.includes("connection")) {
+      if (isHealthy && error?.includes("connection")) {
         clearError();
       }
     } catch (err) {

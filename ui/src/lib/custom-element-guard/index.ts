@@ -188,7 +188,8 @@ export class CustomElementGuard {
         retryCount,
       };
     } catch (error) {
-      this.log(`Failed to define ${name}: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.log(`Failed to define ${name}: ${errorMessage}`);
 
       if (error instanceof DOMException && error.message.includes('already been defined')) {
         // Element was defined by another script between our check and definition
