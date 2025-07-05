@@ -1,4 +1,14 @@
 import { Connection, PublicKey } from '@solana/web3.js';
+import { formatCurrency, formatPercentage } from '../utils/formatters';
+import { 
+  PRICE_VARIANCE, 
+  CACHE, 
+  NETWORK, 
+  HEALTH_FACTOR, 
+  INTEREST_RATES, 
+  CHARTS,
+  TOKEN_DECIMALS 
+} from '../utils/constants';
 
 // Solana RPC endpoints with fallback
 const RPC_ENDPOINTS = [
@@ -14,22 +24,27 @@ export const createConnection = (): Connection => {
   // Try endpoints in order, start with most reliable free endpoints
   const endpoint = RPC_ENDPOINTS[0];
   return new Connection(endpoint, {
-    commitment: 'confirmed',
-    confirmTransactionInitialTimeout: 30000,
+    commitment: NETWORK.COMMITMENT,
+    confirmTransactionInitialTimeout: NETWORK.CONFIRMATION_TIMEOUT_MS,
     disableRetryOnRateLimit: true,
     wsEndpoint: undefined, // Disable WebSocket for demo to avoid connection issues
   });
 };
 
-// Interface definitions
+// Interface definitions with numeric values
 export interface MarketData {
   id: string;
   token: string;
-  totalSupply: string;
-  supplyApy: string;
-  totalBorrow: string;
-  borrowApy: string;
-  utilizationRate: string;
+  totalSupplyValue: number; // Numeric value
+  totalSupply: string; // Formatted display string
+  supplyApy: number; // Numeric percentage (0-100)
+  supplyApyFormatted: string; // Formatted display string
+  totalBorrowValue: number; // Numeric value
+  totalBorrow: string; // Formatted display string
+  borrowApy: number; // Numeric percentage (0-100)
+  borrowApyFormatted: string; // Formatted display string
+  utilizationRate: number; // Numeric percentage (0-100)
+  utilizationRateFormatted: string; // Formatted display string
   mint: string;
   reserveAddress: string;
 }
@@ -48,10 +63,14 @@ export interface UserPosition {
   id: string;
   token: string;
   amount: string;
+  amountNumeric: number; // Numeric amount
   value: string;
+  valueNumeric: number; // Numeric value
   apy: string;
+  apyNumeric: number; // Numeric percentage
   collateral?: boolean;
   healthFactor?: string;
+  healthFactorNumeric?: number; // Numeric health factor
 }
 
 // Known token mints for major tokens
@@ -59,44 +78,44 @@ const KNOWN_TOKENS = {
   SOL: {
     mint: 'So11111111111111111111111111111111111111112', // Wrapped SOL
     symbol: 'SOL',
-    decimals: 9,
+    decimals: TOKEN_DECIMALS.SOL,
   },
   USDC: {
     mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
     symbol: 'USDC',
-    decimals: 6,
+    decimals: TOKEN_DECIMALS.USDC,
   },
   USDT: {
     mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
     symbol: 'USDT',
-    decimals: 6,
+    decimals: TOKEN_DECIMALS.USDT,
   },
   ETH: {
     mint: '7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs', // Ethereum (Portal)
     symbol: 'ETH',
-    decimals: 8,
+    decimals: TOKEN_DECIMALS.ETH,
   },
   BTC: {
     mint: '9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtAeTH5YFeJ9E', // Bitcoin (Portal)
     symbol: 'BTC',
-    decimals: 8,
+    decimals: TOKEN_DECIMALS.BTC,
   },
 };
 
 // Mock data generators for realistic simulation
-const generateRealisticTrendData = (baseValue: number, days: number = 30): Array<{ time: string; value: number }> => {
+const generateRealisticTrendData = (baseValue: number, days: number = CHARTS.DEFAULT_DAYS): Array<{ time: string; value: number }> => {
   const data = [];
   const now = new Date();
   
   for (let i = days; i >= 0; i--) {
     const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-    const variance = (Math.random() - 0.5) * 0.1; // ±10% variance
-    const trend = -i * 0.001; // Slight downward trend over time
+    const variance = (Math.random() - 0.5) * CHARTS.TREND_VARIANCE;
+    const trend = -i * CHARTS.TREND_DECLINE_FACTOR;
     const value = Math.round(baseValue * (1 + variance + trend));
     
     data.push({
       time: date.toISOString().split('T')[0],
-      value: Math.max(value, baseValue * 0.5), // Minimum 50% of base value
+      value: Math.max(value, baseValue * CHARTS.MIN_VALUE_PERCENTAGE),
     });
   }
   
@@ -107,7 +126,7 @@ const generateUtilizationData = (baseUtilization: number): Array<{ time: string;
   const data = [];
   const now = new Date();
   
-  for (let i = 29; i >= 0; i--) {
+  for (let i = CHARTS.DEFAULT_DAYS - 1; i >= 0; i--) {
     const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
     const variance = (Math.random() - 0.5) * 20; // ±20% variance
     const utilization = Math.max(0, Math.min(100, baseUtilization + variance));
@@ -121,11 +140,10 @@ const generateUtilizationData = (baseUtilization: number): Array<{ time: string;
   return data;
 };
 
-// Solana Data Service Class
 export class SolanaDataService {
   private connection: Connection;
   private cache: Map<string, { data: any; timestamp: number }> = new Map();
-  private readonly CACHE_DURATION = 30000; // 30 seconds
+  private readonly CACHE_DURATION = CACHE.DURATION_MS;
 
   constructor() {
     this.connection = createConnection();
@@ -148,7 +166,7 @@ export class SolanaDataService {
 
   // Fetch real token prices from Solana account data
   async fetchTokenPrices(): Promise<Record<string, number>> {
-    const cacheKey = 'tokenPrices';
+    const cacheKey = CACHE.TOKEN_PRICES_KEY;
     
     if (this.isCacheValid(cacheKey)) {
       return this.getCache(cacheKey);
@@ -158,11 +176,11 @@ export class SolanaDataService {
       // For demo purposes, we'll use simulated realistic prices
       // In a real implementation, you would fetch from a price oracle like Pyth
       const prices = {
-        SOL: 100 + (Math.random() - 0.5) * 10, // $100 ± $5
-        USDC: 1.0 + (Math.random() - 0.5) * 0.01, // $1.00 ± $0.005
-        USDT: 1.0 + (Math.random() - 0.5) * 0.01, // $1.00 ± $0.005
-        ETH: 2500 + (Math.random() - 0.5) * 100, // $2500 ± $50
-        BTC: 45000 + (Math.random() - 0.5) * 1000, // $45000 ± $500
+        SOL: PRICE_VARIANCE.SOL.BASE + (Math.random() - 0.5) * PRICE_VARIANCE.SOL.RANGE,
+        USDC: PRICE_VARIANCE.USDC.BASE + (Math.random() - 0.5) * PRICE_VARIANCE.USDC.RANGE,
+        USDT: PRICE_VARIANCE.USDT.BASE + (Math.random() - 0.5) * PRICE_VARIANCE.USDT.RANGE,
+        ETH: PRICE_VARIANCE.ETH.BASE + (Math.random() - 0.5) * PRICE_VARIANCE.ETH.RANGE,
+        BTC: PRICE_VARIANCE.BTC.BASE + (Math.random() - 0.5) * PRICE_VARIANCE.BTC.RANGE,
       };
 
       this.setCache(cacheKey, prices);
@@ -171,18 +189,18 @@ export class SolanaDataService {
       console.error('Error fetching token prices:', error);
       // Return fallback prices
       return {
-        SOL: 100,
-        USDC: 1.0,
-        USDT: 1.0,
-        ETH: 2500,
-        BTC: 45000,
+        SOL: PRICE_VARIANCE.SOL.BASE,
+        USDC: PRICE_VARIANCE.USDC.BASE,
+        USDT: PRICE_VARIANCE.USDT.BASE,
+        ETH: PRICE_VARIANCE.ETH.BASE,
+        BTC: PRICE_VARIANCE.BTC.BASE,
       };
     }
   }
 
   // Fetch market data for lending protocol
   async fetchMarketData(): Promise<MarketData[]> {
-    const cacheKey = 'marketData';
+    const cacheKey = CACHE.MARKET_DATA_KEY;
     
     if (this.isCacheValid(cacheKey)) {
       return this.getCache(cacheKey);
@@ -196,21 +214,29 @@ export class SolanaDataService {
         const price = prices[symbol] || 1;
         const baseSupply = [50000000, 100000000, 25000000, 5000000, 1000000][index];
         const totalSupplyValue = baseSupply * price;
-        const utilizationRate = 40 + Math.random() * 30; // 40-70%
+        const utilizationRate = INTEREST_RATES.UTILIZATION_RATE.MIN + 
+          Math.random() * (INTEREST_RATES.UTILIZATION_RATE.MAX - INTEREST_RATES.UTILIZATION_RATE.MIN);
         const totalBorrowValue = totalSupplyValue * (utilizationRate / 100);
         
         // Realistic APY calculation based on utilization
-        const baseSupplyAPY = 1 + (utilizationRate / 100) * 4; // 1-5%
-        const borrowAPY = baseSupplyAPY * 1.5 + Math.random() * 2; // 1.5x supply + 0-2%
+        const baseSupplyAPY = INTEREST_RATES.BASE_SUPPLY_APY.MIN + 
+          (utilizationRate / 100) * INTEREST_RATES.BASE_SUPPLY_APY.MULTIPLIER;
+        const borrowAPY = baseSupplyAPY * INTEREST_RATES.BORROW_APY_MULTIPLIER + 
+          Math.random() * INTEREST_RATES.ADDITIONAL_BORROW_VARIANCE;
         
         return {
           id: (index + 1).toString(),
           token: symbol,
-          totalSupply: `$${Math.round(totalSupplyValue).toLocaleString()}`,
-          supplyApy: `${baseSupplyAPY.toFixed(1)}%`,
-          totalBorrow: `$${Math.round(totalBorrowValue).toLocaleString()}`,
-          borrowApy: `${borrowAPY.toFixed(1)}%`,
-          utilizationRate: `${Math.round(utilizationRate)}%`,
+          totalSupplyValue,
+          totalSupply: formatCurrency(totalSupplyValue),
+          supplyApy: baseSupplyAPY,
+          supplyApyFormatted: formatPercentage(baseSupplyAPY),
+          totalBorrowValue,
+          totalBorrow: formatCurrency(totalBorrowValue),
+          borrowApy: borrowAPY,
+          borrowApyFormatted: formatPercentage(borrowAPY),
+          utilizationRate,
+          utilizationRateFormatted: formatPercentage(utilizationRate),
           mint: tokenInfo.mint,
           reserveAddress: `Reserve${index + 1}...`, // Placeholder
         };
@@ -229,7 +255,7 @@ export class SolanaDataService {
     supplied: UserPosition[];
     borrowed: UserPosition[];
   }> {
-    const cacheKey = `userPositions_${walletAddress}`;
+    const cacheKey = `${CACHE.USER_POSITIONS_PREFIX}${walletAddress}`;
     
     if (this.isCacheValid(cacheKey)) {
       return this.getCache(cacheKey);
@@ -243,21 +269,33 @@ export class SolanaDataService {
       // Simulate realistic user positions
       const prices = await this.fetchTokenPrices();
       
+      const solAmount = 10.0;
+      const usdcAmount = 2000;
+      const borrowedUsdcAmount = 800;
+      const healthFactorValue = HEALTH_FACTOR.DEFAULT_VALUE + 
+        (Math.random() - 0.5) * HEALTH_FACTOR.VARIANCE_RANGE;
+      
       const supplied: UserPosition[] = [
         {
           id: '1',
           token: 'SOL',
-          amount: '10.0 SOL',
-          value: `$${(10 * prices.SOL).toLocaleString()}`,
-          apy: '3.2%',
+          amount: `${solAmount.toFixed(1)} SOL`,
+          amountNumeric: solAmount,
+          value: formatCurrency(solAmount * prices.SOL),
+          valueNumeric: solAmount * prices.SOL,
+          apy: formatPercentage(3.2),
+          apyNumeric: 3.2,
           collateral: true,
         },
         {
           id: '2',
           token: 'USDC',
-          amount: '2,000 USDC',
-          value: `$${(2000 * prices.USDC).toLocaleString()}`,
-          apy: '2.8%',
+          amount: `${usdcAmount.toLocaleString()} USDC`,
+          amountNumeric: usdcAmount,
+          value: formatCurrency(usdcAmount * prices.USDC),
+          valueNumeric: usdcAmount * prices.USDC,
+          apy: formatPercentage(2.8),
+          apyNumeric: 2.8,
           collateral: true,
         },
       ];
@@ -266,10 +304,14 @@ export class SolanaDataService {
         {
           id: '1',
           token: 'USDC',
-          amount: '800 USDC',
-          value: `$${(800 * prices.USDC).toLocaleString()}`,
-          apy: '4.5%',
-          healthFactor: '2.1',
+          amount: `${borrowedUsdcAmount} USDC`,
+          amountNumeric: borrowedUsdcAmount,
+          value: formatCurrency(borrowedUsdcAmount * prices.USDC),
+          valueNumeric: borrowedUsdcAmount * prices.USDC,
+          apy: formatPercentage(4.5),
+          apyNumeric: 4.5,
+          healthFactor: healthFactorValue.toFixed(1),
+          healthFactorNumeric: healthFactorValue,
         },
       ];
 
@@ -284,7 +326,7 @@ export class SolanaDataService {
 
   // Fetch protocol analytics
   async fetchProtocolAnalytics(): Promise<ProtocolAnalytics> {
-    const cacheKey = 'protocolAnalytics';
+    const cacheKey = CACHE.PROTOCOL_ANALYTICS_KEY;
     
     if (this.isCacheValid(cacheKey)) {
       return this.getCache(cacheKey);
@@ -294,28 +336,22 @@ export class SolanaDataService {
       const markets = await this.fetchMarketData();
       
       // Calculate totals from market data
-      const totalSupplied = markets.reduce((sum, market) => {
-        const value = parseInt(market.totalSupply.replace(/[$,]/g, ''));
-        return sum + value;
-      }, 0);
-      
-      const totalBorrowed = markets.reduce((sum, market) => {
-        const value = parseInt(market.totalBorrow.replace(/[$,]/g, ''));
-        return sum + value;
-      }, 0);
+      const totalSupplied = markets.reduce((sum, market) => sum + market.totalSupplyValue, 0);
+      const totalBorrowed = markets.reduce((sum, market) => sum + market.totalBorrowValue, 0);
 
       const analytics: ProtocolAnalytics = {
         totalValueLocked: generateRealisticTrendData(totalSupplied),
         totalBorrowed: generateRealisticTrendData(totalBorrowed),
         totalSupplied: generateRealisticTrendData(totalSupplied),
-        utilizationTrend: generateUtilizationData(48),
+        utilizationTrend: generateUtilizationData(INTEREST_RATES.UTILIZATION_RATE.OPTIMAL),
         apyComparison: markets.map(market => ({
           token: market.token,
-          supplyAPY: parseFloat(market.supplyApy.replace('%', '')),
-          borrowAPY: parseFloat(market.borrowApy.replace('%', '')),
+          supplyAPY: market.supplyApy,
+          borrowAPY: market.borrowApy,
         })),
-        healthFactor: 1.85 + (Math.random() - 0.5) * 0.3, // 1.7 - 2.0
-        liquidationThreshold: 80,
+        healthFactor: HEALTH_FACTOR.DEFAULT_VALUE + 
+          (Math.random() - 0.5) * HEALTH_FACTOR.VARIANCE_RANGE,
+        liquidationThreshold: LIQUIDATION.THRESHOLD_PERCENTAGE,
       };
 
       this.setCache(cacheKey, analytics);
@@ -331,8 +367,8 @@ export class SolanaDataService {
     for (let i = 0; i < RPC_ENDPOINTS.length; i++) {
       try {
         const testConnection = new Connection(RPC_ENDPOINTS[i], {
-          commitment: 'confirmed',
-          confirmTransactionInitialTimeout: 10000,
+          commitment: NETWORK.COMMITMENT,
+          confirmTransactionInitialTimeout: NETWORK.HEALTH_CHECK_TIMEOUT_MS,
           disableRetryOnRateLimit: true,
           wsEndpoint: undefined,
         });
@@ -341,7 +377,7 @@ export class SolanaDataService {
         const slot = await Promise.race([
           testConnection.getSlot(),
           new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout')), 5000)
+            setTimeout(() => reject(new Error('Timeout')), NETWORK.HEALTH_CHECK_TIMEOUT_MS)
           )
         ]) as number;
         
