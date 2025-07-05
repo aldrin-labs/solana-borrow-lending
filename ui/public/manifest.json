@@ -1,14 +1,14 @@
 {
-  "name": "Solana Borrow Lending Protocol",
-  "short_name": "SL Terminal",
-  "description": "A Bloomberg terminal-style interface for Solana lending protocol",
-  "theme_color": "#00FF00",
-  "background_color": "#000000",
+  "name": "MAGA - Make Aldrin Great Again",
+  "short_name": "MAGA",
+  "description": "A professional banking-grade interface for MAGA - Make Aldrin Great Again",
+  "theme_color": "#3182CE",
+  "background_color": "#FFFFFF",
   "display": "standalone",
   "orientation": "portrait-primary",
   "scope": "/",
   "start_url": "/",
-  "id": "solana-lending-terminal",
+  "id": "maga-aldrin-protocol",
   "icons": [
     {
       "src": "/icon-72x72.png",
@@ -65,14 +65,14 @@
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Terminal Dashboard"
+      "label": "MAGA Dashboard"
     },
     {
       "src": "/screenshot-mobile.png",
       "sizes": "750x1334",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Mobile Terminal"
+      "label": "MAGA Mobile"
     }
   ],
   "categories": ["finance", "utilities", "productivity"],

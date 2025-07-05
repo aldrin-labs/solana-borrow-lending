@@ -1,11 +1,11 @@
-# Solana Lending Terminal - User Guide
+# MAGA - Make Aldrin Great Again - User Guide
 
-Welcome to the **Solana Lending Terminal**, a Bloomberg terminal-style interface for the Solana Borrow Lending Protocol. Experience DeFi with a retro computing aesthetic while accessing real-time lending and borrowing features.
+Welcome to **MAGA - Make Aldrin Great Again**, a professional banking-grade interface for the Solana Borrow Lending Protocol. Experience DeFi with clean, modern aesthetics while accessing real-time lending and borrowing features.
 
 ## Table of Contents
 
 1. [Getting Started](#getting-started)
-2. [Terminal Interface](#terminal-interface)
+2. [Banking Interface](#banking-interface)
 3. [Connecting Your Wallet](#connecting-your-wallet)
 4. [Lending Assets](#lending-assets)
 5. [Borrowing Assets](#borrowing-assets)
@@ -22,28 +22,28 @@ Welcome to the **Solana Lending Terminal**, a Bloomberg terminal-style interface
 - Stable internet connection for real-time data
 
 ### First Time Setup
-1. **Install the Terminal**: Visit the web app and click "Install" when prompted
+1. **Install the App**: Visit the web app and click "Install" when prompted
 2. **Connect Wallet**: Click "Select Wallet" to connect your Solana wallet
 3. **Complete Onboarding**: Follow the interactive tour to learn the interface
 4. **Explore Markets**: Browse available lending and borrowing markets
 
-## Terminal Interface
+## Banking Interface
 
-The interface mimics classic Bloomberg terminals with:
+The interface features professional banking-grade design with:
 
 ### Visual Elements
-- **Green Text on Black Background**: Classic terminal aesthetic
-- **Monospace Fonts**: Courier New for authentic feel
-- **Terminal Borders**: Retro-style component frames
-- **Scanline Effects**: Subtle CRT monitor simulation
-- **Blinking Cursors**: Terminal-style indicators
+- **Clean White Background**: Modern, professional aesthetic
+- **Inter Font Family**: Clean, readable typography
+- **Card-based Layout**: Structured information presentation
+- **Subtle Animations**: Smooth micro-interactions
+- **Professional Icons**: Clear visual indicators
 
 ### Color Coding
-- **Green (#00FF00)**: Primary text, positive values, system status
-- **Yellow (#FFFF00)**: Secondary information, warnings
-- **Red (#FF0000)**: Errors, negative values, critical alerts
-- **Cyan (#00FFFF)**: Links, interactive elements
-- **White (#FFFFFF)**: Neutral information
+- **Blue (#3182CE)**: Primary actions, links, system status
+- **Green**: Positive values, success states
+- **Red**: Errors, negative values, critical alerts
+- **Gray**: Neutral information, secondary text
+- **White**: Clean background, cards
 
 ### Layout Components
 - **Header**: Navigation and wallet connection

@@ -12,10 +12,10 @@ export const Header: FC = () => {
           <div className="flex items-center space-x-8">
             <Link href="/" className="flex items-center space-x-3 group">
               <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center shadow-lg transition-transform duration-200 group-hover:scale-105">
-                <span className="text-white font-bold text-lg">SL</span>
+                <span className="text-white font-bold text-sm">MAGA</span>
               </div>
               <span className="text-xl font-semibold text-text-primary group-hover:text-primary transition-colors duration-200">
-                Solana Lending
+                MAGA
               </span>
             </Link>
             

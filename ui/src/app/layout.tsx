@@ -6,8 +6,8 @@ import { PWAInstaller } from "@/components/PWAInstaller";
 import { Onboarding } from "@/components/Onboarding";
 
 export const metadata: Metadata = {
-  title: "Solana Borrow Lending Protocol",
-  description: "A professional banking-grade interface for Solana Borrow Lending Protocol",
+  title: "MAGA - Make Aldrin Great Again",
+  description: "A professional banking-grade interface for MAGA - Make Aldrin Great Again",
   manifest: "/manifest.json",
   themeColor: "#3182CE",
   viewport: {
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Solana Lending",
+    title: "MAGA",
   },
   formatDetection: {
     telephone: false,
@@ -45,8 +45,8 @@ export const metadata: Metadata = {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "default",
-    "apple-mobile-web-app-title": "Solana Lending",
-    "application-name": "Solana Lending Protocol",
+    "apple-mobile-web-app-title": "MAGA",
+    "application-name": "MAGA - Make Aldrin Great Again",
     "msapplication-TileColor": "#3182CE",
     "msapplication-TileImage": "/icon-144x144.png",
     "msapplication-config": "/browserconfig.xml",
@@ -70,7 +70,7 @@ export default function RootLayout({
             <footer className="bg-surface py-6 border-t border-border">
               <div className="container mx-auto px-4 text-center text-text-secondary">
                 <p className="text-sm">
-                  © 2025 Solana Borrow Lending Protocol. All rights reserved.
+                  © 2025 MAGA - Make Aldrin Great Again. All rights reserved.
                 </p>
               </div>
             </footer>

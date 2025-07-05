@@ -13,8 +13,8 @@ interface OnboardingStep {
 const ONBOARDING_STEPS: OnboardingStep[] = [
   {
     id: "welcome",
-    title: "WELCOME TO SOLANA LENDING TERMINAL",
-    description: "Experience DeFi with Bloomberg terminal aesthetics. This interface provides real-time lending protocol data with a retro computing feel.",
+    title: "WELCOME TO MAGA",
+    description: "Experience DeFi with MAGA - Make Aldrin Great Again. This interface provides real-time lending protocol data with a professional banking-grade feel.",
     action: "START TOUR",
   },
   {
@@ -47,8 +47,8 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
   },
   {
     id: "terminal",
-    title: "TERMINAL FEATURES",
-    description: "This Bloomberg-style interface includes: real-time data updates, terminal command aesthetics, advanced charting, and offline PWA support.",
+    title: "MAGA FEATURES",
+    description: "This professional banking interface includes: real-time data updates, clean aesthetics, advanced charting, and offline PWA support.",
     action: "COMPLETE TOUR",
   },
 ];
@@ -102,7 +102,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({
       <div className="terminal-window w-full max-w-2xl mx-4">
         {/* Terminal Header */}
         <div className="terminal-window-header flex justify-between items-center">
-          <span>SOLANA_LENDING_TERMINAL.EXE</span>
+          <span>MAGA_ALDRIN.EXE</span>
           <button 
             onClick={onClose}
             className="text-white hover:text-error"
@@ -148,7 +148,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({
             {/* Command Line Simulation */}
             <div className="bg-surface border border-border p-4 mb-6 font-mono text-sm">
               <div className="text-success">
-                C:\SOLANA_LENDING&gt; {step.id.toUpperCase()}_TUTORIAL.BAT
+                C:\MAGA_ALDRIN&gt; {step.id.toUpperCase()}_TUTORIAL.BAT
               </div>
               <div className="text-primary">
                 Loading module: {step.title}...
@@ -166,8 +166,8 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({
                   <div className="text-primary text-sm">Live blockchain updates</div>
                 </div>
                 <div className="stats-card">
-                  <div className="text-secondary text-xs">TERMINAL UI</div>
-                  <div className="text-primary text-sm">Bloomberg-style interface</div>
+                  <div className="text-secondary text-xs">BANKING UI</div>
+                  <div className="text-primary text-sm">Professional interface</div>
                 </div>
                 <div className="stats-card">
                   <div className="text-secondary text-xs">PWA SUPPORT</div>
@@ -220,7 +220,7 @@ export const Onboarding: FC = () => {
 
   useEffect(() => {
     // Check if user has completed onboarding
-    const completed = localStorage.getItem('solana-lending-onboarding-completed');
+    const completed = localStorage.getItem('maga-aldrin-onboarding-completed');
     setHasCompletedOnboarding(!!completed);
 
     // Show onboarding for new users after a short delay
@@ -233,7 +233,7 @@ export const Onboarding: FC = () => {
   }, []);
 
   const handleComplete = () => {
-    localStorage.setItem('solana-lending-onboarding-completed', 'true');
+    localStorage.setItem('maga-aldrin-onboarding-completed', 'true');
     setHasCompletedOnboarding(true);
     setShowOnboarding(false);
   };
