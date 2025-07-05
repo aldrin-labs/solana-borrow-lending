@@ -1,326 +1,263 @@
-/* Bloomberg Terminal / DOS Style UI */
+/* Banking Grade UI - E-ink Paper Aesthetic */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Import terminal-style font */
-@import url('data:font/truetype;charset=utf-8;base64,'); /* Fallback for Courier New */
+/* Import modern font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --foreground-rgb: 0, 255, 0; /* Terminal green */
-  --background-rgb: 0, 0, 0; /* Pure black */
-  --terminal-glow: 0, 255, 0; /* Green glow */
+  --foreground-rgb: 45, 55, 72; /* Dark gray for text */
+  --background-rgb: 255, 255, 255; /* Pure white background */
+  --surface-rgb: 247, 250, 252; /* Light gray for surfaces */
 }
 
-/* Terminal scanlines effect */
-@keyframes scanlines {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
+/* Smooth transitions for all elements */
+* {
+  transition: all 0.2s ease-in-out;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-rgb));
-  font-family: 'Courier New', 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
-  line-height: 1.2;
-  position: relative;
-  image-rendering: pixelated;
-  /* Subtle terminal-style background pattern */
+  line-height: 1.6;
+  font-weight: 400;
+  /* Subtle texture for e-ink feel */
   background-image: 
-    radial-gradient(circle at 50% 50%, rgba(0, 255, 0, 0.02) 0%, transparent 1px),
-    linear-gradient(0deg, transparent 24%, rgba(0, 255, 0, 0.03) 25%, rgba(0, 255, 0, 0.03) 26%, transparent 27%, transparent 74%, rgba(0, 255, 0, 0.03) 75%, rgba(0, 255, 0, 0.03) 76%, transparent 77%, transparent);
-  background-size: 2px 2px, 2px 2px;
-}
-
-/* Terminal scanline effect */
-body::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(0, 255, 0, 0.5), transparent);
-  animation: scanlines 2s linear infinite;
-  z-index: 1000;
-  pointer-events: none;
+    radial-gradient(circle at 1px 1px, rgba(45, 55, 72, 0.02) 1px, transparent 0);
+  background-size: 20px 20px;
+  scroll-behavior: smooth;
 }
 
 @layer components {
-  /* Terminal-style card with retro border */
+  /* Modern card styling */
   .card {
-    @apply bg-surface border-2 border-text-primary shadow-none p-4 transition-all duration-100;
-    box-shadow: 
-      inset -2px -2px 0 rgba(0, 0, 0, 0.5),
-      inset 2px 2px 0 rgba(128, 128, 128, 0.3),
-      0 0 10px rgba(0, 255, 0, 0.3);
-    border-style: solid;
-    border-image: linear-gradient(45deg, #00FF00, #FFFF00) 1;
+    @apply bg-surface border border-border shadow-card rounded-lg p-6 transition-all duration-300 hover:shadow-lg;
+    background: rgba(247, 250, 252, 0.8);
+    backdrop-filter: blur(10px);
   }
   
-  /* Terminal-style stats card */
+  /* Stats card with subtle animation */
   .stats-card {
-    @apply bg-surface border border-text-secondary p-3 transition-all duration-100;
-    box-shadow: 
-      inset -1px -1px 0 rgba(0, 0, 0, 0.8),
-      inset 1px 1px 0 rgba(128, 128, 128, 0.5),
-      0 0 5px rgba(0, 255, 0, 0.2);
-    text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+    @apply bg-white border border-border rounded-lg p-4 transition-all duration-300 hover:shadow-md hover:scale-[1.02];
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
   }
   
-  /* Terminal-style buttons */
+  /* Primary button with modern styling */
   .btn-primary {
-    @apply bg-black border-2 border-primary text-primary font-bold py-2 px-4 transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed;
-    box-shadow: 
-      inset -2px -2px 0 rgba(0, 0, 0, 0.8),
-      inset 2px 2px 0 rgba(0, 255, 0, 0.3);
-    text-shadow: 0 0 5px rgba(0, 255, 0, 0.8);
-    font-family: 'Courier New', monospace;
+    @apply bg-primary text-white font-medium py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-dark active:scale-[0.98];
+    box-shadow: 0 4px 6px -1px rgba(49, 130, 206, 0.2), 0 2px 4px -1px rgba(49, 130, 206, 0.1);
   }
   
   .btn-primary:hover:not(:disabled) {
-    @apply bg-primary text-black;
-    box-shadow: 
-      inset 2px 2px 0 rgba(0, 0, 0, 0.8),
-      inset -2px -2px 0 rgba(0, 255, 0, 0.3);
+    @apply shadow-lg;
+    box-shadow: 0 10px 15px -3px rgba(49, 130, 206, 0.3), 0 4px 6px -2px rgba(49, 130, 206, 0.2);
+    transform: translateY(-1px);
   }
   
   .btn-secondary {
-    @apply bg-black border-2 border-secondary text-secondary font-bold py-2 px-4 transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed;
-    box-shadow: 
-      inset -2px -2px 0 rgba(0, 0, 0, 0.8),
-      inset 2px 2px 0 rgba(255, 255, 0, 0.3);
-    text-shadow: 0 0 5px rgba(255, 255, 0, 0.8);
-    font-family: 'Courier New', monospace;
+    @apply bg-white border-2 border-gray-300 text-secondary font-medium py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:border-gray-400 hover:bg-gray-50 active:scale-[0.98];
   }
   
   .btn-secondary:hover:not(:disabled) {
-    @apply bg-secondary text-black;
-    box-shadow: 
-      inset 2px 2px 0 rgba(0, 0, 0, 0.8),
-      inset -2px -2px 0 rgba(255, 255, 0, 0.3);
+    @apply shadow-md;
+    transform: translateY(-1px);
   }
   
   .btn-accent {
-    @apply bg-black border-2 border-accent text-accent font-bold py-2 px-4 transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed;
-    box-shadow: 
-      inset -2px -2px 0 rgba(0, 0, 0, 0.8),
-      inset 2px 2px 0 rgba(255, 0, 0, 0.3);
-    text-shadow: 0 0 5px rgba(255, 0, 0, 0.8);
-    font-family: 'Courier New', monospace;
+    @apply bg-error text-white font-medium py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-600 active:scale-[0.98];
+    box-shadow: 0 4px 6px -1px rgba(229, 62, 62, 0.2), 0 2px 4px -1px rgba(229, 62, 62, 0.1);
   }
   
   .btn-connect {
-    @apply bg-black border-2 border-terminal-white text-terminal-white font-bold py-2 px-4 transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed;
-    box-shadow: 
-      inset -2px -2px 0 rgba(0, 0, 0, 0.8),
-      inset 2px 2px 0 rgba(255, 255, 255, 0.3);
-    text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
-    font-family: 'Courier New', monospace;
+    @apply bg-primary text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-dark active:scale-[0.98];
+    box-shadow: 0 2px 4px -1px rgba(49, 130, 206, 0.2);
   }
   
-  /* Terminal-style input */
+  /* Modern input styling */
   .input {
-    @apply bg-black border-2 border-text-secondary text-primary px-3 py-2 focus:outline-none focus:border-primary transition-all;
-    box-shadow: 
-      inset 2px 2px 0 rgba(0, 0, 0, 0.8),
-      inset -2px -2px 0 rgba(128, 128, 128, 0.3);
-    font-family: 'Courier New', monospace;
-    text-shadow: 0 0 3px rgba(0, 255, 0, 0.5);
+    @apply bg-white border border-gray-300 text-text-primary px-4 py-3 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all duration-200;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   }
   
   .input:focus {
-    box-shadow: 
-      inset 2px 2px 0 rgba(0, 0, 0, 0.8),
-      inset -2px -2px 0 rgba(0, 255, 0, 0.5),
-      0 0 10px rgba(0, 255, 0, 0.3);
+    @apply shadow-lg;
+    box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1), 0 1px 3px 0 rgba(0, 0, 0, 0.1);
   }
   
-  /* Terminal-style token selector */
+  /* Token selector with modern styling */
   .token-selector {
-    @apply bg-black border-2 border-text-secondary px-3 py-2 flex items-center justify-between cursor-pointer transition-all;
-    box-shadow: 
-      inset -2px -2px 0 rgba(0, 0, 0, 0.8),
-      inset 2px 2px 0 rgba(128, 128, 128, 0.3);
-    font-family: 'Courier New', monospace;
-    text-shadow: 0 0 3px rgba(0, 255, 0, 0.5);
+    @apply bg-white border border-gray-300 px-4 py-3 rounded-lg flex items-center justify-between cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-md;
   }
   
-  .token-selector:hover {
-    @apply border-primary;
-    box-shadow: 
-      inset -2px -2px 0 rgba(0, 0, 0, 0.8),
-      inset 2px 2px 0 rgba(0, 255, 0, 0.3),
-      0 0 5px rgba(0, 255, 0, 0.3);
-  }
-  
-  /* Terminal-style table */
+  /* Modern table styling */
   .table-container {
-    @apply overflow-hidden border-2 border-text-secondary transition-all;
-    box-shadow: 
-      inset -2px -2px 0 rgba(0, 0, 0, 0.8),
-      inset 2px 2px 0 rgba(128, 128, 128, 0.3),
-      0 0 10px rgba(0, 255, 0, 0.2);
-    background: #000000;
+    @apply overflow-hidden border border-border rounded-lg bg-white transition-all duration-300;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
   }
   
   .table-header {
-    @apply bg-black text-secondary py-2 px-3 border-b-2 border-text-secondary;
-    font-family: 'Courier New', monospace;
-    text-shadow: 0 0 5px rgba(255, 255, 0, 0.8);
-    font-weight: bold;
-    text-transform: uppercase;
+    @apply bg-gray-50 text-text-secondary py-4 px-6 border-b border-border font-medium text-sm uppercase tracking-wide;
   }
   
   .table-row {
-    @apply border-b border-text-muted hover:bg-surface/20 transition-all duration-100;
-    font-family: 'Courier New', monospace;
+    @apply border-b border-gray-100 hover:bg-gray-50 transition-all duration-200;
   }
   
   .table-row:hover {
-    text-shadow: 0 0 3px rgba(0, 255, 0, 0.5);
-    background: rgba(0, 255, 0, 0.05);
+    background: rgba(247, 250, 252, 0.5);
   }
   
   .table-cell {
-    @apply py-2 px-3 text-primary;
-    font-family: 'Courier New', monospace;
-    text-shadow: 0 0 2px rgba(0, 255, 0, 0.3);
+    @apply py-4 px-6 text-text-primary font-medium;
   }
   
-  /* Terminal-style section titles */
+  /* Section titles with modern typography */
   .section-title {
-    @apply text-xl font-bold mb-3 text-primary border-b-2 border-secondary pb-2;
-    font-family: 'Courier New', monospace;
-    text-shadow: 0 0 10px rgba(0, 255, 0, 0.8);
-    text-transform: uppercase;
-    letter-spacing: 2px;
+    @apply text-2xl font-semibold mb-4 text-text-primary border-b border-gray-200 pb-3;
+    letter-spacing: -0.025em;
   }
   
   .section-subtitle {
-    @apply text-base font-medium mb-2 text-secondary;
-    font-family: 'Courier New', monospace;
-    text-shadow: 0 0 5px rgba(255, 255, 0, 0.8);
-    text-transform: uppercase;
+    @apply text-lg font-medium mb-3 text-text-secondary;
+  }
+  
+  /* Tooltip styling */
+  .tooltip {
+    @apply absolute z-50 px-3 py-2 text-sm text-white bg-gray-900 rounded-lg shadow-lg opacity-0 pointer-events-none transition-all duration-200;
+  }
+  
+  .tooltip.show {
+    @apply opacity-100 pointer-events-auto;
+  }
+  
+  /* Status indicators */
+  .status-positive {
+    @apply text-success bg-green-50 px-2 py-1 rounded-full text-sm font-medium;
+  }
+  
+  .status-negative {
+    @apply text-error bg-red-50 px-2 py-1 rounded-full text-sm font-medium;
+  }
+  
+  .status-neutral {
+    @apply text-text-secondary bg-gray-100 px-2 py-1 rounded-full text-sm font-medium;
   }
 }
 
-/* Terminal-style scrollbar */
+/* Modern scrollbar */
 ::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #000000;
-  border: 1px solid #808080;
+  background: #F7FAFC;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #00FF00;
-  border: 1px solid #008000;
-  box-shadow: inset 0 0 3px rgba(0, 255, 0, 0.5);
+  background: #CBD5E0;
+  border-radius: 4px;
+  transition: background 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #33FF33;
-  box-shadow: inset 0 0 5px rgba(0, 255, 0, 0.8);
+  background: #A0AEC0;
 }
 
-::-webkit-scrollbar-corner {
-  background: #000000;
-}
-
-/* Terminal-style animations and effects */
+/* Modern animations */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes terminal-blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+@keyframes slideUp {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
-@keyframes terminal-glow {
-  0%, 100% { text-shadow: 0 0 5px rgba(0, 255, 0, 0.5); }
-  50% { text-shadow: 0 0 10px rgba(0, 255, 0, 0.8), 0 0 15px rgba(0, 255, 0, 0.3); }
+@keyframes slideDown {
+  from { transform: translateY(-10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
-/* Terminal-specific utility classes */
-.animate-fadeIn {
-  animation: fadeIn 0.3s ease-in-out;
+@keyframes scaleIn {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 
-.terminal-blink {
-  animation: terminal-blink 1s infinite;
+@keyframes pulseSoft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
 }
 
-.terminal-glow {
-  animation: terminal-glow 2s infinite;
+/* Utility classes */
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
 }
 
-.terminal-text {
-  font-family: 'Courier New', monospace;
-  text-shadow: 0 0 3px rgba(0, 255, 0, 0.5);
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
 }
 
-.terminal-border {
-  border: 2px solid #00FF00;
-  box-shadow: 
-    inset -2px -2px 0 rgba(0, 0, 0, 0.8),
-    inset 2px 2px 0 rgba(0, 255, 0, 0.3),
-    0 0 10px rgba(0, 255, 0, 0.3);
+.animate-slide-down {
+  animation: slideDown 0.3s ease-out;
 }
 
-.terminal-window {
-  background: #000000;
-  border: 2px outset #808080;
-  box-shadow: 
-    inset -2px -2px 0 rgba(0, 0, 0, 0.8),
-    inset 2px 2px 0 rgba(192, 192, 192, 0.3),
-    2px 2px 4px rgba(0, 0, 0, 0.5);
+.animate-scale-in {
+  animation: scaleIn 0.2s ease-out;
 }
 
-.terminal-window-header {
-  background: linear-gradient(90deg, #000080, #0000FF);
-  color: #FFFFFF;
-  padding: 4px 8px;
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  border-bottom: 1px solid #808080;
-  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.8);
+.animate-pulse-soft {
+  animation: pulseSoft 2s ease-in-out infinite;
 }
 
-/* DOS-style button effects */
-.dos-button {
-  border: 2px outset #C0C0C0;
-  background: #C0C0C0;
-  color: #000000;
-  font-family: 'Courier New', monospace;
-  padding: 4px 8px;
-  cursor: pointer;
-  font-size: 12px;
+/* Glass morphism effect */
+.glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.dos-button:active {
-  border: 2px inset #C0C0C0;
+/* Micro-interactions */
+.interactive {
+  @apply transition-all duration-200 hover:scale-[1.02] active:scale-[0.98];
 }
 
-.dos-button:hover {
-  background: #E0E0E0;
+.hover-lift {
+  @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-lg;
 }
 
-/* Terminal cursor */
-.terminal-cursor::after {
-  content: '█';
-  animation: terminal-blink 1s infinite;
-  color: #00FF00;
-}
-
-/* Add focus styles for accessibility */
+/* Focus styles for accessibility */
 *:focus-visible {
-  outline: 2px solid #00C2FF;
+  outline: 2px solid #3182CE;
   outline-offset: 2px;
+}
+
+/* Loading states */
+.loading {
+  @apply animate-pulse-soft;
+}
+
+.skeleton {
+  @apply bg-gray-200 rounded animate-pulse;
+}
+
+/* Success/Error states */
+.success-glow {
+  box-shadow: 0 0 20px rgba(56, 161, 105, 0.3);
+}
+
+.error-glow {
+  box-shadow: 0 0 20px rgba(229, 62, 62, 0.3);
+}
+
+/* Responsive helpers */
+@media (max-width: 768px) {
+  .mobile-optimized {
+    @apply px-4 py-2 text-sm;
+  }
 }

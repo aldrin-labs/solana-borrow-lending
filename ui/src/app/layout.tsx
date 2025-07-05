@@ -7,9 +7,9 @@ import { Onboarding } from "@/components/Onboarding";
 
 export const metadata: Metadata = {
   title: "Solana Borrow Lending Protocol",
-  description: "A high-performance Bloomberg terminal-style UI for Solana Borrow Lending Protocol",
+  description: "A professional banking-grade interface for Solana Borrow Lending Protocol",
   manifest: "/manifest.json",
-  themeColor: "#00FF00",
+  themeColor: "#3182CE",
   viewport: {
     width: "device-width",
     initialScale: 1,
@@ -19,8 +19,8 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
-    title: "SL Terminal",
+    statusBarStyle: "default",
+    title: "Solana Lending",
   },
   formatDetection: {
     telephone: false,
@@ -44,10 +44,10 @@ export const metadata: Metadata = {
   other: {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-status-bar-style": "black-translucent",
-    "apple-mobile-web-app-title": "SL Terminal",
-    "application-name": "Solana Lending Terminal",
-    "msapplication-TileColor": "#000000",
+    "apple-mobile-web-app-status-bar-style": "default",
+    "apple-mobile-web-app-title": "Solana Lending",
+    "application-name": "Solana Lending Protocol",
+    "msapplication-TileColor": "#3182CE",
     "msapplication-TileImage": "/icon-144x144.png",
     "msapplication-config": "/browserconfig.xml",
   },
@@ -66,10 +66,10 @@ export default function RootLayout({
           <Onboarding />
           <div className="flex flex-col min-h-screen">
             <Header />
-            <main className="flex-grow pt-6 pb-12">{children}</main>
+            <main className="flex-grow pt-6 pb-12 animate-fade-in">{children}</main>
             <footer className="bg-surface py-6 border-t border-border">
               <div className="container mx-auto px-4 text-center text-text-secondary">
-                <p>
+                <p className="text-sm">
                   © 2025 Solana Borrow Lending Protocol. All rights reserved.
                 </p>
               </div>

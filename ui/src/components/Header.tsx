@@ -3,75 +3,80 @@
 import { FC } from "react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import Link from "next/link";
-import Image from "next/image";
 
 export const Header: FC = () => {
   return (
-    <header className="bg-surface py-4 px-6 shadow-md border-b border-border sticky top-0 z-50">
-      <div className="container mx-auto flex justify-between items-center">
-        <div className="flex items-center space-x-6">
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-              <span className="text-white font-bold text-sm">SL</span>
-            </div>
-            <span className="text-xl font-bold text-white">Solana Lending</span>
-          </Link>
-          <nav className="hidden md:flex space-x-6">
-            <Link
-              href="/"
-              className="text-text-secondary hover:text-white transition-colors font-medium"
-            >
-              Dashboard
+    <header className="bg-white shadow-sm border-b border-border sticky top-0 z-50 backdrop-blur-sm">
+      <div className="container mx-auto px-6 py-4">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center space-x-8">
+            <Link href="/" className="flex items-center space-x-3 group">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center shadow-lg transition-transform duration-200 group-hover:scale-105">
+                <span className="text-white font-bold text-lg">SL</span>
+              </div>
+              <span className="text-xl font-semibold text-text-primary group-hover:text-primary transition-colors duration-200">
+                Solana Lending
+              </span>
             </Link>
-            <Link
-              href="/lend"
-              className="text-text-secondary hover:text-white transition-colors font-medium"
-            >
-              Lend
-            </Link>
-            <Link
-              href="/borrow"
-              className="text-text-secondary hover:text-white transition-colors font-medium"
-            >
-              Borrow
-            </Link>
-            <Link
-              href="/farm"
-              className="text-text-secondary hover:text-white transition-colors font-medium"
-            >
-              Yield Farm
-            </Link>
-          </nav>
-        </div>
-        <div className="flex items-center space-x-4">
-          <WalletMultiButton className="btn-connect !py-2 !px-4 !rounded !transition-colors" />
+            
+            <nav className="hidden md:flex space-x-1">
+              <Link
+                href="/"
+                className="px-4 py-2 rounded-lg text-text-secondary hover:text-primary hover:bg-gray-50 transition-all duration-200 font-medium"
+              >
+                Dashboard
+              </Link>
+              <Link
+                href="/lend"
+                className="px-4 py-2 rounded-lg text-text-secondary hover:text-primary hover:bg-gray-50 transition-all duration-200 font-medium"
+              >
+                Lend
+              </Link>
+              <Link
+                href="/borrow"
+                className="px-4 py-2 rounded-lg text-text-secondary hover:text-primary hover:bg-gray-50 transition-all duration-200 font-medium"
+              >
+                Borrow
+              </Link>
+              <Link
+                href="/farm"
+                className="px-4 py-2 rounded-lg text-text-secondary hover:text-primary hover:bg-gray-50 transition-all duration-200 font-medium"
+              >
+                Yield Farm
+              </Link>
+            </nav>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            <WalletMultiButton className="btn-connect !rounded-lg !transition-all !duration-200 !font-medium" />
+          </div>
         </div>
       </div>
 
       {/* Mobile menu - hidden on desktop */}
-      <div className="md:hidden mt-4 border-t border-border pt-4">
-        <nav className="flex flex-col space-y-3">
+      <div className="md:hidden border-t border-border">
+        <nav className="container mx-auto px-6 py-4 flex flex-col space-y-2">
           <Link
             href="/"
-            className="text-text-secondary hover:text-white transition-colors font-medium"
+            className="px-4 py-2 rounded-lg text-text-secondary hover:text-primary hover:bg-gray-50 transition-all duration-200 font-medium"
           >
             Dashboard
           </Link>
           <Link
             href="/lend"
-            className="text-text-secondary hover:text-white transition-colors font-medium"
+            className="px-4 py-2 rounded-lg text-text-secondary hover:text-primary hover:bg-gray-50 transition-all duration-200 font-medium"
           >
             Lend
           </Link>
           <Link
             href="/borrow"
-            className="text-text-secondary hover:text-white transition-colors font-medium"
+            className="px-4 py-2 rounded-lg text-text-secondary hover:text-primary hover:bg-gray-50 transition-all duration-200 font-medium"
           >
             Borrow
           </Link>
           <Link
             href="/farm"
-            className="text-text-secondary hover:text-white transition-colors font-medium"
+            className="px-4 py-2 rounded-lg text-text-secondary hover:text-primary hover:bg-gray-50 transition-all duration-200 font-medium"
           >
             Yield Farm
           </Link>

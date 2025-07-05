@@ -1,4 +1,5 @@
 import { FC } from "react";
+import { Tooltip } from "./Tooltip";
 
 interface StatsCardProps {
   title: string;
@@ -7,6 +8,7 @@ interface StatsCardProps {
   isPositive: boolean;
   subtitle?: string;
   valueClassName?: string;
+  tooltip?: string;
 }
 
 export const StatsCard: FC<StatsCardProps> = ({
@@ -16,27 +18,39 @@ export const StatsCard: FC<StatsCardProps> = ({
   isPositive,
   subtitle,
   valueClassName,
+  tooltip,
 }) => {
-  return (
-    <div className="stats-card hover:shadow-lg transition-shadow">
-      <h3 className="text-text-secondary text-sm font-medium mb-2">{title}</h3>
-      <div className="flex justify-between items-end">
-        <div>
-          <p className={`text-2xl font-bold ${valueClassName || "text-white"}`}>
-            {value}
-          </p>
-          {subtitle && (
-            <p className="text-xs text-text-secondary mt-1">{subtitle}</p>
-          )}
-        </div>
-        <span
-          className={`text-sm font-medium px-2 py-1 rounded-full ${
-            isPositive ? "bg-success/10 text-success" : "bg-error/10 text-error"
-          }`}
-        >
+  const cardContent = (
+    <div className="stats-card interactive">
+      <div className="flex justify-between items-start mb-3">
+        <h3 className="text-text-secondary text-sm font-medium">{title}</h3>
+        <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+          isPositive 
+            ? "status-positive" 
+            : "status-negative"
+        }`}>
           {change}
-        </span>
+        </div>
+      </div>
+      
+      <div className="space-y-1">
+        <p className={`text-3xl font-semibold ${valueClassName || "text-text-primary"}`}>
+          {value}
+        </p>
+        {subtitle && (
+          <p className="text-sm text-text-secondary">{subtitle}</p>
+        )}
       </div>
     </div>
   );
+
+  if (tooltip) {
+    return (
+      <Tooltip content={tooltip} position="top">
+        {cardContent}
+      </Tooltip>
+    );
+  }
+
+  return cardContent;
 };
