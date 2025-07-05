@@ -26,23 +26,41 @@ export const WalletProviderWrapper: FC<WalletProviderWrapperProps> = ({
   // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'
   const network = WalletAdapterNetwork.Devnet;
 
-  // You can also provide a custom RPC endpoint
-  const endpoint = useMemo(() => clusterApiUrl(network), [network]);
+  // Use multiple RPC endpoints with fallback logic
+  const endpoint = useMemo(() => {
+    // Use reliable public RPC endpoints with fallback
+    const endpoints = [
+      'https://api.devnet.solana.com',
+      'https://devnet.genesysgo.net',
+      clusterApiUrl(network),
+    ];
+    
+    // For now, use the first endpoint
+    // In production, implement proper failover logic
+    return endpoints[0];
+  }, [network]);
 
   // @solana/wallet-adapter-wallets includes all the adapters but supports tree shaking
   const wallets = useMemo(
-    () => [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter(),
-      // BackpackWalletAdapter is not available in the current version of the library
-      // Will be added back when the library is updated
-    ],
+    () => {
+      try {
+        return [
+          new PhantomWalletAdapter(),
+          new SolflareWalletAdapter(),
+          // BackpackWalletAdapter is not available in the current version of the library
+          // Will be added back when the library is updated
+        ];
+      } catch (error) {
+        console.warn('Error initializing wallet adapters:', error);
+        return [];
+      }
+    },
     [],
   );
 
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
+      <WalletProvider wallets={wallets} autoConnect={false}>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>

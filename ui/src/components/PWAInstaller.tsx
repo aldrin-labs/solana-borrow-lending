@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 export function PWAInstaller() {
   useEffect(() => {
-    // Register service worker
+    // Register service worker with error handling
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
         .register('/sw.js')
@@ -31,49 +31,70 @@ export function PWAInstaller() {
         });
     }
 
-    // Handle PWA install prompt
+    // Handle PWA install prompt with error handling
     let deferredPrompt: any;
     
     const handleBeforeInstallPrompt = (e: Event) => {
-      // Prevent Chrome 67 and earlier from automatically showing the prompt
-      e.preventDefault();
-      // Stash the event so it can be triggered later
-      deferredPrompt = e;
-      
-      // Show custom install button or notification
-      console.log('PWA install prompt available');
-      
-      // You could dispatch a custom event here to show an install button
-      const installEvent = new CustomEvent('pwa-install-available');
-      window.dispatchEvent(installEvent);
+      try {
+        // Prevent Chrome 67 and earlier from automatically showing the prompt
+        e.preventDefault();
+        // Stash the event so it can be triggered later
+        deferredPrompt = e;
+        
+        // Show custom install button or notification
+        console.log('PWA install prompt available');
+        
+        // You could dispatch a custom event here to show an install button
+        const installEvent = new CustomEvent('pwa-install-available');
+        window.dispatchEvent(installEvent);
+      } catch (error) {
+        console.error('Error handling install prompt:', error);
+      }
     };
 
     const handleAppInstalled = () => {
-      console.log('PWA was installed');
-      deferredPrompt = null;
-      
-      // Hide install button
-      const installedEvent = new CustomEvent('pwa-installed');
-      window.dispatchEvent(installedEvent);
+      try {
+        console.log('PWA was installed');
+        deferredPrompt = null;
+        
+        // Hide install button
+        const installedEvent = new CustomEvent('pwa-installed');
+        window.dispatchEvent(installedEvent);
+      } catch (error) {
+        console.error('Error handling app installed:', error);
+      }
     };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
+    // Add event listeners with error handling
+    try {
+      window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.addEventListener('appinstalled', handleAppInstalled);
+    } catch (error) {
+      console.error('Error adding PWA event listeners:', error);
+    }
 
-    // Background sync registration (for data updates)
+    // Background sync registration (for data updates) with error handling
     if ('serviceWorker' in navigator && 'sync' in window.ServiceWorkerRegistration.prototype) {
       navigator.serviceWorker.ready.then((registration) => {
-        // Register for background sync
-        return (registration as any).sync.register('solana-data-sync');
+        try {
+          // Register for background sync
+          return (registration as any).sync.register('solana-data-sync');
+        } catch (error) {
+          console.error('Background sync registration failed:', error);
+        }
       }).catch((error) => {
-        console.error('Background sync registration failed:', error);
+        console.error('Service worker not ready for background sync:', error);
       });
     }
 
     // Cleanup
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
+      try {
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        window.removeEventListener('appinstalled', handleAppInstalled);
+      } catch (error) {
+        console.error('Error removing PWA event listeners:', error);
+      }
     };
   }, []);
 

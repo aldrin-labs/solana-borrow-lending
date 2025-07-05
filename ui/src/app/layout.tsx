@@ -6,6 +6,7 @@ import { PWAInstaller } from "@/components/PWAInstaller";
 import { Onboarding } from "@/components/Onboarding";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { WebComponentGuard } from "@/components/WebComponentGuard";
 
 export const metadata: Metadata = {
   title: "MAGA - Make Aldrin Great Again",
@@ -64,6 +65,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen font-sans theme-transition">
+        <WebComponentGuard />
         <ErrorBoundary>
           <ThemeProvider>
             <WalletProviderWrapper>
