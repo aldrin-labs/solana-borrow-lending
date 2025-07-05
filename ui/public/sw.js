@@ -1,9 +1,14 @@
 // MAGA Service Worker
-// Banking-grade PWA with offline support
+// Banking-grade PWA with offline support and cache version migration
 
-const CACHE_NAME = 'maga-app-v1';
-const STATIC_CACHE_NAME = 'maga-static-v1';
-const DATA_CACHE_NAME = 'maga-data-v1';
+// Cache version management - constants defined inline for SW compatibility
+const CACHE_VERSION = 'v2'; // Increment when major changes occur
+const CACHE_NAMES = {
+  STATIC: `maga-static-${CACHE_VERSION}`,
+  DYNAMIC: `maga-dynamic-${CACHE_VERSION}`,
+  DATA: `maga-data-${CACHE_VERSION}`,
+  IMAGES: `maga-images-${CACHE_VERSION}`,
+};
 
 // Static assets to cache
 const STATIC_ASSETS = [
@@ -12,6 +17,8 @@ const STATIC_ASSETS = [
   '/borrow',
   '/farm',
   '/manifest.json',
+  '/icon-192x192.png',
+  '/icon-512x512.png',
   '/_next/static/css/app/globals.css',
   // Add other critical static assets
 ];
@@ -23,14 +30,58 @@ const API_ENDPOINTS = [
   '/api/positions',
 ];
 
+// Cache strategies for different resource types
+const CACHE_STRATEGIES = {
+  STATIC: 'cache-first',
+  DYNAMIC: 'network-first',
+  DATA: 'network-first-with-fallback',
+  IMAGES: 'cache-first-with-fallback',
+};
+
+// Cache version migration utility
+class CacheVersionManager {
+  static async migrateCache() {
+    const allCacheNames = await caches.keys();
+    const oldCacheNames = allCacheNames.filter(name => 
+      name.startsWith('maga-') && !Object.values(CACHE_NAMES).includes(name)
+    );
+
+    console.log('[Service Worker] Found old caches to delete:', oldCacheNames);
+
+    // Delete old caches
+    const deletionPromises = oldCacheNames.map(cacheName => {
+      console.log('[Service Worker] Deleting old cache:', cacheName);
+      return caches.delete(cacheName);
+    });
+
+    return Promise.all(deletionPromises);
+  }
+
+  static async validateCacheIntegrity() {
+    // Check if critical caches exist and are valid
+    const staticCache = await caches.open(CACHE_NAMES.STATIC);
+    const cachedUrls = await staticCache.keys();
+    
+    const criticalMissing = STATIC_ASSETS.filter(asset => 
+      !cachedUrls.some(req => req.url.endsWith(asset))
+    );
+
+    if (criticalMissing.length > 0) {
+      console.warn('[Service Worker] Critical assets missing from cache:', criticalMissing);
+      // Re-cache missing critical assets
+      await staticCache.addAll(criticalMissing);
+    }
+  }
+}
+
 // Install event - cache static assets
 self.addEventListener('install', event => {
-  console.log('[Service Worker] Installing...');
+  console.log('[Service Worker] Installing version:', CACHE_VERSION);
   
   event.waitUntil(
     Promise.all([
       // Cache static assets
-      caches.open(STATIC_CACHE_NAME).then(cache => {
+      caches.open(CACHE_NAMES.STATIC).then(cache => {
         console.log('[Service Worker] Caching static assets');
         return cache.addAll(STATIC_ASSETS);
       }),
@@ -41,25 +92,17 @@ self.addEventListener('install', event => {
   );
 });
 
-// Activate event - cleanup old caches
+// Activate event - cleanup old caches and migrate
 self.addEventListener('activate', event => {
-  console.log('[Service Worker] Activating...');
+  console.log('[Service Worker] Activating version:', CACHE_VERSION);
   
   event.waitUntil(
     Promise.all([
-      // Clean up old caches
-      caches.keys().then(cacheNames => {
-        return Promise.all(
-          cacheNames.map(cacheName => {
-            if (cacheName !== CACHE_NAME && 
-                cacheName !== STATIC_CACHE_NAME && 
-                cacheName !== DATA_CACHE_NAME) {
-              console.log('[Service Worker] Deleting old cache:', cacheName);
-              return caches.delete(cacheName);
-            }
-          })
-        );
-      }),
+      // Migrate and cleanup old caches
+      CacheVersionManager.migrateCache(),
+      
+      // Validate cache integrity
+      CacheVersionManager.validateCacheIntegrity(),
       
       // Take control of all clients
       self.clients.claim()
@@ -67,7 +110,7 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch event - implement caching strategies
+// Fetch event - implement intelligent caching strategies
 self.addEventListener('fetch', event => {
   const { request } = event;
   const url = new URL(request.url);
@@ -77,186 +120,196 @@ self.addEventListener('fetch', event => {
     return;
   }
   
-  // Handle different types of requests
+  // Handle different types of requests with appropriate strategies
   if (request.url.includes('/api/') || request.url.includes('solana')) {
     // API requests - Network first with cache fallback
-    event.respondWith(networkFirstStrategy(request));
+    event.respondWith(handleDataRequest(request));
   } else if (request.destination === 'document') {
     // HTML documents - Network first with cache fallback
-    event.respondWith(networkFirstStrategy(request));
+    event.respondWith(handleDocumentRequest(request));
   } else if (request.destination === 'script' || 
              request.destination === 'style' ||
              request.destination === 'font') {
     // Static assets - Cache first with network fallback
-    event.respondWith(cacheFirstStrategy(request));
+    event.respondWith(handleStaticRequest(request));
+  } else if (request.destination === 'image') {
+    // Images - Cache first with network fallback
+    event.respondWith(handleImageRequest(request));
   } else {
     // Default - Network first
-    event.respondWith(networkFirstStrategy(request));
+    event.respondWith(handleDynamicRequest(request));
   }
 });
 
-// Network first strategy (for dynamic content)
-async function networkFirstStrategy(request) {
-  const cache = await caches.open(DATA_CACHE_NAME);
+// Enhanced network first strategy for data requests
+async function handleDataRequest(request) {
+  const cache = await caches.open(CACHE_NAMES.DATA);
   
   try {
     // Try network first
     const response = await fetch(request);
     
-    // Cache successful responses
     if (response.ok) {
-      cache.put(request, response.clone());
+      // Cache successful responses with expiration
+      const responseClone = response.clone();
+      const cacheResponse = new Response(responseClone.body, {
+        status: responseClone.status,
+        statusText: responseClone.statusText,
+        headers: {
+          ...Object.fromEntries(responseClone.headers.entries()),
+          'sw-cached-at': Date.now().toString(),
+          'sw-cache-expires': (Date.now() + 300000).toString(), // 5 minutes
+        }
+      });
+      cache.put(request, cacheResponse);
     }
     
     return response;
   } catch (error) {
-    console.log('[Service Worker] Network failed, trying cache:', request.url);
-    
-    // Fallback to cache
+    // Network failed, try cache
     const cachedResponse = await cache.match(request);
+    
     if (cachedResponse) {
-      return cachedResponse;
+      const cachedAt = cachedResponse.headers.get('sw-cached-at');
+      const expiresAt = cachedResponse.headers.get('sw-cache-expires');
+      
+      // Check if cache is still valid
+      if (expiresAt && Date.now() < parseInt(expiresAt)) {
+        console.log('[Service Worker] Serving fresh cached data');
+        return cachedResponse;
+      } else {
+        console.log('[Service Worker] Serving stale cached data');
+        return new Response(cachedResponse.body, {
+          status: cachedResponse.status,
+          statusText: cachedResponse.statusText,
+          headers: {
+            ...Object.fromEntries(cachedResponse.headers.entries()),
+            'sw-cache-status': 'stale'
+          }
+        });
+      }
     }
     
-    // If no cache, return offline page for HTML documents
-    if (request.destination === 'document') {
-      return createOfflineResponse();
-    }
-    
-    throw error;
+    // No cache available, return offline response
+    return new Response(JSON.stringify({
+      error: 'Network unavailable',
+      offline: true,
+      timestamp: Date.now()
+    }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
 
-// Cache first strategy (for static assets)
-async function cacheFirstStrategy(request) {
-  const cache = await caches.open(STATIC_CACHE_NAME);
-  
-  // Try cache first
+// Cache first strategy for static assets
+async function handleStaticRequest(request) {
+  const cache = await caches.open(CACHE_NAMES.STATIC);
   const cachedResponse = await cache.match(request);
+  
   if (cachedResponse) {
     return cachedResponse;
   }
   
   try {
-    // Fallback to network
     const response = await fetch(request);
-    
-    // Cache successful responses
     if (response.ok) {
       cache.put(request, response.clone());
     }
-    
     return response;
   } catch (error) {
-    console.log('[Service Worker] Cache and network failed for:', request.url);
-    throw error;
+    // Return offline fallback for critical assets
+    return new Response('Offline', { 
+      status: 503, 
+      statusText: 'Service Unavailable' 
+    });
   }
 }
 
-// Create offline response for HTML documents
-function createOfflineResponse() {
-  const offlineHTML = `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Offline - MAGA</title>
-      <style>
-        body {
-          font-family: 'Inter', sans-serif;
-          background: #f7fafc;
-          color: #2d3748;
-          margin: 0;
-          padding: 20px;
-          text-align: center;
-          min-height: 100vh;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
-        }
-        .offline-container {
-          background: white;
-          border-radius: 12px;
-          padding: 40px;
-          max-width: 600px;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-          border: 1px solid #e2e8f0;
-        }
-        .error-code {
-          color: #e53e3e;
-          font-size: 1.2em;
-          font-weight: 600;
-          margin-bottom: 20px;
-        }
-        .logo {
-          color: #3182ce;
-          font-size: 2em;
-          font-weight: bold;
-          margin-bottom: 20px;
-        }
-        .message {
-          color: #4a5568;
-          margin-bottom: 10px;
-          line-height: 1.5;
-        }
-        .retry-btn {
-          background: #3182ce;
-          border: none;
-          color: white;
-          padding: 12px 24px;
-          font-family: 'Inter', sans-serif;
-          font-weight: 500;
-          border-radius: 8px;
-          cursor: pointer;
-          margin-top: 20px;
-          transition: all 0.2s;
-        }
-        .retry-btn:hover {
-          background: #2c5aa0;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(49, 130, 206, 0.3);
-        }
-        .status-indicator {
-          display: inline-block;
-          width: 8px;
-          height: 8px;
-          background: #ed8936;
-          border-radius: 50%;
-          margin-right: 8px;
-          animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="offline-container">
-        <div class="error-code">
-          <span class="status-indicator"></span>
-          CONNECTION UNAVAILABLE
-        </div>
-        <div class="logo">MAGA</div>
-        <p class="message">Unable to connect to the network</p>
-        <p class="message">Please check your internet connection and try again</p>
-        <p class="message">Some cached data may still be available</p>
-        <button class="retry-btn" onclick="window.location.reload()">
-          Retry Connection
-        </button>
-      </div>
-    </body>
-    </html>
-  `;
+// Handle document requests with navigation fallback
+async function handleDocumentRequest(request) {
+  const cache = await caches.open(CACHE_NAMES.DYNAMIC);
   
-  return new Response(offlineHTML, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/html',
-    },
-  });
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    // Try cache
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+    
+    // Return offline page
+    const offlineResponse = await cache.match('/');
+    if (offlineResponse) {
+      return offlineResponse;
+    }
+    
+    // Final fallback
+    return new Response(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>MAGA - Offline</title>
+          <style>
+            body { font-family: monospace; background: #000; color: #00ff00; padding: 20px; }
+            .terminal { border: 1px solid #00ff00; padding: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="terminal">
+            <h1>MAGA - OFFLINE MODE</h1>
+            <p>Network connection unavailable.</p>
+            <p>Please check your connection and try again.</p>
+            <button onclick="location.reload()">RETRY CONNECTION</button>
+          </div>
+        </body>
+      </html>
+    `, {
+      headers: { 'Content-Type': 'text/html' }
+    });
+  }
+}
+
+// Handle image requests with cache optimization
+async function handleImageRequest(request) {
+  const cache = await caches.open(CACHE_NAMES.IMAGES);
+  const cachedResponse = await cache.match(request);
+  
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+  
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    // Return placeholder or cached version
+    return new Response('', { status: 404 });
+  }
+}
+
+// Handle dynamic requests
+async function handleDynamicRequest(request) {
+  const cache = await caches.open(CACHE_NAMES.DYNAMIC);
+  
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    const cachedResponse = await cache.match(request);
+    return cachedResponse || new Response('Offline', { status: 503 });
+  }
 }
 
 // Background sync for data updates
@@ -280,7 +333,7 @@ async function syncSolanaData() {
     ]);
     
     // Cache fresh data
-    const cache = await caches.open(DATA_CACHE_NAME);
+    const cache = await caches.open(CACHE_NAMES.DATA);
     responses.forEach((response, index) => {
       if (response.ok) {
         const urls = ['/api/markets', '/api/analytics'];
@@ -347,4 +400,22 @@ self.addEventListener('notificationclick', event => {
   }
 });
 
-console.log('[Service Worker] Loaded successfully');
+// Message handling for manual cache updates
+self.addEventListener('message', event => {
+  console.log('[Service Worker] Message received:', event.data);
+  
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+  
+  if (event.data && event.data.type === 'UPDATE_CACHE') {
+    event.waitUntil(
+      Promise.all([
+        CacheVersionManager.migrateCache(),
+        CacheVersionManager.validateCacheIntegrity()
+      ])
+    );
+  }
+});
+
+console.log('[Service Worker] Loaded successfully with version:', CACHE_VERSION);

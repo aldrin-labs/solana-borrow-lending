@@ -6,7 +6,8 @@ interface OnboardingStep {
   id: string;
   title: string;
   description: string;
-  target?: string;
+  targetElementId?: string; // Use element ID instead of CSS selector
+  targetComponent?: string; // Component name for ref-based targeting
   action?: string;
 }
 
@@ -21,28 +22,32 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     id: "wallet",
     title: "CONNECT YOUR WALLET",
     description: "Connect your Solana wallet to access lending and borrowing features. Your positions and transactions will be displayed in real-time.",
-    target: "[data-testid='wallet-button']",
+    targetElementId: "wallet-connect-button",
+    targetComponent: "WalletButton",
     action: "CONNECT WALLET",
   },
   {
     id: "dashboard",
     title: "PROTOCOL DASHBOARD",
     description: "View total value locked, borrowing volumes, and protocol health metrics. All data is fetched live from the Solana blockchain.",
-    target: "[data-testid='dashboard-stats']",
+    targetElementId: "dashboard-stats-section",
+    targetComponent: "DashboardStats",
     action: "VIEW ANALYTICS",
   },
   {
     id: "lending",
     title: "SUPPLY ASSETS",
     description: "Supply your tokens to earn yield. View supply markets, APY rates, and collateral ratios in the lending section.",
-    target: "[data-testid='lend-nav']",
+    targetElementId: "lending-navigation",
+    targetComponent: "LendingNavigation",
     action: "EXPLORE LENDING",
   },
   {
     id: "borrowing",
     title: "BORROW AGAINST COLLATERAL",
     description: "Use your supplied assets as collateral to borrow other tokens. Monitor your health factor to avoid liquidation.",
-    target: "[data-testid='borrow-nav']",
+    targetElementId: "borrowing-navigation", 
+    targetComponent: "BorrowingNavigation",
     action: "EXPLORE BORROWING",
   },
   {
@@ -59,6 +64,106 @@ interface OnboardingModalProps {
   onComplete: () => void;
 }
 
+// Element targeting utility for onboarding
+class OnboardingTargetingService {
+  private static instance: OnboardingTargetingService;
+  private elementRegistry = new Map<string, HTMLElement>();
+  private componentRefs = new Map<string, React.RefObject<HTMLElement>>();
+
+  static getInstance(): OnboardingTargetingService {
+    if (!OnboardingTargetingService.instance) {
+      OnboardingTargetingService.instance = new OnboardingTargetingService();
+    }
+    return OnboardingTargetingService.instance;
+  }
+
+  // Register an element by ID for targeting
+  registerElement(id: string, element: HTMLElement): void {
+    this.elementRegistry.set(id, element);
+  }
+
+  // Register a component ref for targeting
+  registerComponentRef(componentName: string, ref: React.RefObject<HTMLElement>): void {
+    this.componentRefs.set(componentName, ref);
+  }
+
+  // Get element by ID with fallback strategies
+  getTargetElement(step: OnboardingStep): HTMLElement | null {
+    // Strategy 1: Use registered element by ID
+    if (step.targetElementId) {
+      const registeredElement = this.elementRegistry.get(step.targetElementId);
+      if (registeredElement && document.body.contains(registeredElement)) {
+        return registeredElement;
+      }
+
+      // Fallback: Try to find by DOM ID
+      const domElement = document.getElementById(step.targetElementId);
+      if (domElement) {
+        this.registerElement(step.targetElementId, domElement);
+        return domElement;
+      }
+    }
+
+    // Strategy 2: Use component ref
+    if (step.targetComponent) {
+      const componentRef = this.componentRefs.get(step.targetComponent);
+      if (componentRef?.current && document.body.contains(componentRef.current)) {
+        return componentRef.current;
+      }
+    }
+
+    // Strategy 3: Try to find by data attributes (fallback compatibility)
+    if (step.targetElementId) {
+      const dataTestElement = document.querySelector(`[data-onboarding-id="${step.targetElementId}"]`) as HTMLElement;
+      if (dataTestElement) {
+        this.registerElement(step.targetElementId, dataTestElement);
+        return dataTestElement;
+      }
+    }
+
+    return null;
+  }
+
+  // Get element position for overlay positioning
+  getElementPosition(element: HTMLElement): { top: number; left: number; width: number; height: number } {
+    const rect = element.getBoundingClientRect();
+    return {
+      top: rect.top + window.scrollY,
+      left: rect.left + window.scrollX,
+      width: rect.width,
+      height: rect.height,
+    };
+  }
+
+  // Clear registry (useful for cleanup)
+  clear(): void {
+    this.elementRegistry.clear();
+    this.componentRefs.clear();
+  }
+}
+
+// Hook to register elements and refs for onboarding
+export const useOnboardingTarget = (
+  id: string, 
+  ref?: React.RefObject<HTMLElement>,
+  componentName?: string
+) => {
+  useEffect(() => {
+    const service = OnboardingTargetingService.getInstance();
+    
+    if (ref?.current) {
+      service.registerElement(id, ref.current);
+      if (componentName) {
+        service.registerComponentRef(componentName, ref);
+      }
+    }
+
+    return () => {
+      // Cleanup if needed
+    };
+  }, [id, ref, componentName]);
+};
+
 export const OnboardingModal: FC<OnboardingModalProps> = ({
   isVisible,
   onClose,
@@ -66,6 +171,17 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [targetElement, setTargetElement] = useState<HTMLElement | null>(null);
+  const targetingService = OnboardingTargetingService.getInstance();
+
+  // Update target element when step changes
+  useEffect(() => {
+    if (isVisible) {
+      const step = ONBOARDING_STEPS[currentStep];
+      const element = targetingService.getTargetElement(step);
+      setTargetElement(element);
+    }
+  }, [currentStep, isVisible, targetingService]);
 
   const handleNext = () => {
     if (currentStep < ONBOARDING_STEPS.length - 1) {
@@ -97,22 +213,53 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({
 
   if (!isVisible) return null;
 
+  // Calculate overlay position if we have a target element
+  const overlayStyle = targetElement ? (() => {
+    const position = targetingService.getElementPosition(targetElement);
+    return {
+      top: position.top - 4,
+      left: position.left - 4,
+      width: position.width + 8,
+      height: position.height + 8,
+    };
+  })() : null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90">
-      <div className="terminal-window w-full max-w-2xl mx-4">
-        {/* Terminal Header */}
-        <div className="terminal-window-header flex justify-between items-center">
-          <span>MAGA_ALDRIN.EXE</span>
-          <button 
-            onClick={onClose}
-            className="text-white hover:text-error"
-          >
-            ✕
-          </button>
-        </div>
-        
-        {/* Terminal Content */}
-        <div className="bg-black p-6 min-h-[400px]">
+    <>
+      {/* Element highlight overlay */}
+      {targetElement && overlayStyle && (
+        <div 
+          className="fixed z-40 pointer-events-none"
+          style={{
+            top: overlayStyle.top,
+            left: overlayStyle.left,
+            width: overlayStyle.width,
+            height: overlayStyle.height,
+            border: '2px solid var(--theme-primary)',
+            borderRadius: '6px',
+            boxShadow: '0 0 0 4px rgba(49, 130, 206, 0.2)',
+            background: 'rgba(49, 130, 206, 0.1)',
+            transition: 'all 0.3s ease-in-out',
+          }}
+        />
+      )}
+
+      {/* Main onboarding modal */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90">
+        <div className="terminal-window w-full max-w-2xl mx-4">
+          {/* Terminal Header */}
+          <div className="terminal-window-header flex justify-between items-center">
+            <span>MAGA_ALDRIN.EXE</span>
+            <button 
+              onClick={onClose}
+              className="text-white hover:text-error"
+            >
+              ✕
+            </button>
+          </div>
+          
+          {/* Terminal Content */}
+          <div className="bg-black p-6 min-h-[400px]">
           {/* Progress Bar */}
           <div className="mb-6">
             <div className="flex justify-between items-center mb-2">
@@ -209,7 +356,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
