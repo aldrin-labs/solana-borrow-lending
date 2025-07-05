@@ -21,18 +21,25 @@ export const Input: FC<InputProps> = ({
   const inputElement = (
     <div className={`relative ${fullWidth ? "w-full" : ""}`}>
       {icon && (
-        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted">
+        <div 
+          className="absolute left-3 top-1/2 transform -translate-y-1/2"
+          style={{ color: 'var(--theme-textMuted)' }}
+        >
           {icon}
         </div>
       )}
       <input
         className={`
           input 
-          ${error ? "border-error focus:ring-error focus:border-error" : ""} 
+          ${error ? "!border-error focus:!ring-error focus:!border-error" : ""} 
           ${fullWidth ? "w-full" : ""} 
           ${icon ? "pl-10" : ""}
           ${className}
         `}
+        style={error ? {
+          borderColor: 'var(--theme-error)',
+          boxShadow: `0 0 0 3px color-mix(in srgb, var(--theme-error) 10%, transparent)`
+        } : {}}
         {...props}
       />
     </div>
@@ -42,12 +49,18 @@ export const Input: FC<InputProps> = ({
     <div className={`space-y-2 ${fullWidth ? "w-full" : ""}`}>
       {label && (
         <div className="flex items-center space-x-2">
-          <label className="block text-text-secondary text-sm font-medium">
+          <label 
+            className="block text-sm font-medium"
+            style={{ color: 'var(--theme-textSecondary)' }}
+          >
             {label}
           </label>
           {tooltip && (
             <Tooltip content={tooltip} position="top">
-              <div className="w-4 h-4 rounded-full bg-gray-300 text-white text-xs flex items-center justify-center cursor-help">
+              <div 
+                className="w-4 h-4 rounded-full text-white text-xs flex items-center justify-center cursor-help"
+                style={{ backgroundColor: 'var(--theme-textMuted)' }}
+              >
                 ?
               </div>
             </Tooltip>
@@ -58,7 +71,12 @@ export const Input: FC<InputProps> = ({
       {inputElement}
       
       {error && (
-        <p className="text-error text-sm animate-slide-down">{error}</p>
+        <p 
+          className="text-sm animate-slide-down"
+          style={{ color: 'var(--theme-error)' }}
+        >
+          {error}
+        </p>
       )}
     </div>
   );

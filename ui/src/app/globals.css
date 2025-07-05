@@ -247,6 +247,10 @@ body {
     box-shadow: var(--theme-shadow-lg);
   }
   
+  .token-dropdown-item:hover {
+    background: var(--theme-surface);
+  }
+  
   /* Theme-aware table styling */
   .table-container {
     overflow: hidden;

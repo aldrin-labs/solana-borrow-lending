@@ -64,7 +64,10 @@ export const UserPositions: FC<UserPositionsProps> = ({
     return (
       <Card className="text-center py-16 animate-scale-in">
         <div className="max-w-md mx-auto">
-          <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary-dark rounded-full flex items-center justify-center mx-auto mb-6">
+          <div 
+            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"
+            style={{ background: 'var(--theme-gradient-primary)' }}
+          >
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
@@ -86,8 +89,16 @@ export const UserPositions: FC<UserPositionsProps> = ({
     return (
       <Card className="text-center py-16">
         <div className="flex justify-center items-center space-x-3">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-text-secondary">Loading positions...</span>
+          <div 
+            className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin"
+            style={{ 
+              borderColor: 'var(--theme-primary)',
+              borderTopColor: 'transparent'
+            }}
+          ></div>
+          <span style={{ color: 'var(--theme-textSecondary)' }}>
+            Loading positions...
+          </span>
         </div>
       </Card>
     );
@@ -97,15 +108,30 @@ export const UserPositions: FC<UserPositionsProps> = ({
     return (
       <Card className="text-center py-16 animate-scale-in">
         <div className="max-w-md mx-auto">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div 
+            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"
+            style={{ backgroundColor: 'var(--theme-surface)' }}
+          >
+            <svg 
+              className="w-8 h-8" 
+              style={{ color: 'var(--theme-textMuted)' }}
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </div>
-          <h2 className="text-2xl font-semibold text-text-primary mb-3">
+          <h2 
+            className="text-2xl font-semibold mb-3"
+            style={{ color: 'var(--theme-textPrimary)' }}
+          >
             No {positionType === "supply" ? "Supplies" : "Borrows"} Found
           </h2>
-          <p className="text-text-secondary mb-8">
+          <p 
+            className="mb-8"
+            style={{ color: 'var(--theme-textSecondary)' }}
+          >
             You don&apos;t have any{" "}
             {positionType === "supply" ? "supplies" : "borrows"} yet
           </p>

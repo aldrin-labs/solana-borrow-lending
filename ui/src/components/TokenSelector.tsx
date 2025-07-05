@@ -32,12 +32,18 @@ export const TokenSelector: FC<TokenSelectorProps> = ({
     <div className="relative">
       {label && (
         <div className="flex items-center space-x-2 mb-2">
-          <label className="block text-text-secondary text-sm font-medium">
+          <label 
+            className="block text-sm font-medium"
+            style={{ color: 'var(--theme-textSecondary)' }}
+          >
             {label}
           </label>
           {tooltip && (
             <Tooltip content={tooltip} position="top">
-              <div className="w-4 h-4 rounded-full bg-gray-300 text-white text-xs flex items-center justify-center cursor-help">
+              <div 
+                className="w-4 h-4 rounded-full text-white text-xs flex items-center justify-center cursor-help"
+                style={{ backgroundColor: 'var(--theme-textMuted)' }}
+              >
                 ?
               </div>
             </Tooltip>
@@ -48,11 +54,17 @@ export const TokenSelector: FC<TokenSelectorProps> = ({
       <div className="token-selector interactive" onClick={toggleDropdown}>
         <div className="flex items-center">
           <TokenIcon token={selectedToken} size="sm" />
-          <span className="ml-2 font-medium text-text-primary">{selectedToken}</span>
+          <span 
+            className="ml-2 font-medium"
+            style={{ color: 'var(--theme-textPrimary)' }}
+          >
+            {selectedToken}
+          </span>
         </div>
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          className={`h-5 w-5 text-text-secondary transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+          className={`h-5 w-5 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+          style={{ color: 'var(--theme-textSecondary)' }}
           viewBox="0 0 20 20"
           fill="currentColor"
         >
@@ -65,15 +77,27 @@ export const TokenSelector: FC<TokenSelectorProps> = ({
       </div>
 
       {isOpen && (
-        <div className="absolute z-10 mt-1 w-full bg-white border border-border rounded-lg shadow-lg max-h-60 overflow-auto animate-slide-down">
+        <div 
+          className="absolute z-10 mt-1 w-full border rounded-lg max-h-60 overflow-auto animate-slide-down"
+          style={{
+            backgroundColor: 'var(--theme-card)',
+            borderColor: 'var(--theme-border)',
+            boxShadow: 'var(--theme-shadow-lg)',
+          }}
+        >
           {tokens.map((token) => (
             <div
               key={token}
-              className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors duration-200 first:rounded-t-lg last:rounded-b-lg"
+              className="flex items-center px-4 py-3 cursor-pointer transition-colors duration-200 first:rounded-t-lg last:rounded-b-lg token-dropdown-item"
               onClick={() => handleSelect(token)}
             >
               <TokenIcon token={token} size="sm" />
-              <span className="ml-2 font-medium text-text-primary">{token}</span>
+              <span 
+                className="ml-2 font-medium"
+                style={{ color: 'var(--theme-textPrimary)' }}
+              >
+                {token}
+              </span>
             </div>
           ))}
         </div>
