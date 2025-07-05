@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { debugLog } from "../utils/debug";
 
 export function PWAInstaller() {
   useEffect(() => {
@@ -9,7 +10,7 @@ export function PWAInstaller() {
       navigator.serviceWorker
         .register('/sw.js')
         .then((registration) => {
-          console.log('Service Worker registered successfully:', registration);
+          debugLog.serviceWorker('Service Worker registered successfully:', registration);
           
           // Check for updates
           registration.addEventListener('updatefound', () => {
@@ -42,7 +43,7 @@ export function PWAInstaller() {
         deferredPrompt = e;
         
         // Show custom install button or notification
-        console.log('PWA install prompt available');
+        debugLog.info('PWA install prompt available');
         
         // You could dispatch a custom event here to show an install button
         const installEvent = new CustomEvent('pwa-install-available');
@@ -54,7 +55,7 @@ export function PWAInstaller() {
 
     const handleAppInstalled = () => {
       try {
-        console.log('PWA was installed');
+        debugLog.info('PWA was installed');
         deferredPrompt = null;
         
         // Hide install button

@@ -188,7 +188,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
       // Auto-position if needed
       if (position === 'auto') {
         const positions = ['top', 'bottom', 'left', 'right'] as const;
-        let bestFit = positions[0];
+        let bestFit: typeof positions[number] = positions[0];
         let bestScore = -1;
 
         for (const pos of positions) {
@@ -391,7 +391,8 @@ export const Tooltip: React.FC<TooltipProps> = ({
       right: 'left-0 top-1/2 -translate-y-1/2 -translate-x-1/2',
     };
 
-    return `${baseClasses} ${variantClasses[variant]} ${positionClasses[actualPosition]}`;
+    const validPosition = actualPosition === 'auto' ? 'top' : actualPosition;
+    return `${baseClasses} ${variantClasses[variant]} ${positionClasses[validPosition]}`;
   };
 
   return (

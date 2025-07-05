@@ -223,19 +223,19 @@ export const MarketOverview: FC = () => {
                           <div
                             className="h-full rounded-full transition-all duration-500 ease-out"
                             style={{ 
-                              background: parseInt(market.utilizationRate) > 80 ? 'var(--theme-gradient-error)' : 
-                                         parseInt(market.utilizationRate) > 60 ? 'var(--theme-warning)' : 
+                              background: (market.utilizationRate || 0) > 80 ? 'var(--theme-gradient-error)' : 
+                                         (market.utilizationRate || 0) > 60 ? 'var(--theme-warning)' : 
                                          'var(--theme-gradient-success)',
-                              width: market.utilizationRate 
+                              width: `${market.utilizationRate || 0}%` 
                             }}
                           ></div>
                         </div>
-                        <span className="typography-number-sm font-semibold">{market.utilizationRate}</span>
+                        <span className="typography-number-sm font-semibold">{market.utilizationRateFormatted}</span>
                       </div>
                       <div className="typography-caption">
-                        {parseInt(market.utilizationRate) > 80 ? 'Very High' :
-                         parseInt(market.utilizationRate) > 60 ? 'High' : 
-                         parseInt(market.utilizationRate) > 40 ? 'Medium' : 'Low'} Risk
+                        {(market.utilizationRate || 0) > 80 ? 'Very High' :
+                         (market.utilizationRate || 0) > 60 ? 'High' : 
+                         (market.utilizationRate || 0) > 40 ? 'Medium' : 'Low'} Risk
                       </div>
                     </div>
                   </td>
@@ -273,7 +273,7 @@ export const MarketOverview: FC = () => {
             </div>
             <div className="typography-number-lg font-bold">{markets.length}</div>
             <div className="typography-body-sm mt-1" style={{ color: 'var(--theme-success)' }}>
-              +{markets.filter(m => parseInt(m.utilizationRate) > 0).length} active
+              +{markets.filter(m => (m.utilizationRate || 0) > 0).length} active
             </div>
           </div>
           
@@ -284,7 +284,7 @@ export const MarketOverview: FC = () => {
             </div>
             <div className="typography-number-lg font-bold status-positive">
               {markets.length > 0 ? 
-                (markets.reduce((acc, market) => acc + parseFloat(market.supplyApy), 0) / markets.length).toFixed(1) + '%' : 
+                (markets.reduce((acc, market) => acc + (market.supplyApy || 0), 0) / markets.length).toFixed(1) + '%' : 
                 '0%'
               }
             </div>
@@ -300,7 +300,7 @@ export const MarketOverview: FC = () => {
             </div>
             <div className="typography-number-lg font-bold">
               {markets.length > 0 ? 
-                (markets.reduce((acc, market) => acc + parseInt(market.utilizationRate), 0) / markets.length).toFixed(0) + '%' : 
+                (markets.reduce((acc, market) => acc + (market.utilizationRate || 0), 0) / markets.length).toFixed(0) + '%' : 
                 '0%'
               }
             </div>
@@ -317,14 +317,14 @@ export const MarketOverview: FC = () => {
             <div className="typography-number-lg font-bold">
               {markets.length > 0 ? 
                 markets.reduce((prev, current) => 
-                  parseFloat(prev.supplyApy) > parseFloat(current.supplyApy) ? prev : current
+                  (prev.supplyApy || 0) > (current.supplyApy || 0) ? prev : current
                 ).token : 
                 'N/A'
               }
             </div>
             <div className="typography-body-sm mt-1 status-positive">
               {markets.length > 0 ? 
-                Math.max(...markets.map(m => parseFloat(m.supplyApy))).toFixed(1) + '% APY' : 
+                Math.max(...markets.map(m => m.supplyApy || 0)).toFixed(1) + '% APY' : 
                 '0% APY'
               }
             </div>
@@ -346,7 +346,7 @@ export const MarketOverview: FC = () => {
               <h4 className="typography-h3">High Yield Opportunities</h4>
               <div className="space-y-3">
                 {markets
-                  .sort((a, b) => parseFloat(b.supplyApy) - parseFloat(a.supplyApy))
+                  .sort((a, b) => (b.supplyApy || 0) - (a.supplyApy || 0))
                   .slice(0, 3)
                   .map((market, index) => (
                     <div key={market.id} className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: 'var(--theme-surface)' }}>
@@ -370,7 +370,7 @@ export const MarketOverview: FC = () => {
               <h4 className="typography-h3">Market Utilization</h4>
               <div className="space-y-3">
                 {markets
-                  .sort((a, b) => parseInt(b.utilizationRate) - parseInt(a.utilizationRate))
+                  .sort((a, b) => (b.utilizationRate || 0) - (a.utilizationRate || 0))
                   .slice(0, 3)
                   .map((market, index) => (
                     <div key={market.id} className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: 'var(--theme-surface)' }}>
@@ -379,8 +379,8 @@ export const MarketOverview: FC = () => {
                         <div>
                           <div className="typography-body font-medium">{market.token}</div>
                           <div className="typography-body-sm">
-                            {parseInt(market.utilizationRate) > 80 ? 'High demand' : 
-                             parseInt(market.utilizationRate) > 60 ? 'Moderate demand' : 'Low demand'}
+                            {(market.utilizationRate || 0) > 80 ? 'High demand' : 
+                             (market.utilizationRate || 0) > 60 ? 'Moderate demand' : 'Low demand'}
                           </div>
                         </div>
                       </div>

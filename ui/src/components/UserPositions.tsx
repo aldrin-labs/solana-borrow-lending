@@ -316,7 +316,7 @@ export const UserPositions: FC<UserPositionsProps> = ({
             TOTAL {positionType === "supply" ? "SUPPLIED" : "BORROWED"}
           </div>
           <div className="typography-number-lg font-semibold">
-            ${positions.reduce((total, pos) => total + parseInt(pos.value.replace(/[$,]/g, '')), 0).toLocaleString()}
+            ${positions.reduce((total, pos) => total + (pos.valueNumeric || 0), 0).toLocaleString()}
           </div>
         </div>
         <div className="bg-surface rounded-lg p-4 border border-border">

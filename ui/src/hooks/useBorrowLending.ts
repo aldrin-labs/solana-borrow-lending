@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { 
   solanaDataService, 
@@ -6,6 +6,7 @@ import {
   ProtocolAnalytics, 
   UserPosition 
 } from "@/services/solanaDataService";
+import { debugLog } from "@/utils/debug";
 
 export const useBorrowLending = () => {
   const { connected, publicKey } = useWallet();
@@ -18,15 +19,15 @@ export const useBorrowLending = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [connectionHealth, setConnectionHealth] = useState<boolean>(true);
 
-  // Real-time updates with actual data refreshing
+  // Real-time updates with proper async error handling
   useEffect(() => {
     if (!connected) return;
 
-    const interval = setInterval(async () => {
+    const updateData = async () => {
       try {
         // Only update if connection is healthy
         if (!connectionHealth) {
-          console.log("Skipping real-time update due to connection issues");
+          debugLog.network("Skipping real-time update due to connection issues");
           return;
         }
 
@@ -44,16 +45,18 @@ export const useBorrowLending = () => {
         setLastUpdated(new Date());
         setError(null);
       } catch (err) {
-        console.error("Error updating real-time data:", err);
+        debugLog.error("Error updating real-time data:", err);
         // Don't set error for real-time updates, just log it
         // The user can still use cached data
       }
-    }, 15000); // Update every 15 seconds for real data
+    };
+
+    const interval = setInterval(updateData, 15000); // Update every 15 seconds for real data
 
     return () => clearInterval(interval);
   }, [connected, publicKey, connectionHealth]);
 
-  // Check Solana connection health
+  // Check Solana connection health with proper error handling
   useEffect(() => {
     const checkHealth = async () => {
       try {
@@ -68,14 +71,21 @@ export const useBorrowLending = () => {
           }
         }
       } catch (err) {
-        console.error("Health check failed:", err);
+        debugLog.error("Health check failed:", err);
         setConnectionHealth(false);
         setError("Unable to connect to Solana network");
       }
     };
 
-    checkHealth();
-    const healthInterval = setInterval(checkHealth, 60000); // Check every minute
+    // Use async wrapper to handle errors properly
+    const performHealthCheck = () => {
+      checkHealth().catch((err) => {
+        debugLog.error("Unhandled health check error:", err);
+      });
+    };
+
+    performHealthCheck();
+    const healthInterval = setInterval(performHealthCheck, 60000); // Check every minute
 
     return () => clearInterval(healthInterval);
   }, [error]);
@@ -88,24 +98,24 @@ export const useBorrowLending = () => {
         setError(null);
 
         // Fetch market data (always available)
-        console.log("Fetching market data from Solana...");
+        debugLog.network("Fetching market data from Solana...");
         const marketData = await solanaDataService.fetchMarketData();
         setMarkets(marketData || []);
 
         // Fetch protocol analytics
-        console.log("Fetching protocol analytics...");
+        debugLog.network("Fetching protocol analytics...");
         const analyticsData = await solanaDataService.fetchProtocolAnalytics();
         setAnalytics(analyticsData);
 
         // Fetch user positions if wallet is connected
         if (connected && publicKey) {
-          console.log("Fetching user positions for wallet:", publicKey.toString());
+          debugLog.wallet("Fetching user positions for wallet:", publicKey.toString());
           try {
             const positions = await solanaDataService.fetchUserPositions(publicKey.toString());
             setSuppliedPositions(positions?.supplied || []);
             setBorrowedPositions(positions?.borrowed || []);
           } catch (userErr) {
-            console.warn("Failed to fetch user positions:", userErr);
+            debugLog.warn("Failed to fetch user positions:", userErr);
             // Don't fail the entire data fetch if user positions fail
             setSuppliedPositions([]);
             setBorrowedPositions([]);
@@ -117,11 +127,11 @@ export const useBorrowLending = () => {
         }
 
         setLastUpdated(new Date());
-        console.log("Successfully loaded data from Solana network");
+        debugLog.info("Successfully loaded data from Solana network");
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Failed to fetch data from Solana network";
         setError(errorMessage);
-        console.error("Error fetching Solana data:", err);
+        debugLog.error("Error fetching Solana data:", err);
         
         // Set empty data on error to prevent showing stale mock data
         setMarkets([]);
@@ -154,7 +164,7 @@ export const useBorrowLending = () => {
           setSuppliedPositions(positions?.supplied || []);
           setBorrowedPositions(positions?.borrowed || []);
         } catch (userErr) {
-          console.warn("Failed to refresh user positions:", userErr);
+          debugLog.warn("Failed to refresh user positions:", userErr);
           // Keep existing positions if refresh fails
         }
       }
@@ -162,7 +172,7 @@ export const useBorrowLending = () => {
       setLastUpdated(new Date());
       setError(null);
     } catch (err) {
-      console.error("Error refreshing data:", err);
+      debugLog.error("Error refreshing data:", err);
       setError("Failed to refresh data");
     } finally {
       setIsLoading(false);

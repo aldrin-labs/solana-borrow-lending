@@ -1,8 +1,40 @@
 // MAGA Service Worker
 // Banking-grade PWA with offline support and cache version migration
 
-// Cache version management - constants defined inline for SW compatibility
-const CACHE_VERSION = 'v2'; // Increment when major changes occur
+// Debug utility for service worker
+const DEBUG_ENABLED = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
+const debugLog = {
+  info: (message, ...args) => {
+    if (DEBUG_ENABLED) {
+      console.log(`[Service Worker] ${message}`, ...args);
+    }
+  },
+  warn: (message, ...args) => {
+    if (DEBUG_ENABLED) {
+      console.warn(`[Service Worker] ${message}`, ...args);
+    }
+  },
+  error: (message, ...args) => {
+    console.error(`[Service Worker] ${message}`, ...args);
+  }
+};
+
+// Cache version management - utility for incremental versioning
+class CacheVersionManager {
+  static generateVersion() {
+    // Create version based on timestamp and build info
+    const buildTime = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const buildNumber = Math.floor(Date.now() / 1000) % 10000; // Last 4 digits of timestamp
+    return `v${buildTime}-${buildNumber}`;
+  }
+  
+  static isValidVersion(version) {
+    return /^v\d{8}-\d{4}$/.test(version);
+  }
+}
+
+// Cache version - increment when major changes occur
+const CACHE_VERSION = 'v3'; // Increment for major changes, or use auto-generation for CI/CD
 const CACHE_NAMES = {
   STATIC: `maga-static-${CACHE_VERSION}`,
   DYNAMIC: `maga-dynamic-${CACHE_VERSION}`,
@@ -46,11 +78,11 @@ class CacheVersionManager {
       name.startsWith('maga-') && !Object.values(CACHE_NAMES).includes(name)
     );
 
-    console.log('[Service Worker] Found old caches to delete:', oldCacheNames);
+    debugLog.info('Found old caches to delete:', oldCacheNames);
 
     // Delete old caches
     const deletionPromises = oldCacheNames.map(cacheName => {
-      console.log('[Service Worker] Deleting old cache:', cacheName);
+      debugLog.info('Deleting old cache:', cacheName);
       return caches.delete(cacheName);
     });
 
@@ -67,7 +99,7 @@ class CacheVersionManager {
     );
 
     if (criticalMissing.length > 0) {
-      console.warn('[Service Worker] Critical assets missing from cache:', criticalMissing);
+      debugLog.warn('Critical assets missing from cache:', criticalMissing);
       // Re-cache missing critical assets
       await staticCache.addAll(criticalMissing);
     }
@@ -76,13 +108,13 @@ class CacheVersionManager {
 
 // Install event - cache static assets
 self.addEventListener('install', event => {
-  console.log('[Service Worker] Installing version:', CACHE_VERSION);
+  debugLog.info('Installing version:', CACHE_VERSION);
   
   event.waitUntil(
     Promise.all([
       // Cache static assets
       caches.open(CACHE_NAMES.STATIC).then(cache => {
-        console.log('[Service Worker] Caching static assets');
+        debugLog.info('Caching static assets');
         return cache.addAll(STATIC_ASSETS);
       }),
       
@@ -94,7 +126,7 @@ self.addEventListener('install', event => {
 
 // Activate event - cleanup old caches and migrate
 self.addEventListener('activate', event => {
-  console.log('[Service Worker] Activating version:', CACHE_VERSION);
+  debugLog.info('Activating version:', CACHE_VERSION);
   
   event.waitUntil(
     Promise.all([
@@ -175,10 +207,10 @@ async function handleDataRequest(request) {
       
       // Check if cache is still valid
       if (expiresAt && Date.now() < parseInt(expiresAt)) {
-        console.log('[Service Worker] Serving fresh cached data');
+        debugLog.info('Serving fresh cached data');
         return cachedResponse;
       } else {
-        console.log('[Service Worker] Serving stale cached data');
+        debugLog.info('Serving stale cached data');
         return new Response(cachedResponse.body, {
           status: cachedResponse.status,
           statusText: cachedResponse.statusText,
@@ -314,7 +346,7 @@ async function handleDynamicRequest(request) {
 
 // Background sync for data updates
 self.addEventListener('sync', event => {
-  console.log('[Service Worker] Background sync:', event.tag);
+  debugLog.info('Background sync:', event.tag);
   
   if (event.tag === 'solana-data-sync') {
     event.waitUntil(syncSolanaData());
@@ -324,7 +356,7 @@ self.addEventListener('sync', event => {
 // Sync Solana data in background
 async function syncSolanaData() {
   try {
-    console.log('[Service Worker] Syncing Solana data...');
+    debugLog.info('Syncing Solana data...');
     
     // Fetch fresh data
     const responses = await Promise.all([
@@ -341,15 +373,15 @@ async function syncSolanaData() {
       }
     });
     
-    console.log('[Service Worker] Solana data synced successfully');
+    debugLog.info('Solana data synced successfully');
   } catch (error) {
-    console.error('[Service Worker] Failed to sync Solana data:', error);
+    debugLog.error('Failed to sync Solana data:', error);
   }
 }
 
 // Push notification handling (for future implementation)
 self.addEventListener('push', event => {
-  console.log('[Service Worker] Push received:', event);
+  debugLog.info('Push received:', event);
   
   if (event.data) {
     const data = event.data.json();
@@ -388,7 +420,7 @@ self.addEventListener('push', event => {
 
 // Notification click handling
 self.addEventListener('notificationclick', event => {
-  console.log('[Service Worker] Notification clicked:', event);
+  debugLog.info('Notification clicked:', event);
   
   event.notification.close();
   
@@ -402,7 +434,7 @@ self.addEventListener('notificationclick', event => {
 
 // Message handling for manual cache updates
 self.addEventListener('message', event => {
-  console.log('[Service Worker] Message received:', event.data);
+  debugLog.info('Message received:', event.data);
   
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
@@ -418,4 +450,4 @@ self.addEventListener('message', event => {
   }
 });
 
-console.log('[Service Worker] Loaded successfully with version:', CACHE_VERSION);
+debugLog.info('Loaded successfully with version:', CACHE_VERSION);

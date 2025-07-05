@@ -30,24 +30,24 @@ export const AnalyticsDashboard: FC<AnalyticsDashboardProps> = ({
   // Calculate real-time metrics
   useEffect(() => {
     const calculateMetrics = () => {
-      // Calculate user-specific metrics
+      // Calculate user-specific metrics using numeric values
       const totalSuppliedValue = suppliedPositions.reduce((acc, pos) => 
-        acc + parseInt(pos.value.replace(/[$,]/g, '')), 0
+        acc + (pos.valueNumeric || 0), 0
       );
       
       const totalBorrowedValue = borrowedPositions.reduce((acc, pos) => 
-        acc + parseInt(pos.value.replace(/[$,]/g, '')), 0
+        acc + (pos.valueNumeric || 0), 0
       );
 
       const avgSupplyAPY = suppliedPositions.length > 0 ? 
-        suppliedPositions.reduce((acc, pos) => acc + parseFloat(pos.apy), 0) / suppliedPositions.length : 0;
+        suppliedPositions.reduce((acc, pos) => acc + (pos.apyNumeric || 0), 0) / suppliedPositions.length : 0;
 
       const avgBorrowAPY = borrowedPositions.length > 0 ? 
-        borrowedPositions.reduce((acc, pos) => acc + parseFloat(pos.apy), 0) / borrowedPositions.length : 0;
+        borrowedPositions.reduce((acc, pos) => acc + (pos.apyNumeric || 0), 0) / borrowedPositions.length : 0;
 
-      // Calculate health factor (simplified)
-      const userHealthFactor = borrowedPositions.length > 0 && borrowedPositions[0].healthFactor ? 
-        parseFloat(borrowedPositions[0].healthFactor) : 0;
+      // Calculate health factor using numeric values
+      const userHealthFactor = borrowedPositions.length > 0 && borrowedPositions[0].healthFactorNumeric ? 
+        borrowedPositions[0].healthFactorNumeric : 0;
 
       // Calculate available to borrow (simplified: 75% of supplied value minus borrowed)
       const availableToBorrow = Math.max(0, totalSuppliedValue * 0.75 - totalBorrowedValue);
@@ -93,11 +93,11 @@ export const AnalyticsDashboard: FC<AnalyticsDashboardProps> = ({
     return "status-negative";
   };
 
-  // Calculate protocol totals from real market data
-  const protocolTVL = markets.reduce((acc, market) => acc + parseInt(market.totalSupply.replace(/[$,]/g, '')), 0);
-  const protocolBorrowed = markets.reduce((acc, market) => acc + parseInt(market.totalBorrow.replace(/[$,]/g, '')), 0);
+  // Calculate protocol totals from real market data using numeric values
+  const protocolTVL = markets.reduce((acc, market) => acc + (market.totalSupplyValue || 0), 0);
+  const protocolBorrowed = markets.reduce((acc, market) => acc + (market.totalBorrowValue || 0), 0);
   const avgUtilization = markets.length > 0 ? 
-    markets.reduce((acc, market) => acc + parseInt(market.utilizationRate), 0) / markets.length : 0;
+    markets.reduce((acc, market) => acc + (market.utilizationRate || 0), 0) / markets.length : 0;
 
   const getLenderMetrics = () => (
     <>
@@ -284,13 +284,13 @@ export const AnalyticsDashboard: FC<AnalyticsDashboardProps> = ({
               </div>
               <div className="text-center">
                 <div className="typography-number-lg font-semibold mb-1 status-positive">
-                  {markets.length > 0 ? (markets.reduce((acc, m) => acc + parseFloat(m.supplyApy), 0) / markets.length).toFixed(1) + '%' : '0%'}
+                  {markets.length > 0 ? (markets.reduce((acc, m) => acc + (m.supplyApy || 0), 0) / markets.length).toFixed(1) + '%' : '0%'}
                 </div>
                 <div className="typography-caption">AVG SUPPLY APY</div>
               </div>
               <div className="text-center">
                 <div className="typography-number-lg font-semibold mb-1" style={{ color: 'var(--theme-error)' }}>
-                  {markets.length > 0 ? (markets.reduce((acc, m) => acc + parseFloat(m.borrowApy), 0) / markets.length).toFixed(1) + '%' : '0%'}
+                  {markets.length > 0 ? (markets.reduce((acc, m) => acc + (m.borrowApy || 0), 0) / markets.length).toFixed(1) + '%' : '0%'}
                 </div>
                 <div className="typography-caption">AVG BORROW APY</div>
               </div>

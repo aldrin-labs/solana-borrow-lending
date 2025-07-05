@@ -101,7 +101,25 @@ interface ErrorFallbackProps {
 
 const DefaultErrorFallback: React.FC<ErrorFallbackProps> = ({ error, reset }) => {
   const appError = error instanceof AppError ? error : AppError.fromError(error);
-  const { title, description, canRetry } = getErrorMessage(appError);
+  
+  // Handle wallet errors differently
+  if (appError instanceof WalletError) {
+    return (
+      <div className="min-h-[200px] flex items-center justify-center p-8">
+        <div className="text-center max-w-md">
+          <h3 className="text-lg font-semibold mb-2">Wallet Connection Error</h3>
+          <p className="text-sm text-text-secondary mb-4">{appError.message}</p>
+          {reset && (
+            <button onClick={reset} className="btn-primary">
+              Try Again
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const { title, description, canRetry } = getErrorMessage(appError as AppError);
 
   return (
     <div className="min-h-[200px] flex items-center justify-center p-8">

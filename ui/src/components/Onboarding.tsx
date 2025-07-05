@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useState, useEffect } from "react";
+import React, { FC, useState, useEffect } from "react";
 
 interface OnboardingStep {
   id: string;
@@ -169,198 +169,22 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({
   onClose,
   onComplete,
 }) => {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [targetElement, setTargetElement] = useState<HTMLElement | null>(null);
-  const targetingService = OnboardingTargetingService.getInstance();
-
-  // Update target element when step changes
-  useEffect(() => {
-    if (isVisible) {
-      const step = ONBOARDING_STEPS[currentStep];
-      const element = targetingService.getTargetElement(step);
-      setTargetElement(element);
-    }
-  }, [currentStep, isVisible, targetingService]);
-
-  const handleNext = () => {
-    if (currentStep < ONBOARDING_STEPS.length - 1) {
-      setIsAnimating(true);
-      setTimeout(() => {
-        setCurrentStep(prev => prev + 1);
-        setIsAnimating(false);
-      }, 200);
-    } else {
-      onComplete();
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentStep > 0) {
-      setIsAnimating(true);
-      setTimeout(() => {
-        setCurrentStep(prev => prev - 1);
-        setIsAnimating(false);
-      }, 200);
-    }
-  };
-
-  const handleSkip = () => {
-    onComplete();
-  };
-
-  const step = ONBOARDING_STEPS[currentStep];
-
   if (!isVisible) return null;
 
-  // Calculate overlay position if we have a target element
-  const overlayStyle = targetElement ? (() => {
-    const position = targetingService.getElementPosition(targetElement);
-    return {
-      top: position.top - 4,
-      left: position.left - 4,
-      width: position.width + 8,
-      height: position.height + 8,
-    };
-  })() : null;
-
   return (
-    <>
-      {/* Element highlight overlay */}
-      {targetElement && overlayStyle && (
-        <div 
-          className="fixed z-40 pointer-events-none"
-          style={{
-            top: overlayStyle.top,
-            left: overlayStyle.left,
-            width: overlayStyle.width,
-            height: overlayStyle.height,
-            border: '2px solid var(--theme-primary)',
-            borderRadius: '6px',
-            boxShadow: '0 0 0 4px rgba(49, 130, 206, 0.2)',
-            background: 'rgba(49, 130, 206, 0.1)',
-            transition: 'all 0.3s ease-in-out',
-          }}
-        />
-      )}
-
-      {/* Main onboarding modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90">
-        <div className="terminal-window w-full max-w-2xl mx-4">
-          {/* Terminal Header */}
-          <div className="terminal-window-header flex justify-between items-center">
-            <span>MAGA_ALDRIN.EXE</span>
-            <button 
-              onClick={onClose}
-              className="text-white hover:text-error"
-            >
-              ✕
-            </button>
-          </div>
-          
-          {/* Terminal Content */}
-          <div className="bg-black p-6 min-h-[400px]">
-          {/* Progress Bar */}
-          <div className="mb-6">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-secondary text-sm terminal-text">
-                SYSTEM INITIALIZATION
-              </span>
-              <span className="text-secondary text-sm terminal-text">
-                {currentStep + 1}/{ONBOARDING_STEPS.length}
-              </span>
-            </div>
-            <div className="w-full bg-surface h-2 border border-border">
-              <div 
-                className="bg-primary h-full transition-all duration-300"
-                style={{ 
-                  width: `${((currentStep + 1) / ONBOARDING_STEPS.length) * 100}%` 
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Step Content */}
-          <div className={`transition-opacity duration-200 ${isAnimating ? 'opacity-0' : 'opacity-100'}`}>
-            <h2 className="section-title mb-4 terminal-glow">
-              {step.title}
-            </h2>
-            
-            <div className="mb-6">
-              <p className="text-primary text-base leading-relaxed terminal-text">
-                {step.description}
-              </p>
-            </div>
-
-            {/* Command Line Simulation */}
-            <div className="bg-surface border border-border p-4 mb-6 font-mono text-sm">
-              <div className="text-success">
-                C:\MAGA_ALDRIN&gt; {step.id.toUpperCase()}_TUTORIAL.BAT
-              </div>
-              <div className="text-primary">
-                Loading module: {step.title}...
-              </div>
-              <div className="text-secondary">
-                Status: READY <span className="terminal-blink">█</span>
-              </div>
-            </div>
-
-            {/* Feature Highlights */}
-            {currentStep === 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="stats-card">
-                  <div className="text-secondary text-xs">REAL-TIME DATA</div>
-                  <div className="text-primary text-sm">Live blockchain updates</div>
-                </div>
-                <div className="stats-card">
-                  <div className="text-secondary text-xs">BANKING UI</div>
-                  <div className="text-primary text-sm">Professional interface</div>
-                </div>
-                <div className="stats-card">
-                  <div className="text-secondary text-xs">PWA SUPPORT</div>
-                  <div className="text-primary text-sm">Install as desktop app</div>
-                </div>
-                <div className="stats-card">
-                  <div className="text-secondary text-xs">MOBILE READY</div>
-                  <div className="text-primary text-sm">Responsive design</div>
-                </div>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex justify-between items-center">
-              <button
-                onClick={handlePrevious}
-                disabled={currentStep === 0}
-                className="btn-secondary disabled:opacity-30"
-              >
-                &lt; PREVIOUS
-              </button>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={handleSkip}
-                  className="btn-accent text-sm"
-                >
-                  SKIP TOUR
-                </button>
-                
-                <button
-                  onClick={handleNext}
-                  className="btn-primary"
-                >
-                  {currentStep === ONBOARDING_STEPS.length - 1 ? 'COMPLETE' : step.action || 'NEXT >'}
-                </button>
-              </div>
-            </div>
-          </div>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-surface border border-border rounded-lg p-6 max-w-md mx-4 shadow-lg">
+        <h3 className="text-lg font-semibold mb-4">Welcome to MAGA</h3>
+        <p className="text-sm mb-4">Complete the onboarding to get started.</p>
+        <div className="flex space-x-2">
+          <button onClick={onClose} className="btn-secondary">Skip</button>
+          <button onClick={onComplete} className="btn-primary">Complete</button>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
-// Main Onboarding Component
 export const Onboarding: FC = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
@@ -394,14 +218,13 @@ export const Onboarding: FC = () => {
   };
 
   return (
-    <>
+    <div>
       <OnboardingModal
         isVisible={showOnboarding}
         onClose={handleClose}
         onComplete={handleComplete}
       />
       
-      {/* Help Button */}
       {hasCompletedOnboarding && (
         <button
           onClick={handleRestart}
@@ -411,6 +234,6 @@ export const Onboarding: FC = () => {
           ? HELP
         </button>
       )}
-    </>
+    </div>
   );
 };

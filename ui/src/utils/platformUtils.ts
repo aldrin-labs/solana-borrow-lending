@@ -12,7 +12,7 @@ export class CustomElementProtection {
 
   static initialize(): void {
     // Only initialize once to prevent multiple overrides
-    if (this.originalDefine) {
+    if (this.originalDefine !== undefined) {
       return;
     }
 
@@ -207,7 +207,7 @@ export class AppError extends Error {
     this.originalError = originalError;
   }
 
-  static fromError(error: any): AppError {
+  static fromError(error: any): AppError | WalletError {
     if (error instanceof AppError) {
       return error;
     }

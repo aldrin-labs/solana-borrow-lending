@@ -7,7 +7,8 @@ import {
   HEALTH_FACTOR, 
   INTEREST_RATES, 
   CHARTS,
-  TOKEN_DECIMALS 
+  TOKEN_DECIMALS,
+  LIQUIDATION 
 } from '../utils/constants';
 
 // Solana RPC endpoints with fallback

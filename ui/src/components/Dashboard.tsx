@@ -36,15 +36,13 @@ export const Dashboard: FC = () => {
           solanaDataService.fetchProtocolAnalytics(),
         ]);
 
-        // Calculate real totals from market data
+        // Calculate real totals from market data using numeric values
         const totalSupplied = markets.reduce((sum, market) => {
-          const value = parseInt(market.totalSupply.replace(/[$,]/g, ''));
-          return sum + value;
+          return sum + (market.totalSupplyValue || 0);
         }, 0);
 
         const totalBorrowed = markets.reduce((sum, market) => {
-          const value = parseInt(market.totalBorrow.replace(/[$,]/g, ''));
-          return sum + value;
+          return sum + (market.totalBorrowValue || 0);
         }, 0);
 
         const totalValueLocked = totalSupplied;

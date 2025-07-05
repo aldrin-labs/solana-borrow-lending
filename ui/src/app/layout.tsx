@@ -10,6 +10,7 @@ import { WalletErrorBoundary } from "@/components/WalletErrorBoundary";
 import { ClientOnly } from "@/components/ClientOnly";
 import { WebComponentGuard } from "@/components/WebComponentGuard";
 import { QuickActions } from "@/components/QuickActions";
+import { PerformanceInitializer } from "@/components/PerformanceInitializer";
 
 export const metadata: Metadata = {
   title: "MAGA - Make Aldrin Great Again",
@@ -164,6 +165,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen font-sans theme-transition" style={{ fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif' }}>
         <WebComponentGuard />
+        <PerformanceInitializer />
         <ClientOnly>
           <ErrorBoundary>
             <ThemeProvider>
