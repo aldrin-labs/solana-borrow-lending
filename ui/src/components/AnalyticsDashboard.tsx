@@ -178,7 +178,7 @@ export const AnalyticsDashboard: FC<AnalyticsDashboardProps> = ({
       />
       <StatsCard
         title="Avg Utilization"
-        value={`${avgUtilization.toFixed(1)}%`}
+        value={`${avgUtilization.toFixed(2)}%`}
         change={avgUtilization > 50 ? "High demand" : "Stable"}
         isPositive={avgUtilization > 40 && avgUtilization < 80}
         subtitle="Protocol efficiency"
@@ -296,7 +296,7 @@ export const AnalyticsDashboard: FC<AnalyticsDashboardProps> = ({
               </div>
               <div className="text-center">
                 <div className="typography-number-lg font-semibold mb-1">
-                  {avgUtilization.toFixed(0)}%
+                  {avgUtilization.toFixed(2)}%
                 </div>
                 <div className="typography-caption">AVG UTILIZATION</div>
               </div>

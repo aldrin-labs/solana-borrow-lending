@@ -237,7 +237,7 @@ export class SolanaDataService {
           borrowApy: borrowAPY,
           borrowApyFormatted: formatPercentage(borrowAPY),
           utilizationRate,
-          utilizationRateFormatted: formatPercentage(utilizationRate),
+          utilizationRateFormatted: formatPercentage(utilizationRate, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
           mint: tokenInfo.mint,
           reserveAddress: `Reserve${index + 1}...`, // Placeholder
         };

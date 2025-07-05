@@ -300,7 +300,7 @@ export const MarketOverview: FC = () => {
             </div>
             <div className="typography-number-lg font-bold">
               {markets.length > 0 ? 
-                (markets.reduce((acc, market) => acc + (market.utilizationRate || 0), 0) / markets.length).toFixed(0) + '%' : 
+                (markets.reduce((acc, market) => acc + (market.utilizationRate || 0), 0) / markets.length).toFixed(2) + '%' : 
                 '0%'
               }
             </div>
@@ -385,7 +385,7 @@ export const MarketOverview: FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="typography-number-sm font-semibold">{market.utilizationRate}</div>
+                        <div className="typography-number-sm font-semibold">{market.utilizationRateFormatted}</div>
                         <div className="typography-caption">utilization</div>
                       </div>
                     </div>
