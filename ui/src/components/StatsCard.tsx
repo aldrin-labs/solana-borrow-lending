@@ -23,7 +23,12 @@ export const StatsCard: FC<StatsCardProps> = ({
   const cardContent = (
     <div className="stats-card interactive">
       <div className="flex justify-between items-start mb-3">
-        <h3 className="text-text-secondary text-sm font-medium">{title}</h3>
+        <h3 
+          className="text-sm font-medium"
+          style={{ color: 'var(--theme-textSecondary)' }}
+        >
+          {title}
+        </h3>
         <div className={`px-2 py-1 rounded-full text-xs font-medium ${
           isPositive 
             ? "status-positive" 
@@ -34,11 +39,21 @@ export const StatsCard: FC<StatsCardProps> = ({
       </div>
       
       <div className="space-y-1">
-        <p className={`text-3xl font-semibold ${valueClassName || "text-text-primary"}`}>
+        <p 
+          className={`text-3xl font-semibold ${valueClassName || ""}`}
+          style={{ 
+            color: valueClassName ? undefined : 'var(--theme-textPrimary)' 
+          }}
+        >
           {value}
         </p>
         {subtitle && (
-          <p className="text-sm text-text-secondary">{subtitle}</p>
+          <p 
+            className="text-sm"
+            style={{ color: 'var(--theme-textSecondary)' }}
+          >
+            {subtitle}
+          </p>
         )}
       </div>
     </div>

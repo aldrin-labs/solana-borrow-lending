@@ -17,10 +17,13 @@ export const Dashboard: FC = () => {
   return (
     <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 animate-fade-in">
       <div className="mb-8">
-        <h1 className="text-4xl font-semibold text-text-primary mb-2">
+        <h1 
+          className="text-4xl font-semibold mb-2"
+          style={{ color: 'var(--theme-textPrimary)' }}
+        >
           Dashboard
         </h1>
-        <p className="text-text-secondary">
+        <p style={{ color: 'var(--theme-textSecondary)' }}>
           Monitor your lending and borrowing activities
         </p>
       </div>
@@ -56,9 +59,14 @@ export const Dashboard: FC = () => {
               <button
                 className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
                   activeTab === "overview"
-                    ? "text-primary bg-primary/10 border border-primary/20"
-                    : "text-text-secondary hover:text-primary hover:bg-gray-50"
+                    ? "border"
+                    : "hover:bg-opacity-10"
                 }`}
+                style={{
+                  color: activeTab === "overview" ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
+                  backgroundColor: activeTab === "overview" ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
+                  borderColor: activeTab === "overview" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
+                }}
                 onClick={() => setActiveTab("overview")}
               >
                 Market Overview
@@ -66,9 +74,14 @@ export const Dashboard: FC = () => {
               <button
                 className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
                   activeTab === "positions"
-                    ? "text-primary bg-primary/10 border border-primary/20"
-                    : "text-text-secondary hover:text-primary hover:bg-gray-50"
+                    ? "border"
+                    : "hover:bg-opacity-10"
                 }`}
+                style={{
+                  color: activeTab === "positions" ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
+                  backgroundColor: activeTab === "positions" ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
+                  borderColor: activeTab === "positions" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
+                }}
                 onClick={() => setActiveTab("positions")}
               >
                 Your Positions
@@ -76,9 +89,14 @@ export const Dashboard: FC = () => {
               <button
                 className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
                   activeTab === "analytics"
-                    ? "text-primary bg-primary/10 border border-primary/20"
-                    : "text-text-secondary hover:text-primary hover:bg-gray-50"
+                    ? "border"
+                    : "hover:bg-opacity-10"
                 }`}
+                style={{
+                  color: activeTab === "analytics" ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
+                  backgroundColor: activeTab === "analytics" ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
+                  borderColor: activeTab === "analytics" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
+                }}
                 onClick={() => setActiveTab("analytics")}
               >
                 Analytics
