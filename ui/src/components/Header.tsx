@@ -72,7 +72,7 @@ export const Header: FC = () => {
                   color: 'var(--theme-textPrimary)',
                 }}
               >
-                MAGA
+                MAGA - Make Aldrin Great Again
               </span>
             </Link>
             
