@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeSelector } from "./ThemeSelector";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { RPCProviderSelector } from "./RPCProviderSelector";
 
 // Safe wallet button component with enhanced error handling
 const SafeWalletButton: FC = () => {
@@ -189,7 +190,8 @@ export const Header: FC = () => {
             </nav>
           </div>
           
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
+            <RPCProviderSelector />
             <ThemeSelector />
             <SafeWalletButton />
           </div>

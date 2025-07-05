@@ -44,6 +44,17 @@
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
+/* Fix text selection for better visibility */
+::selection {
+  background: var(--theme-primary);
+  color: white;
+}
+
+::-moz-selection {
+  background: var(--theme-primary);
+  color: white;
+}
+
 body {
   color: var(--theme-textPrimary);
   background: var(--theme-background);

@@ -5,6 +5,7 @@ import { Header } from "@/components/Header";
 import { PWAInstaller } from "@/components/PWAInstaller";
 import { Onboarding, OnboardingProvider } from "@/components/Onboarding";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { RPCProviderProvider } from "@/contexts/RPCProviderContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { WalletErrorBoundary } from "@/components/WalletErrorBoundary";
 import { ClientOnly } from "@/components/ClientOnly";
@@ -169,9 +170,10 @@ export default function RootLayout({
         <ClientOnly>
           <ErrorBoundary>
             <ThemeProvider>
-              <WalletErrorBoundary>
-                <WalletProviderWrapper>
-                  <OnboardingProvider>
+              <RPCProviderProvider>
+                <WalletErrorBoundary>
+                  <WalletProviderWrapper>
+                    <OnboardingProvider>
                     <PWAInstaller />
                     <Onboarding />
                     <div className="flex flex-col min-h-screen">
@@ -198,8 +200,9 @@ export default function RootLayout({
                   </OnboardingProvider>
                 </WalletProviderWrapper>
               </WalletErrorBoundary>
-            </ThemeProvider>
-          </ErrorBoundary>
+            </RPCProviderProvider>
+          </ThemeProvider>
+        </ErrorBoundary>
         </ClientOnly>
       </body>
     </html>

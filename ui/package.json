@@ -16,6 +16,7 @@
     "test:e2e:install": "playwright install"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
     "@project-serum/anchor": "^0.26.0",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-react": "^0.15.35",
