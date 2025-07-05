@@ -1,7 +1,7 @@
 "use client";
 
 import { FC } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletConnection } from "@/hooks/useWalletConnection";
 import { TrendChart, UtilizationChart, APYComparisonChart } from "./charts";
 import { StatsCard } from "./StatsCard";
 import { useBorrowLending } from "@/hooks/useBorrowLending";
@@ -13,7 +13,7 @@ interface AnalyticsDashboardProps {
 export const AnalyticsDashboard: FC<AnalyticsDashboardProps> = ({
   userType = "overview",
 }) => {
-  const { connected } = useWallet();
+  const { connected } = useWalletConnection();
   const { analytics, isLoading, lastUpdated } = useBorrowLending();
 
   if (isLoading || !analytics) {

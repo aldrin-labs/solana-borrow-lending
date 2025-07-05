@@ -1,9 +1,8 @@
 "use client";
 
 import { FC } from "react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { WalletConnectionButton } from "./WalletConnectionButton";
 import Link from "next/link";
-import Image from "next/image";
 
 export const Header: FC = () => {
   return (
@@ -44,7 +43,7 @@ export const Header: FC = () => {
           </nav>
         </div>
         <div className="flex items-center space-x-4">
-          <WalletMultiButton className="btn-connect !py-2 !px-4 !rounded !transition-colors" />
+          <WalletConnectionButton className="btn-connect" />
         </div>
       </div>
 

@@ -1,14 +1,15 @@
 "use client";
 
 import { FC, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletConnection } from "@/hooks/useWalletConnection";
 import { MarketOverview } from "./MarketOverview";
 import { UserPositions } from "./UserPositions";
 import { StatsCard } from "./StatsCard";
 import { AnalyticsDashboard } from "./AnalyticsDashboard";
+import { WalletConnectionButton } from "./WalletConnectionButton";
 
 export const Dashboard: FC = () => {
-  const { connected } = useWallet();
+  const { connected } = useWalletConnection();
   const [activeTab, setActiveTab] = useState<"overview" | "positions" | "analytics">(
     "overview",
   );
@@ -86,9 +87,7 @@ export const Dashboard: FC = () => {
             Connect your wallet to view your positions and interact with the
             protocol
           </p>
-          <button className="btn-connect py-2 px-6 rounded font-medium">
-            Connect Wallet
-          </button>
+          <WalletConnectionButton className="mx-auto" />
         </div>
       )}
     </div>
