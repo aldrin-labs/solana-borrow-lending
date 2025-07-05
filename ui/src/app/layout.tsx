@@ -9,6 +9,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { WalletErrorBoundary } from "@/components/WalletErrorBoundary";
 import { ClientOnly } from "@/components/ClientOnly";
 import { WebComponentGuard } from "@/components/WebComponentGuard";
+import { QuickActions } from "@/components/QuickActions";
 
 export const metadata: Metadata = {
   title: "MAGA - Make Aldrin Great Again",
@@ -177,6 +178,7 @@ export default function RootLayout({
                         {children}
                       </ErrorBoundary>
                     </main>
+                    <QuickActions />
                     <footer className="py-6 border-t transition-all duration-300" 
                       style={{
                         backgroundColor: 'var(--theme-surface)',
