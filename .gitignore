@@ -16,3 +16,7 @@ target
 test-ledger
 grcov.log
 tsconfig.tsbuildinfo
+
+# Temporary audit files
+typst.tar.xz
+typst-x86_64-unknown-linux-musl/
