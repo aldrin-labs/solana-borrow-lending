@@ -4,9 +4,6 @@
   
   # Directory to publish (relative to repo root)
   publish = "ui/out"
-  
-  # Node.js version to use
-  environment = { NODE_VERSION = "22", NPM_FLAGS = "--legacy-peer-deps" }
 
 [build.processing]
   skip_processing = false
@@ -19,8 +16,10 @@
   bundle = true
   minify = true
 
-# Build caching for faster builds
+# Build environment variables
 [build.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS = "--legacy-peer-deps"
   NEXT_TELEMETRY_DISABLED = "1"
 
 # Functions (if needed for future API endpoints)
