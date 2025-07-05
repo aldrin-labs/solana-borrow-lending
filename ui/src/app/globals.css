@@ -3,9 +3,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Import modern fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* Import sophisticated banking fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@300;400;500;600;700&display=swap');
 
 /* Default theme variables (Light Banking) */
 :root {
@@ -47,10 +48,12 @@ body {
   color: var(--theme-textPrimary);
   background: var(--theme-background);
   font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 15px;
+  line-height: 1.5;
   font-weight: 400;
   scroll-behavior: smooth;
+  letter-spacing: -0.011em;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
 }
 
 /* Subtle texture overlay as a pseudo-element instead of body opacity */
@@ -70,6 +73,110 @@ body::before {
 }
 
 @layer components {
+  /* Enhanced Typography System */
+  .typography-display-1 {
+    font-size: 3.5rem;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+    color: var(--theme-textPrimary);
+  }
+  
+  .typography-display-2 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.022em;
+    color: var(--theme-textPrimary);
+  }
+  
+  .typography-h1 {
+    font-size: 2rem;
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.020em;
+    color: var(--theme-textPrimary);
+  }
+  
+  .typography-h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.018em;
+    color: var(--theme-textPrimary);
+  }
+  
+  .typography-h3 {
+    font-size: 1.25rem;
+    font-weight: 500;
+    line-height: 1.4;
+    letter-spacing: -0.015em;
+    color: var(--theme-textPrimary);
+  }
+  
+  .typography-body-lg {
+    font-size: 1.125rem;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: -0.011em;
+    color: var(--theme-textPrimary);
+  }
+  
+  .typography-body {
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: -0.009em;
+    color: var(--theme-textPrimary);
+  }
+  
+  .typography-body-sm {
+    font-size: 0.875rem;
+    font-weight: 400;
+    line-height: 1.4;
+    letter-spacing: -0.006em;
+    color: var(--theme-textSecondary);
+  }
+  
+  .typography-caption {
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+    color: var(--theme-textMuted);
+  }
+  
+  .typography-number-lg {
+    font-family: 'Source Code Pro', 'JetBrains Mono', monospace;
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.025em;
+    color: var(--theme-textPrimary);
+    font-feature-settings: 'tnum', 'lnum';
+  }
+  
+  .typography-number {
+    font-family: 'Source Code Pro', 'JetBrains Mono', monospace;
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: -0.015em;
+    color: var(--theme-textPrimary);
+    font-feature-settings: 'tnum', 'lnum';
+  }
+  
+  .typography-number-sm {
+    font-family: 'Source Code Pro', 'JetBrains Mono', monospace;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: -0.010em;
+    color: var(--theme-textSecondary);
+    font-feature-settings: 'tnum', 'lnum';
+  }
+
   /* Theme-aware card styling */
   .card {
     background: var(--theme-card);
@@ -266,7 +373,7 @@ body::before {
   .table-container {
     overflow: hidden;
     border: 1px solid var(--theme-border);
-    border-radius: 0.5rem;
+    border-radius: 0.75rem;
     background: var(--theme-card);
     transition: all 0.3s ease;
     box-shadow: var(--theme-shadow-card);
@@ -275,12 +382,13 @@ body::before {
   .table-header {
     background: var(--theme-surface);
     color: var(--theme-textSecondary);
-    padding: 1rem 1.5rem;
+    padding: 0.875rem 1.5rem;
     border-bottom: 1px solid var(--theme-border);
     font-weight: 500;
-    font-size: 0.875rem;
+    font-size: 0.8rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.1em;
+    line-height: 1.2;
   }
   
   .table-row {
@@ -290,6 +398,7 @@ body::before {
   
   .table-row:hover {
     background: var(--theme-surface);
+    box-shadow: inset 0 0 0 1px var(--theme-primary);
   }
   
   .table-row:last-child {
@@ -297,9 +406,12 @@ body::before {
   }
   
   .table-cell {
-    padding: 1rem 1.5rem;
+    padding: 0.875rem 1.5rem;
     color: var(--theme-textPrimary);
-    font-weight: 500;
+    font-weight: 400;
+    vertical-align: middle;
+    font-size: 0.9rem;
+    line-height: 1.4;
   }
   
   /* Theme-aware section titles */

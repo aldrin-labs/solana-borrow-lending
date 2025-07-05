@@ -161,7 +161,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-screen font-sans theme-transition">
+      <body className="min-h-screen font-sans theme-transition" style={{ fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif' }}>
         <WebComponentGuard />
         <ClientOnly>
           <ErrorBoundary>

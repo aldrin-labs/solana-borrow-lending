@@ -1,56 +1,127 @@
 "use client";
 
-import { FC, useState } from "react";
+import { FC, useState, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { MarketOverview } from "./MarketOverview";
 import { UserPositions } from "./UserPositions";
 import { StatsCard } from "./StatsCard";
 import { AnalyticsDashboard } from "./AnalyticsDashboard";
 import { Card } from "./Card";
+import { solanaDataService } from "@/services/solanaDataService";
+import { LoadingSpinner } from "./LoadingSpinner";
 
 export const Dashboard: FC = () => {
   const { connected } = useWallet();
   const [activeTab, setActiveTab] = useState<"overview" | "positions" | "analytics">(
     "overview",
   );
+  const [protocolStats, setProtocolStats] = useState({
+    totalValueLocked: "$0",
+    totalBorrowed: "$0", 
+    totalSupplied: "$0",
+    tvlChange: "0%",
+    borrowedChange: "0%",
+    suppliedChange: "0%",
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProtocolStats = async () => {
+      try {
+        const [markets, analytics] = await Promise.all([
+          solanaDataService.fetchMarketData(),
+          solanaDataService.fetchProtocolAnalytics(),
+        ]);
+
+        // Calculate real totals from market data
+        const totalSupplied = markets.reduce((sum, market) => {
+          const value = parseInt(market.totalSupply.replace(/[$,]/g, ''));
+          return sum + value;
+        }, 0);
+
+        const totalBorrowed = markets.reduce((sum, market) => {
+          const value = parseInt(market.totalBorrow.replace(/[$,]/g, ''));
+          return sum + value;
+        }, 0);
+
+        const totalValueLocked = totalSupplied;
+
+        // Calculate changes from analytics data
+        const tvlData = analytics.totalValueLocked;
+        const borrowedData = analytics.totalBorrowed;
+        const suppliedData = analytics.totalSupplied;
+
+        const calculateChange = (data: Array<{ time: string; value: number }>) => {
+          if (data.length < 2) return "0%";
+          const current = data[data.length - 1].value;
+          const previous = data[data.length - 2].value;
+          const change = ((current - previous) / previous) * 100;
+          return `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
+        };
+
+        setProtocolStats({
+          totalValueLocked: `$${totalValueLocked.toLocaleString()}`,
+          totalBorrowed: `$${totalBorrowed.toLocaleString()}`,
+          totalSupplied: `$${totalSupplied.toLocaleString()}`,
+          tvlChange: calculateChange(tvlData),
+          borrowedChange: calculateChange(borrowedData),
+          suppliedChange: calculateChange(suppliedData),
+        });
+      } catch (error) {
+        console.error('Error fetching protocol stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProtocolStats();
+    
+    // Update every 30 seconds
+    const interval = setInterval(fetchProtocolStats, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 animate-fade-in">
       <div className="mb-8">
-        <h1 
-          className="text-4xl font-semibold mb-2"
-          style={{ color: 'var(--theme-textPrimary)' }}
-        >
-          Dashboard
+        <h1 className="typography-display-2 mb-2">
+          Protocol Dashboard
         </h1>
-        <p style={{ color: 'var(--theme-textSecondary)' }}>
-          Monitor your lending and borrowing activities
+        <p className="typography-body-lg">
+          Real-time protocol metrics and lending market overview
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatsCard
-          title="Total Value Locked"
-          value="$123,456,789"
-          change="+5.2%"
-          isPositive={true}
-          tooltip="Total assets deposited across all markets"
-        />
-        <StatsCard
-          title="Total Borrowed"
-          value="$45,678,901"
-          change="+2.8%"
-          isPositive={true}
-          tooltip="Total amount borrowed by all users"
-        />
-        <StatsCard
-          title="Total Supplied"
-          value="$78,901,234"
-          change="-1.3%"
-          isPositive={false}
-          tooltip="Total assets supplied by all users"
-        />
-      </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <LoadingSpinner />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <StatsCard
+            title="Total Value Locked"
+            value={protocolStats.totalValueLocked}
+            change={protocolStats.tvlChange}
+            isPositive={!protocolStats.tvlChange.startsWith('-')}
+            tooltip="Total assets deposited across all markets"
+          />
+          <StatsCard
+            title="Total Borrowed"
+            value={protocolStats.totalBorrowed}
+            change={protocolStats.borrowedChange}
+            isPositive={!protocolStats.borrowedChange.startsWith('-')}
+            tooltip="Total amount borrowed by all users"
+          />
+          <StatsCard
+            title="Total Supplied"
+            value={protocolStats.totalSupplied}
+            change={protocolStats.suppliedChange}
+            isPositive={!protocolStats.suppliedChange.startsWith('-')}
+            tooltip="Total assets supplied by all users"
+          />
+        </div>
+      )}
 
       {connected ? (
         <Card className="animate-slide-up">

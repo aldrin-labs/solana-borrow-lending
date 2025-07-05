@@ -59,7 +59,9 @@ module.exports = {
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+        mono: ['Source Code Pro', 'JetBrains Mono', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+        display: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        number: ['Source Code Pro', 'JetBrains Mono', 'monospace'],
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-out',
