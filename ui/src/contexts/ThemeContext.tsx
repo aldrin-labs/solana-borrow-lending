@@ -321,11 +321,15 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
 
   const setTheme = (newTheme: ThemeType) => {
     setThemeType(newTheme);
-    localStorage.setItem('maga-theme', newTheme);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('maga-theme', newTheme);
+    }
     applyThemeToDOM(themes[newTheme]);
   };
 
   const applyThemeToDOM = (theme: Theme) => {
+    if (typeof window === 'undefined') return;
+    
     const root = document.documentElement;
     
     // Apply CSS custom properties
@@ -350,10 +354,12 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   };
 
   useEffect(() => {
-    // Load theme from localStorage on mount
-    const savedTheme = localStorage.getItem('maga-theme') as ThemeType;
-    if (savedTheme && themes[savedTheme]) {
-      setThemeType(savedTheme);
+    // Only access localStorage on client side
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('maga-theme') as ThemeType;
+      if (savedTheme && themes[savedTheme]) {
+        setThemeType(savedTheme);
+      }
     }
     setIsLoading(false);
   }, []);

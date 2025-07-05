@@ -13,6 +13,8 @@ import {
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { clusterApiUrl } from "@solana/web3.js";
 
+import { LoadingSpinner } from "./LoadingSpinner";
+
 // Import the local wallet adapter CSS (modified to remove Google Fonts)
 import "@/styles/wallet-adapter.css";
 
@@ -24,7 +26,6 @@ export const WalletProviderWrapper: FC<WalletProviderWrapperProps> = ({
   children,
 }) => {
   const [isClient, setIsClient] = useState(false);
-  const [isWalletReady, setIsWalletReady] = useState(false);
   
   // Prevent wallet extension conflicts
   useEffect(() => {
@@ -50,12 +51,8 @@ export const WalletProviderWrapper: FC<WalletProviderWrapperProps> = ({
   
   // Ensure component only renders on client to avoid SSR issues
   useEffect(() => {
-    // Add delay to ensure DOM is fully loaded
-    const timer = setTimeout(() => {
-      setIsClient(true);
-      // Add additional delay for wallet initialization
-      setTimeout(() => setIsWalletReady(true), 100);
-    }, 50);
+    // Immediate client detection, no artificial delays
+    setIsClient(true);
     
     // Add global error handler for wallet-related errors
     const handleWalletError = (event: ErrorEvent) => {
@@ -89,7 +86,6 @@ export const WalletProviderWrapper: FC<WalletProviderWrapperProps> = ({
     window.addEventListener('unhandledrejection', handleWalletRejection);
 
     return () => {
-      clearTimeout(timer);
       window.removeEventListener('error', handleWalletError);
       window.removeEventListener('unhandledrejection', handleWalletRejection);
     };
@@ -115,7 +111,7 @@ export const WalletProviderWrapper: FC<WalletProviderWrapperProps> = ({
   // Safe wallet adapter initialization
   const wallets = useMemo(
     () => {
-      if (!isClient || !isWalletReady) return [];
+      if (!isClient) return [];
       
       try {
         // Add extra safety checks for wallet initialization
@@ -144,7 +140,7 @@ export const WalletProviderWrapper: FC<WalletProviderWrapperProps> = ({
         return [];
       }
     },
-    [isClient, isWalletReady],
+    [isClient],
   );
 
   // Enhanced error handling for wallet provider
@@ -158,13 +154,9 @@ export const WalletProviderWrapper: FC<WalletProviderWrapperProps> = ({
     }
   }, []);
 
-  // Don't render on server or before client/wallet hydration
-  if (!isClient || !isWalletReady) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div>Loading...</div>
-      </div>
-    );
+  // Don't render on server - but render immediately on client
+  if (!isClient) {
+    return <LoadingSpinner />;
   }
 
   // Render with enhanced error boundaries
