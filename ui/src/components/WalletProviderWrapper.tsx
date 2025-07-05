@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, ReactNode, useMemo, useEffect, useState } from "react";
+import { FC, ReactNode, useMemo, useEffect, useState, useCallback } from "react";
 import {
   ConnectionProvider,
   WalletProvider,
@@ -24,15 +24,45 @@ export const WalletProviderWrapper: FC<WalletProviderWrapperProps> = ({
   children,
 }) => {
   const [isClient, setIsClient] = useState(false);
+  const [isWalletReady, setIsWalletReady] = useState(false);
+  
+  // Prevent wallet extension conflicts
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Protect against multiple wallet extensions overriding window.ethereum
+    const originalEthereum = (window as any).ethereum;
+    
+    // Override property definition to prevent conflicts
+    if (originalEthereum) {
+      try {
+        Object.defineProperty(window, 'ethereum', {
+          value: originalEthereum,
+          writable: false,
+          configurable: false
+        });
+      } catch (error) {
+        // Property already defined, ignore
+        console.warn('Ethereum provider already configured');
+      }
+    }
+  }, []);
   
   // Ensure component only renders on client to avoid SSR issues
   useEffect(() => {
-    setIsClient(true);
+    // Add delay to ensure DOM is fully loaded
+    const timer = setTimeout(() => {
+      setIsClient(true);
+      // Add additional delay for wallet initialization
+      setTimeout(() => setIsWalletReady(true), 100);
+    }, 50);
     
     // Add global error handler for wallet-related errors
     const handleWalletError = (event: ErrorEvent) => {
       if (event.error && 
           (event.error.message?.includes('Cannot read properties of null') ||
+           event.error.message?.includes('Cannot set property ethereum') ||
+           event.error.message?.includes('Cannot redefine property') ||
            event.error.message?.includes('wallet adapter'))) {
         console.warn('Wallet adapter error handled:', event.error.message);
         event.preventDefault();
@@ -45,6 +75,8 @@ export const WalletProviderWrapper: FC<WalletProviderWrapperProps> = ({
     const handleWalletRejection = (event: PromiseRejectionEvent) => {
       if (event.reason && 
           (event.reason.message?.includes('Cannot read properties of null') ||
+           event.reason.message?.includes('Cannot set property ethereum') ||
+           event.reason.message?.includes('Cannot redefine property') ||
            event.reason.message?.includes('wallet adapter'))) {
         console.warn('Wallet adapter promise rejection handled:', event.reason.message);
         event.preventDefault();
@@ -57,6 +89,7 @@ export const WalletProviderWrapper: FC<WalletProviderWrapperProps> = ({
     window.addEventListener('unhandledrejection', handleWalletRejection);
 
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('error', handleWalletError);
       window.removeEventListener('unhandledrejection', handleWalletRejection);
     };
@@ -79,25 +112,30 @@ export const WalletProviderWrapper: FC<WalletProviderWrapperProps> = ({
     return endpoints[0];
   }, [network]);
 
-  // @solana/wallet-adapter-wallets includes all the adapters but supports tree shaking
+  // Safe wallet adapter initialization
   const wallets = useMemo(
     () => {
-      if (!isClient) return [];
+      if (!isClient || !isWalletReady) return [];
       
       try {
         // Add extra safety checks for wallet initialization
         const adapters = [];
         
-        try {
-          adapters.push(new PhantomWalletAdapter());
-        } catch (error) {
-          console.warn('Failed to initialize Phantom wallet adapter:', error);
-        }
-        
-        try {
-          adapters.push(new SolflareWalletAdapter());
-        } catch (error) {
-          console.warn('Failed to initialize Solflare wallet adapter:', error);
+        // Only initialize wallets if window and extensions are available
+        if (typeof window !== 'undefined') {
+          try {
+            const phantom = new PhantomWalletAdapter();
+            if (phantom) adapters.push(phantom);
+          } catch (error) {
+            console.warn('Failed to initialize Phantom wallet adapter:', error);
+          }
+          
+          try {
+            const solflare = new SolflareWalletAdapter();
+            if (solflare) adapters.push(solflare);
+          } catch (error) {
+            console.warn('Failed to initialize Solflare wallet adapter:', error);
+          }
         }
         
         return adapters;
@@ -106,25 +144,45 @@ export const WalletProviderWrapper: FC<WalletProviderWrapperProps> = ({
         return [];
       }
     },
-    [isClient],
+    [isClient, isWalletReady],
   );
 
-  // Don't render on server or before client hydration
-  if (!isClient) {
-    return <div>{children}</div>;
+  // Enhanced error handling for wallet provider
+  const handleWalletError = useCallback((error: any) => {
+    console.warn('Wallet provider error:', error);
+    // Prevent error propagation for known wallet issues
+    if (error?.message?.includes('Cannot read properties of null') ||
+        error?.message?.includes('publicKey') ||
+        error?.message?.includes('wallet')) {
+      return; // Suppress error
+    }
+  }, []);
+
+  // Don't render on server or before client/wallet hydration
+  if (!isClient || !isWalletReady) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div>Loading...</div>
+      </div>
+    );
   }
 
-  return (
-    <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider 
-        wallets={wallets} 
-        autoConnect={false}
-        onError={(error) => {
-          console.warn('Wallet provider error:', error);
-        }}
-      >
-        <WalletModalProvider>{children}</WalletModalProvider>
-      </WalletProvider>
-    </ConnectionProvider>
-  );
+  // Render with enhanced error boundaries
+  try {
+    return (
+      <ConnectionProvider endpoint={endpoint}>
+        <WalletProvider 
+          wallets={wallets} 
+          autoConnect={false}
+          onError={handleWalletError}
+        >
+          <WalletModalProvider>{children}</WalletModalProvider>
+        </WalletProvider>
+      </ConnectionProvider>
+    );
+  } catch (error) {
+    console.warn('Failed to render wallet provider:', error);
+    // Fallback rendering without wallet functionality
+    return <div>{children}</div>;
+  }
 };

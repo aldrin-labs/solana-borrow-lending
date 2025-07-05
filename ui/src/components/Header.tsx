@@ -6,11 +6,27 @@ import Link from "next/link";
 import { ThemeSelector } from "./ThemeSelector";
 import { ErrorBoundary } from "./ErrorBoundary";
 
-// Safe wallet button component with error handling
+// Safe wallet button component with enhanced error handling
 const SafeWalletButton: FC = () => {
+  const WalletFallback: React.FC<{ error: Error; reset: () => void }> = ({ error, reset }) => (
+    <button
+      className="px-4 py-2 rounded-lg font-medium transition-all duration-200"
+      style={{
+        backgroundColor: 'var(--theme-primary)',
+        color: 'var(--theme-onPrimary)',
+      }}
+      onClick={reset}
+      disabled
+    >
+      Wallet Unavailable
+    </button>
+  );
+
   try {
     return (
-      <WalletMultiButton className="btn-connect !rounded-lg !transition-all !duration-200 !font-medium" />
+      <ErrorBoundary fallback={WalletFallback}>
+        <WalletMultiButton className="btn-connect !rounded-lg !transition-all !duration-200 !font-medium" />
+      </ErrorBoundary>
     );
   } catch (error) {
     console.warn('WalletMultiButton error:', error);
@@ -102,9 +118,7 @@ export const Header: FC = () => {
           
           <div className="flex items-center space-x-4">
             <ThemeSelector />
-            <ErrorBoundary>
-              <SafeWalletButton />
-            </ErrorBoundary>
+            <SafeWalletButton />
           </div>
         </div>
       </div>

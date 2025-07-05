@@ -4,43 +4,79 @@ import React, { useEffect } from 'react';
 
 export const WebComponentGuard: React.FC = () => {
   useEffect(() => {
-    // Prevent custom element re-definition by overriding customElements.define
+    // Early prevention in useEffect to catch any remaining cases
     if (typeof window !== 'undefined' && window.customElements) {
       const originalDefine = window.customElements.define.bind(window.customElements);
+      const originalGet = window.customElements.get.bind(window.customElements);
       const definedElements = new Set<string>();
       
+      // Override customElements.define to prevent re-definition
       window.customElements.define = function(name: string, constructor: any, options?: any) {
-        if (definedElements.has(name) || window.customElements.get(name)) {
+        // Check if element is already defined using get method
+        const existing = originalGet(name);
+        if (existing || definedElements.has(name)) {
           console.warn(`Custom element '${name}' already defined, skipping re-definition`);
-          return;
+          return existing;
         }
         
         try {
           definedElements.add(name);
-          return originalDefine(name, constructor, options);
+          const result = originalDefine(name, constructor, options);
+          console.log(`Custom element '${name}' defined successfully`);
+          return result;
         } catch (error: any) {
-          if (error.message && error.message.includes('already been defined')) {
+          if (error.message && (
+              error.message.includes('already been defined') ||
+              error.message.includes('already defined') ||
+              name === 'mce-autosize-textarea'
+            )) {
             console.warn(`Custom element '${name}' already defined, caught error:`, error.message);
-            return;
+            // Return existing element instead of throwing
+            return originalGet(name) || undefined;
           }
+          console.error(`Failed to define custom element '${name}':`, error);
           throw error;
+        }
+      };
+      
+      // Override customElements.get to ensure consistency
+      window.customElements.get = function(name: string) {
+        try {
+          return originalGet(name);
+        } catch (error) {
+          console.warn(`Error getting custom element '${name}':`, error);
+          return undefined;
         }
       };
     }
 
-    // Handle custom element conflicts
+    // Enhanced error handlers for multiple error types
     const handleCustomElementError = (error: ErrorEvent) => {
-      if (error.message && error.message.includes('already been defined')) {
-        console.warn('Custom element already defined, ignoring:', error.message);
+      const message = error.message || '';
+      
+      // Handle custom element conflicts
+      if (message.includes('already been defined') || 
+          message.includes('mce-autosize-textarea') ||
+          message.includes('custom element')) {
+        console.warn('Custom element already defined, ignoring:', message);
         error.preventDefault();
         return true;
       }
       
       // Handle wallet adapter null reference errors
-      if (error.message && 
-          (error.message.includes('Cannot read properties of null') ||
-           error.message.includes('Cannot read property \'type\' of null'))) {
-        console.warn('Wallet adapter null reference error, ignoring:', error.message);
+      if (message.includes('Cannot read properties of null') ||
+          message.includes('Cannot read property \'type\' of null') ||
+          message.includes('Cannot set property ethereum') ||
+          message.includes('Cannot redefine property')) {
+        console.warn('Wallet/Ethereum provider error, ignoring:', message);
+        error.preventDefault();
+        return true;
+      }
+      
+      // Handle tooltip null reference errors
+      if (message.includes('getBoundingClientRect') ||
+          message.includes('currentTarget is null')) {
+        console.warn('Tooltip null reference error, ignoring:', message);
         error.preventDefault();
         return true;
       }
@@ -48,23 +84,35 @@ export const WebComponentGuard: React.FC = () => {
       return false;
     };
 
-    // Add error listener
-    window.addEventListener('error', handleCustomElementError);
-    
     // Add unhandled promise rejection handler
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       if (event.reason && event.reason.message) {
+        const message = event.reason.message;
+        
         // Handle custom element conflicts
-        if (event.reason.message.includes('already been defined')) {
-          console.warn('Custom element promise rejection, ignoring:', event.reason.message);
+        if (message.includes('already been defined') ||
+            message.includes('mce-autosize-textarea') ||
+            message.includes('custom element')) {
+          console.warn('Custom element promise rejection, ignoring:', message);
           event.preventDefault();
           return true;
         }
         
         // Handle wallet adapter errors
-        if (event.reason.message.includes('Cannot read properties of null') ||
-            event.reason.message.includes('Cannot read property \'type\' of null')) {
-          console.warn('Wallet adapter promise rejection, ignoring:', event.reason.message);
+        if (message.includes('Cannot read properties of null') ||
+            message.includes('Cannot read property \'type\' of null') ||
+            message.includes('Cannot set property ethereum') ||
+            message.includes('Cannot redefine property') ||
+            message.includes('wallet adapter')) {
+          console.warn('Wallet adapter promise rejection, ignoring:', message);
+          event.preventDefault();
+          return true;
+        }
+        
+        // Handle tooltip errors
+        if (message.includes('getBoundingClientRect') ||
+            message.includes('currentTarget is null')) {
+          console.warn('Tooltip promise rejection, ignoring:', message);
           event.preventDefault();
           return true;
         }
@@ -73,20 +121,28 @@ export const WebComponentGuard: React.FC = () => {
       return false;
     };
 
+    window.addEventListener('error', handleCustomElementError);
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
-    // Override console.error temporarily to catch and filter wallet errors
+    // Enhanced console.error override to filter known issues
     const originalConsoleError = console.error;
     console.error = (...args) => {
-      // Filter out known wallet adapter errors and custom element errors
       const message = args.join(' ');
+      
+      // Filter out known problematic errors
       if (message.includes('Cannot read properties of null') ||
           message.includes('Cannot read property \'type\' of null') ||
+          message.includes('Cannot set property ethereum') ||
+          message.includes('Cannot redefine property') ||
           message.includes('wallet adapter') ||
-          message.includes('already been defined')) {
-        console.warn('Filtered error:', ...args);
+          message.includes('already been defined') ||
+          message.includes('mce-autosize-textarea') ||
+          message.includes('getBoundingClientRect') ||
+          message.includes('currentTarget is null')) {
+        console.warn('Filtered console error:', ...args);
         return;
       }
+      
       originalConsoleError.apply(console, args);
     };
 

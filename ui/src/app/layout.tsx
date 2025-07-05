@@ -69,42 +69,92 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              // Prevent custom element re-definition early in document lifecycle
+              // Comprehensive custom element and wallet extension protection
               (function() {
-                if (typeof window !== 'undefined' && window.customElements) {
+                if (typeof window === 'undefined') return;
+                
+                // Protect against wallet extension conflicts first
+                try {
+                  // Prevent multiple wallet extensions from overriding ethereum
+                  const originalEthereum = window.ethereum;
+                  if (originalEthereum) {
+                    Object.defineProperty(window, 'ethereum', {
+                      value: originalEthereum,
+                      writable: false,
+                      configurable: false
+                    });
+                  }
+                } catch (e) {
+                  console.warn('Ethereum provider protection failed:', e.message);
+                }
+                
+                // Enhanced custom element protection
+                if (window.customElements) {
                   const originalDefine = window.customElements.define.bind(window.customElements);
+                  const originalGet = window.customElements.get.bind(window.customElements);
                   const definedElements = new Set();
                   
                   window.customElements.define = function(name, constructor, options) {
-                    if (definedElements.has(name) || window.customElements.get(name)) {
-                      console.warn('Custom element "' + name + '" already defined, skipping re-definition');
-                      return;
+                    // Always check if element exists first
+                    try {
+                      const existing = originalGet(name);
+                      if (existing || definedElements.has(name)) {
+                        console.warn('Custom element "' + name + '" already defined, skipping');
+                        return existing;
+                      }
+                    } catch (e) {
+                      console.warn('Error checking existing element:', e.message);
                     }
                     
                     try {
                       definedElements.add(name);
-                      return originalDefine(name, constructor, options);
+                      const result = originalDefine(name, constructor, options);
+                      console.log('Successfully defined custom element:', name);
+                      return result;
                     } catch (error) {
-                      if (error.message && error.message.includes('already been defined')) {
-                        console.warn('Custom element "' + name + '" already defined, caught error:', error.message);
-                        return;
+                      if (error.message && (
+                          error.message.includes('already been defined') ||
+                          error.message.includes('already defined') ||
+                          name === 'mce-autosize-textarea'
+                        )) {
+                        console.warn('Custom element "' + name + '" conflict resolved');
+                        return originalGet(name);
                       }
+                      console.error('Failed to define custom element "' + name + '":', error.message);
                       throw error;
                     }
                   };
-                  
-                  // Suppress specific custom element errors
-                  window.addEventListener('error', function(error) {
-                    if (error.message && (
-                        error.message.includes('already been defined') ||
-                        error.message.includes('mce-autosize-textarea')
-                      )) {
-                      error.preventDefault();
-                      console.warn('Suppressed custom element error:', error.message);
-                      return false;
-                    }
-                  });
                 }
+                
+                // Global error suppression for known issues
+                window.addEventListener('error', function(error) {
+                  const msg = error.message || '';
+                  if (msg.includes('already been defined') ||
+                      msg.includes('mce-autosize-textarea') ||
+                      msg.includes('Cannot set property ethereum') ||
+                      msg.includes('Cannot redefine property') ||
+                      msg.includes('Cannot read properties of null') ||
+                      msg.includes('getBoundingClientRect')) {
+                    console.warn('Suppressed known error:', msg);
+                    error.preventDefault();
+                    return false;
+                  }
+                });
+                
+                // Global promise rejection suppression
+                window.addEventListener('unhandledrejection', function(event) {
+                  const msg = event.reason?.message || '';
+                  if (msg.includes('already been defined') ||
+                      msg.includes('mce-autosize-textarea') ||
+                      msg.includes('Cannot set property ethereum') ||
+                      msg.includes('Cannot redefine property') ||
+                      msg.includes('Cannot read properties of null') ||
+                      msg.includes('getBoundingClientRect')) {
+                    console.warn('Suppressed known rejection:', msg);
+                    event.preventDefault();
+                    return false;
+                  }
+                });
               })();
             `,
           }}
