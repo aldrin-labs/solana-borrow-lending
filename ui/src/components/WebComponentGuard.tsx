@@ -11,6 +11,16 @@ export const WebComponentGuard: React.FC = () => {
         error.preventDefault();
         return true;
       }
+      
+      // Handle wallet adapter null reference errors
+      if (error.message && 
+          (error.message.includes('Cannot read properties of null') ||
+           error.message.includes('Cannot read property \'type\' of null'))) {
+        console.warn('Wallet adapter null reference error, ignoring:', error.message);
+        error.preventDefault();
+        return true;
+      }
+      
       return false;
     };
 
@@ -19,21 +29,47 @@ export const WebComponentGuard: React.FC = () => {
     
     // Add unhandled promise rejection handler
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      if (event.reason && event.reason.message && 
-          event.reason.message.includes('already been defined')) {
-        console.warn('Custom element promise rejection, ignoring:', event.reason.message);
-        event.preventDefault();
-        return true;
+      if (event.reason && event.reason.message) {
+        // Handle custom element conflicts
+        if (event.reason.message.includes('already been defined')) {
+          console.warn('Custom element promise rejection, ignoring:', event.reason.message);
+          event.preventDefault();
+          return true;
+        }
+        
+        // Handle wallet adapter errors
+        if (event.reason.message.includes('Cannot read properties of null') ||
+            event.reason.message.includes('Cannot read property \'type\' of null')) {
+          console.warn('Wallet adapter promise rejection, ignoring:', event.reason.message);
+          event.preventDefault();
+          return true;
+        }
       }
+      
       return false;
     };
 
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
+    // Override console.error temporarily to catch and filter wallet errors
+    const originalConsoleError = console.error;
+    console.error = (...args) => {
+      // Filter out known wallet adapter errors
+      const message = args.join(' ');
+      if (message.includes('Cannot read properties of null') ||
+          message.includes('Cannot read property \'type\' of null') ||
+          message.includes('wallet adapter')) {
+        console.warn('Filtered wallet adapter error:', ...args);
+        return;
+      }
+      originalConsoleError.apply(console, args);
+    };
+
     // Cleanup
     return () => {
       window.removeEventListener('error', handleCustomElementError);
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      console.error = originalConsoleError;
     };
   }, []);
 

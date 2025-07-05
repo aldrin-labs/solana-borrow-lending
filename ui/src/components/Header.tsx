@@ -4,6 +4,30 @@ import { FC } from "react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import Link from "next/link";
 import { ThemeSelector } from "./ThemeSelector";
+import { ErrorBoundary } from "./ErrorBoundary";
+
+// Safe wallet button component with error handling
+const SafeWalletButton: FC = () => {
+  try {
+    return (
+      <WalletMultiButton className="btn-connect !rounded-lg !transition-all !duration-200 !font-medium" />
+    );
+  } catch (error) {
+    console.warn('WalletMultiButton error:', error);
+    return (
+      <button
+        className="px-4 py-2 rounded-lg font-medium transition-all duration-200"
+        style={{
+          backgroundColor: 'var(--theme-primary)',
+          color: 'var(--theme-onPrimary)',
+        }}
+        disabled
+      >
+        Connect Wallet
+      </button>
+    );
+  }
+};
 
 export const Header: FC = () => {
   return (
@@ -78,7 +102,9 @@ export const Header: FC = () => {
           
           <div className="flex items-center space-x-4">
             <ThemeSelector />
-            <WalletMultiButton className="btn-connect !rounded-lg !transition-all !duration-200 !font-medium" />
+            <ErrorBoundary>
+              <SafeWalletButton />
+            </ErrorBoundary>
           </div>
         </div>
       </div>
