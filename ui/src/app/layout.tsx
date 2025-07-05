@@ -65,6 +65,51 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Prevent custom element re-definition early in document lifecycle
+              (function() {
+                if (typeof window !== 'undefined' && window.customElements) {
+                  const originalDefine = window.customElements.define.bind(window.customElements);
+                  const definedElements = new Set();
+                  
+                  window.customElements.define = function(name, constructor, options) {
+                    if (definedElements.has(name) || window.customElements.get(name)) {
+                      console.warn('Custom element "' + name + '" already defined, skipping re-definition');
+                      return;
+                    }
+                    
+                    try {
+                      definedElements.add(name);
+                      return originalDefine(name, constructor, options);
+                    } catch (error) {
+                      if (error.message && error.message.includes('already been defined')) {
+                        console.warn('Custom element "' + name + '" already defined, caught error:', error.message);
+                        return;
+                      }
+                      throw error;
+                    }
+                  };
+                  
+                  // Suppress specific custom element errors
+                  window.addEventListener('error', function(error) {
+                    if (error.message && (
+                        error.message.includes('already been defined') ||
+                        error.message.includes('mce-autosize-textarea')
+                      )) {
+                      error.preventDefault();
+                      console.warn('Suppressed custom element error:', error.message);
+                      return false;
+                    }
+                  });
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="min-h-screen font-sans theme-transition">
         <WebComponentGuard />
         <ErrorBoundary>
