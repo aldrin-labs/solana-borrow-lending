@@ -53,10 +53,10 @@ export const BorrowingDashboard: FC = () => {
       <div className="border-b border-border">
         <div className="flex space-x-6">
           <button
-            className={`py-3 px-4 font-medium transition-colors ${
+            className={`py-3 px-4 font-medium transition-colors rounded-t-lg ${
               activeTab === "markets"
-                ? "text-white border-b-2 border-secondary"
-                : "text-text-secondary hover:text-white"
+                ? "text-white bg-primary border-b-2 border-primary"
+                : "text-text-secondary hover:text-white hover:bg-surface"
             }`}
             onClick={() => setActiveTab("markets")}
           >
@@ -65,20 +65,20 @@ export const BorrowingDashboard: FC = () => {
           {connected && (
             <>
               <button
-                className={`py-3 px-4 font-medium transition-colors ${
+                className={`py-3 px-4 font-medium transition-colors rounded-t-lg ${
                   activeTab === "positions"
-                    ? "text-white border-b-2 border-secondary"
-                    : "text-text-secondary hover:text-white"
+                    ? "text-white bg-primary border-b-2 border-primary"
+                    : "text-text-secondary hover:text-white hover:bg-surface"
                 }`}
                 onClick={() => setActiveTab("positions")}
               >
                 Your Borrows
               </button>
               <button
-                className={`py-3 px-4 font-medium transition-colors ${
+                className={`py-3 px-4 font-medium transition-colors rounded-t-lg ${
                   activeTab === "analytics"
-                    ? "text-white border-b-2 border-secondary"
-                    : "text-text-secondary hover:text-white"
+                    ? "text-white bg-primary border-b-2 border-primary"
+                    : "text-text-secondary hover:text-white hover:bg-surface"
                 }`}
                 onClick={() => setActiveTab("analytics")}
               >
@@ -125,7 +125,7 @@ export const BorrowingDashboard: FC = () => {
                         currency: "USD",
                       })}
                     </td>
-                    <td className="table-cell text-error">{market.borrowApy}</td>
+                    <td className="table-cell text-error">{market.borrowApyFormatted}</td>
                     <td className="table-cell">
                       <button
                         onClick={() => handleBorrow(market)}

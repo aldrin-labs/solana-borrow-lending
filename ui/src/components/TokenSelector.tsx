@@ -1,11 +1,13 @@
 import { FC, useState } from "react";
 import { TokenIcon } from "./TokenIcon";
+import { Tooltip } from "./Tooltip";
 
 interface TokenSelectorProps {
   tokens: string[];
   selectedToken: string;
   onSelect: (token: string) => void;
   label?: string;
+  tooltip?: string;
 }
 
 export const TokenSelector: FC<TokenSelectorProps> = ({
@@ -13,6 +15,7 @@ export const TokenSelector: FC<TokenSelectorProps> = ({
   selectedToken,
   onSelect,
   label,
+  tooltip,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -28,18 +31,40 @@ export const TokenSelector: FC<TokenSelectorProps> = ({
   return (
     <div className="relative">
       {label && (
-        <label className="block text-text-secondary mb-2 text-sm font-medium">
-          {label}
-        </label>
+        <div className="flex items-center space-x-2 mb-2">
+          <label 
+            className="block text-sm font-medium"
+            style={{ color: 'var(--theme-textSecondary)' }}
+          >
+            {label}
+          </label>
+          {tooltip && (
+            <Tooltip content={tooltip} position="top">
+              <div 
+                className="w-4 h-4 rounded-full text-white text-xs flex items-center justify-center cursor-help"
+                style={{ backgroundColor: 'var(--theme-textMuted)' }}
+              >
+                ?
+              </div>
+            </Tooltip>
+          )}
+        </div>
       )}
-      <div className="token-selector" onClick={toggleDropdown}>
+      
+      <div className="token-selector interactive" onClick={toggleDropdown}>
         <div className="flex items-center">
           <TokenIcon token={selectedToken} size="sm" />
-          <span className="ml-2 font-medium">{selectedToken}</span>
+          <span 
+            className="ml-2 font-medium"
+            style={{ color: 'var(--theme-textPrimary)' }}
+          >
+            {selectedToken}
+          </span>
         </div>
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          className={`h-5 w-5 text-text-secondary transition-transform ${isOpen ? "rotate-180" : ""}`}
+          className={`h-5 w-5 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+          style={{ color: 'var(--theme-textSecondary)' }}
           viewBox="0 0 20 20"
           fill="currentColor"
         >
@@ -52,15 +77,27 @@ export const TokenSelector: FC<TokenSelectorProps> = ({
       </div>
 
       {isOpen && (
-        <div className="absolute z-10 mt-1 w-full bg-surface border border-border rounded-md shadow-lg max-h-60 overflow-auto">
+        <div 
+          className="absolute z-10 mt-1 w-full border rounded-lg max-h-60 overflow-auto animate-slide-down"
+          style={{
+            backgroundColor: 'var(--theme-card)',
+            borderColor: 'var(--theme-border)',
+            boxShadow: 'var(--theme-shadow-lg)',
+          }}
+        >
           {tokens.map((token) => (
             <div
               key={token}
-              className="flex items-center px-4 py-2 hover:bg-background cursor-pointer"
+              className="flex items-center px-4 py-3 cursor-pointer transition-colors duration-200 first:rounded-t-lg last:rounded-b-lg token-dropdown-item"
               onClick={() => handleSelect(token)}
             >
               <TokenIcon token={token} size="sm" />
-              <span className="ml-2 font-medium">{token}</span>
+              <span 
+                className="ml-2 font-medium"
+                style={{ color: 'var(--theme-textPrimary)' }}
+              >
+                {token}
+              </span>
             </div>
           ))}
         </div>

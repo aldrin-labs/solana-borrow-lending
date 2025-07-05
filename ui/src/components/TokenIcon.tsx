@@ -2,7 +2,7 @@ import { FC } from "react";
 
 interface TokenIconProps {
   token: string;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | number;
 }
 
 export const TokenIcon: FC<TokenIconProps> = ({ token, size = "md" }) => {
@@ -12,26 +12,41 @@ export const TokenIcon: FC<TokenIconProps> = ({ token, size = "md" }) => {
     USDC: "#2775CA",
     ETH: "#627EEA",
     BTC: "#F7931A",
+    USDT: "#26A17B",
     // Add more tokens as needed
   };
 
-  // Determine size class
-  const sizeClass = {
-    sm: "w-6 h-6 text-xs",
-    md: "w-8 h-8 text-sm",
-    lg: "w-10 h-10 text-base",
-  }[size];
+  // Determine size styling
+  let sizeClass: string;
+  let style: React.CSSProperties = {};
+
+  if (typeof size === "number") {
+    style.width = `${size}px`;
+    style.height = `${size}px`;
+    style.fontSize = `${Math.max(10, size * 0.4)}px`;
+    sizeClass = "flex items-center justify-center font-bold text-white shadow-md";
+  } else {
+    const sizeClasses = {
+      sm: "w-6 h-6 text-xs",
+      md: "w-8 h-8 text-sm",
+      lg: "w-10 h-10 text-base",
+    };
+    sizeClass = `${sizeClasses[size]} flex items-center justify-center font-bold text-white shadow-md`;
+  }
 
   // Use the token color if available, otherwise use a default color
   const bgColor = tokenColors[token] || "#6E8AFA";
 
+  const iconStyle = {
+    ...style,
+    background: `linear-gradient(135deg, ${bgColor}, ${adjustColor(bgColor, -20)})`,
+    border: "1px solid rgba(255, 255, 255, 0.1)",
+  };
+
   return (
     <div
-      className={`${sizeClass} rounded-full flex items-center justify-center font-bold text-white shadow-md`}
-      style={{
-        background: `linear-gradient(135deg, ${bgColor}, ${adjustColor(bgColor, -20)})`,
-        border: "1px solid rgba(255, 255, 255, 0.1)",
-      }}
+      className={`${sizeClass} rounded-full`}
+      style={iconStyle}
     >
       {token.substring(0, 1)}
     </div>

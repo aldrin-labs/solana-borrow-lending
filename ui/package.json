@@ -1,14 +1,22 @@
 {
-  "name": "solana-borrow-lending-ui",
+  "name": "maga-aldrin-ui",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:ci": "jest --ci --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:install": "playwright install"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
     "@project-serum/anchor": "^0.26.0",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-react": "^0.15.35",
@@ -22,19 +30,27 @@
     "pino-pretty": "^13.0.0",
     "postcss": "^8.4.31",
     "qrcode.react": "^4.2.0",
-    "react": "19.0.0",
-    "react-dom": "19.0.0",
-    "react-qr-reader": "^3.0.0-beta-1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "recharts": "^2.15.4",
     "swr": "^2.2.4",
     "tailwindcss": "^3.4.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@testing-library/jest-dom": "^6.1.0",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/user-event": "^14.5.0",
+    "@types/jest": "^29.5.0",
     "@types/node": "^20.10.5",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.56.0",
     "eslint-config-next": "15.3.2",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
     "typescript": "^5.3.3"
   }
 }
