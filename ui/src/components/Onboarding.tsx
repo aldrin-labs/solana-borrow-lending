@@ -324,6 +324,8 @@ export const OnboardingProvider: FC<{ children: React.ReactNode }> = ({ children
 
   const skipTour = () => {
     setIsActive(false);
+    setIsCompleted(true);
+    localStorage.setItem('maga-aldrin-onboarding-completed', 'true');
     announce('Tour skipped');
     serviceRef.current?.clear();
   };
@@ -577,6 +579,7 @@ export const Onboarding: FC = () => {
 
   const handleClose = () => {
     setShowOnboarding(false);
+    localStorage.setItem('maga-aldrin-onboarding-completed', 'true');
   };
 
   const handleRestart = () => {
