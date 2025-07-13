@@ -517,7 +517,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({
         {/* Navigation buttons */}
         <div className="flex justify-between items-center">
           <button 
-            onClick={skipTour} 
+            onClick={onClose} 
             className="btn-secondary"
             aria-label="Skip tour"
           >
