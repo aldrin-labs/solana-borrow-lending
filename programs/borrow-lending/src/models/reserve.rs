@@ -892,6 +892,9 @@ pub(crate) trait InitReserveOps<'info> {
     }
 }
 
+// Implement ZeroCopyAccount for Reserve to ensure rigorous zero-copy safety
+impl_zero_copy_account!(Reserve, 571);
+
 #[cfg(test)]
 mod tests {
     use super::*;
