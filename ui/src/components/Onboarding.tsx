@@ -324,6 +324,8 @@ export const OnboardingProvider: FC<{ children: React.ReactNode }> = ({ children
 
   const skipTour = () => {
     setIsActive(false);
+    setIsCompleted(true);
+    localStorage.setItem('maga-aldrin-onboarding-completed', 'true');
     announce('Tour skipped');
     serviceRef.current?.clear();
   };
@@ -515,7 +517,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({
         {/* Navigation buttons */}
         <div className="flex justify-between items-center">
           <button 
-            onClick={skipTour} 
+            onClick={onClose} 
             className="btn-secondary"
             aria-label="Skip tour"
           >
@@ -577,6 +579,7 @@ export const Onboarding: FC = () => {
 
   const handleClose = () => {
     setShowOnboarding(false);
+    localStorage.setItem('maga-aldrin-onboarding-completed', 'true');
   };
 
   const handleRestart = () => {
