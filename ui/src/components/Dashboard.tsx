@@ -165,14 +165,9 @@ export const Dashboard: FC = () => {
                 element="tab-overview"
               >
                 <button
-                  className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 focus-visible ${
-                    activeTab === "overview" ? "border" : "hover:bg-opacity-10"
+                  className={`dashboard-tab focus-visible ${
+                    activeTab === "overview" ? "active" : ""
                   }`}
-                  style={{
-                    color: activeTab === "overview" ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
-                    backgroundColor: activeTab === "overview" ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
-                    borderColor: activeTab === "overview" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
-                  }}
                   onClick={() => setActiveTab("overview")}
                   data-business-function="This shows you all the different cryptocurrencies you can lend or borrow, what interest rates they're paying, and how much money is available. It's like a shopping menu for crypto lending - you can see all your options in one place."
                   aria-label="Market Overview - View lending markets and rates"
@@ -181,14 +176,7 @@ export const Dashboard: FC = () => {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                     </svg>
-                    Market Overview [<span 
-                      className="underline font-semibold" 
-                      style={{ 
-                        textDecorationColor: 'var(--theme-primary)',
-                        textDecorationThickness: '2px',
-                        textUnderlineOffset: '2px'
-                      }}
-                    >1</span>]
+                    Market Overview [<span className="shortcut-letter">1</span>]
                   </div>
                 </button>
               </KeyboardShortcutTooltip>
@@ -203,14 +191,9 @@ export const Dashboard: FC = () => {
                 element="tab-positions"
               >
                 <button
-                  className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 focus-visible ${
-                    activeTab === "positions" ? "border" : "hover:bg-opacity-10"
+                  className={`dashboard-tab focus-visible ${
+                    activeTab === "positions" ? "active" : ""
                   }`}
-                  style={{
-                    color: activeTab === "positions" ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
-                    backgroundColor: activeTab === "positions" ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
-                    borderColor: activeTab === "positions" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
-                  }}
                   onClick={() => setActiveTab("positions")}
                   data-business-function="This is your personal account summary showing exactly what you own, what you've lent out, what you've borrowed, and how much money you're making or owe. Think of it like your bank account statement but for crypto lending."
                   aria-label="Your Positions - View your lending and borrowing positions"
@@ -219,14 +202,7 @@ export const Dashboard: FC = () => {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
-                    Your Positions [<span 
-                      className="underline font-semibold" 
-                      style={{ 
-                        textDecorationColor: 'var(--theme-primary)',
-                        textDecorationThickness: '2px',
-                        textUnderlineOffset: '2px'
-                      }}
-                    >2</span>]
+                    Your Positions [<span className="shortcut-letter">2</span>]
                   </div>
                 </button>
               </KeyboardShortcutTooltip>
@@ -241,14 +217,9 @@ export const Dashboard: FC = () => {
                 element="tab-analytics"
               >
                 <button
-                  className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 focus-visible ${
-                    activeTab === "analytics" ? "border" : "hover:bg-opacity-10"
+                  className={`dashboard-tab focus-visible ${
+                    activeTab === "analytics" ? "active" : ""
                   }`}
-                  style={{
-                    color: activeTab === "analytics" ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
-                    backgroundColor: activeTab === "analytics" ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
-                    borderColor: activeTab === "analytics" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
-                  }}
                   onClick={() => setActiveTab("analytics")}
                   data-business-function="This shows you fancy charts and graphs about how the markets are doing over time, like stock market charts but for crypto lending. Great for understanding trends and making smarter decisions about when to lend or borrow."
                   aria-label="Analytics - View detailed market analytics and insights"
@@ -257,14 +228,7 @@ export const Dashboard: FC = () => {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
-                    Analytics [<span 
-                      className="underline font-semibold" 
-                      style={{ 
-                        textDecorationColor: 'var(--theme-primary)',
-                        textDecorationThickness: '2px',
-                        textUnderlineOffset: '2px'
-                      }}
-                    >3</span>]
+                    Analytics [<span className="shortcut-letter">3</span>]
                   </div>
                 </button>
               </KeyboardShortcutTooltip>
