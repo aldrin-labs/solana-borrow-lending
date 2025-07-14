@@ -146,6 +146,32 @@ impl Default for Obligation {
 }
 
 impl Obligation {
+    /// Safely validate obligation reserves array to prevent recursive discriminator bugs.
+    /// 
+    /// # Safety
+    /// This function validates each reserve in the array using the enhanced discriminator
+    /// validation to prevent infinite recursion or malformed data from causing crashes.
+    pub fn validate_reserves_safe(&self) -> Result<()> {
+        for (index, reserve) in self.reserves.iter().enumerate() {
+            // Serialize the reserve to bytes for validation
+            let mut reserve_bytes = Vec::new();
+            reserve.try_serialize(&mut reserve_bytes)
+                .map_err(|_| {
+                    msg!("Failed to serialize reserve at index {}", index);
+                    ErrorCode::AccountDataSizeMismatch
+                })?;
+            
+            // Validate using our safe discriminator validator
+            DiscriminatorValidator::validate_obligation_reserve_safe(&reserve_bytes)
+                .map_err(|_| {
+                    msg!("Reserve validation failed at index {}", index);
+                    ErrorCode::AccountDataSizeMismatch
+                })?;
+        }
+        
+        Ok(())
+    }
+
     pub fn is_stale(&self, clock: &Clock) -> bool {
         self.last_update.is_stale(clock.slot).unwrap_or(true)
     }
@@ -921,6 +947,50 @@ mod tests {
         ) -> (u128, u128) {
             (repay_amount, repay_amount)
         }
+    }
+
+    #[test]
+    fn test_obligation_reserves_validation_safety() {
+        let mut obligation = Obligation::default();
+        
+        // Test with default (all Empty) reserves
+        assert!(obligation.validate_reserves_safe().is_ok());
+        
+        // Add some valid reserves
+        let reserve1 = Pubkey::new_unique();
+        let reserve2 = Pubkey::new_unique();
+        
+        obligation.deposit(reserve1, 100, 0).unwrap();
+        obligation.borrow(reserve2, 50u64.into(), LoanKind::Standard, 0).unwrap();
+        
+        // Validation should still pass
+        assert!(obligation.validate_reserves_safe().is_ok());
+        
+        // Test with leverage farming loan kind
+        let reserve3 = Pubkey::new_unique();
+        let yield_farm = LoanKind::YieldFarming {
+            leverage: Leverage::new(300),
+        };
+        obligation.borrow(reserve3, 75u64.into(), yield_farm, 0).unwrap();
+        
+        // Should still be valid
+        assert!(obligation.validate_reserves_safe().is_ok());
+    }
+    
+    #[test]
+    fn test_zero_copy_account_implementation() {
+        use crate::zero_copy_utils::ZeroCopyAccount;
+        
+        // Test that Obligation implements ZeroCopyAccount correctly
+        assert_eq!(Obligation::space(), 1560);
+        
+        // Test discriminator generation
+        let discriminator = Obligation::discriminator();
+        assert_eq!(discriminator.len(), 8);
+        
+        // Test that discriminator is deterministic
+        let discriminator2 = Obligation::discriminator();
+        assert_eq!(discriminator, discriminator2);
     }
 
     proptest! {

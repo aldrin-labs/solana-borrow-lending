@@ -32,6 +32,9 @@ impl LendingMarket {
     }
 }
 
+// Implement ZeroCopyAccount for LendingMarket to ensure rigorous zero-copy safety
+impl_zero_copy_account!(LendingMarket, 292);
+
 #[cfg(test)]
 mod tests {
     use super::*;
