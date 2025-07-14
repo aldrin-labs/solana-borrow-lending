@@ -36,6 +36,78 @@
 
 A decentralized lending platform on Solana where users can lend and borrow tokens with dynamic interest rates, collateralized positions, and advanced features like flash loans and leveraged yield farming.
 
+## 🛡️ Security Considerations
+
+### Discriminator Safety and Zero-Copy Protection
+
+The Solana Borrow-Lending Protocol has been hardened against recursive discriminator bugs and implements rigorous zero-copy safety guarantees to protect user funds and maintain data integrity.
+
+#### Recursive Discriminator Bug Prevention
+
+**Issue**: Malformed or malicious inputs could bypass discriminator validation, potentially causing infinite recursion during account deserialization and leading to stack overflows or security vulnerabilities.
+
+**Solution**: 
+- Implemented depth-limited discriminator validation with `ObligationReserve::validate_discriminator_safe()`
+- Added comprehensive validation for all enum variants (Empty, Liquidity, Collateral)
+- Enforced maximum recursion depth limits to prevent infinite loops
+- Created safe deserialization methods that validate before parsing
+
+```rust
+// Safe discriminator validation with recursion protection
+ObligationReserve::validate_discriminator_safe(&data, current_depth)?;
+
+// Safe deserialization with comprehensive validation  
+let reserve = ObligationReserve::deserialize_safe(&data)?;
+```
+
+#### Enhanced Zero-Copy Safety
+
+**Protections**:
+- **Memory Layout Validation**: Compile-time size assertions and runtime discriminator checks
+- **Account Loading Safety**: Enhanced `ZeroCopyHelpers` with comprehensive validation
+- **Enum Discriminator Protection**: Explicit validation prevents malformed enum parsing
+- **Rent Exemption Checks**: Ensures long-term account viability
+
+**Safety Utilities**:
+```rust
+// Enhanced account loading with safety validation
+ZeroCopyHelpers::load_and_validate(&account_loader)?;
+
+// Validate multiple accounts with detailed error reporting
+ZeroCopyHelpers::validate_multiple_accounts(&account_infos)?;
+
+// Obligation-level reserve safety validation
+obligation.validate_reserves_discriminator_safety()?;
+```
+
+#### Testing and Validation
+
+**Comprehensive Test Coverage**:
+- Property-based testing with malformed discriminator sequences
+- Edge case validation with various attack vectors  
+- Recursion depth protection testing
+- Integration tests for all safety mechanisms
+
+**Audit Trail**: See [UNSAFE_CODES.md](UNSAFE_CODES.md) for detailed safety rationale and the complete audit trail of security enhancements.
+
+#### For Developers
+
+When integrating with the protocol:
+
+1. **Always use safe account loading**: `ZeroCopyHelpers::load_and_validate()`
+2. **Validate discriminators**: Use `validate_discriminator_safe()` for enum types
+3. **Check account constraints**: Use `validate_account_safety!` macro for AccountInfo validation
+4. **Handle errors gracefully**: All validation methods return typed errors for proper handling
+
+#### Security Best Practices
+
+- **Input Validation**: All account data is validated before processing
+- **Discriminator Verification**: Enum discriminators are checked with recursion limits
+- **Memory Safety**: Zero-copy patterns use enhanced safety checks
+- **Error Handling**: Comprehensive error reporting for debugging and monitoring
+
+The protocol maintains backward compatibility while providing these enhanced safety guarantees. All changes have been thoroughly tested and documented to ensure continued security and reliability.
+
 ## ⚡ Quick Start
 
 ```bash
