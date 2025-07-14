@@ -346,7 +346,7 @@ body::before {
     cursor: not-allowed;
   }
 
-  /* Dashboard Tab styling with pixel art polkadot texture and high-contrast support */
+  /* Dashboard Tab styling with elegant diagonal texture and high-contrast support */
   .dashboard-tab {
     position: relative;
     padding: 0.75rem 1rem;
@@ -356,13 +356,23 @@ body::before {
     cursor: pointer;
     border: 1px solid transparent;
     
-    /* Gray pixel art polkadot background */
+    /* Elegant gray background with diagonal stripe texture and paper overlay */
     background: #F1F5F9;
     background-image: 
-      radial-gradient(circle at 3px 3px, rgba(0, 0, 0, 0.25) 3px, transparent 3px),
-      radial-gradient(circle at 15px 15px, rgba(0, 0, 0, 0.15) 2px, transparent 2px),
-      linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(0, 0, 0, 0.05) 100%);
-    background-size: 24px 24px, 24px 24px, 100% 100%;
+      /* Subtle diagonal stripes for elegance */
+      repeating-linear-gradient(
+        45deg,
+        transparent 0px,
+        transparent 2px,
+        rgba(0, 0, 0, 0.04) 2px,
+        rgba(0, 0, 0, 0.04) 4px
+      ),
+      /* Paper-like noise texture for sophistication */
+      radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.08) 0.5px, transparent 0.5px),
+      radial-gradient(circle at 5px 3px, rgba(0, 0, 0, 0.06) 0.5px, transparent 0.5px),
+      /* Subtle depth gradient */
+      linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(0, 0, 0, 0.03) 100%);
+    background-size: 16px 16px, 8px 8px, 12px 12px, 100% 100%;
     
     color: #475569;
     
@@ -389,10 +399,20 @@ body::before {
   .dashboard-tab:hover {
     background: #E2E8F0;
     background-image: 
-      radial-gradient(circle at 3px 3px, rgba(0, 0, 0, 0.35) 3px, transparent 3px),
-      radial-gradient(circle at 15px 15px, rgba(0, 0, 0, 0.25) 2px, transparent 2px),
-      linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(0, 0, 0, 0.05) 100%);
-    background-size: 24px 24px, 24px 24px, 100% 100%;
+      /* Enhanced diagonal stripes on hover */
+      repeating-linear-gradient(
+        45deg,
+        transparent 0px,
+        transparent 2px,
+        rgba(0, 0, 0, 0.08) 2px,
+        rgba(0, 0, 0, 0.08) 4px
+      ),
+      /* More pronounced paper texture on hover */
+      radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.12) 0.5px, transparent 0.5px),
+      radial-gradient(circle at 5px 3px, rgba(0, 0, 0, 0.09) 0.5px, transparent 0.5px),
+      /* Enhanced depth gradient */
+      linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(0, 0, 0, 0.05) 100%);
+    background-size: 16px 16px, 8px 8px, 12px 12px, 100% 100%;
     
     color: #1E293B;
     transform: translateY(-1px);
@@ -420,10 +440,20 @@ body::before {
   .theme-high-contrast .dashboard-tab {
     background: #E5E5E5;
     background-image: 
-      radial-gradient(circle at 4px 4px, rgba(0, 0, 0, 0.5) 4px, transparent 4px),
-      radial-gradient(circle at 16px 16px, rgba(0, 0, 0, 0.3) 3px, transparent 3px),
-      linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(0, 0, 0, 0.1) 100%);
-    background-size: 28px 28px, 28px 28px, 100% 100%;
+      /* Stronger diagonal stripes for high contrast */
+      repeating-linear-gradient(
+        45deg,
+        transparent 0px,
+        transparent 3px,
+        rgba(0, 0, 0, 0.15) 3px,
+        rgba(0, 0, 0, 0.15) 6px
+      ),
+      /* Enhanced paper texture for accessibility */
+      radial-gradient(circle at 2px 2px, rgba(0, 0, 0, 0.2) 1px, transparent 1px),
+      radial-gradient(circle at 8px 6px, rgba(0, 0, 0, 0.15) 1px, transparent 1px),
+      /* Clearer depth gradient */
+      linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(0, 0, 0, 0.1) 100%);
+    background-size: 20px 20px, 12px 12px, 16px 16px, 100% 100%;
     color: #000000;
     border: 2px solid #CCCCCC;
   }
@@ -431,10 +461,20 @@ body::before {
   .theme-high-contrast .dashboard-tab:hover {
     background: #FFFFFF;
     background-image: 
-      radial-gradient(circle at 4px 4px, rgba(0, 0, 0, 0.6) 4px, transparent 4px),
-      radial-gradient(circle at 16px 16px, rgba(0, 0, 0, 0.4) 3px, transparent 3px),
-      linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(0, 0, 0, 0.1) 100%);
-    background-size: 28px 28px, 28px 28px, 100% 100%;
+      /* Intensified diagonal stripes on hover for high contrast */
+      repeating-linear-gradient(
+        45deg,
+        transparent 0px,
+        transparent 3px,
+        rgba(0, 0, 0, 0.25) 3px,
+        rgba(0, 0, 0, 0.25) 6px
+      ),
+      /* Stronger paper texture for better visibility */
+      radial-gradient(circle at 2px 2px, rgba(0, 0, 0, 0.3) 1px, transparent 1px),
+      radial-gradient(circle at 8px 6px, rgba(0, 0, 0, 0.2) 1px, transparent 1px),
+      /* Enhanced contrast gradient */
+      linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(0, 0, 0, 0.15) 100%);
+    background-size: 20px 20px, 12px 12px, 16px 16px, 100% 100%;
     color: #000000;
     border-color: #666666;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
