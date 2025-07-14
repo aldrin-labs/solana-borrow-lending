@@ -162,6 +162,13 @@ export const KeyboardNavigationProvider: React.FC<{ children: ReactNode }> = ({ 
     setState(prev => {
       if (prev.focusableElements.length === 0) return prev;
       
+      // Clear outline from current element before moving
+      if (prev.currentFocusIndex >= 0 && prev.focusableElements[prev.currentFocusIndex]) {
+        const currentElement = prev.focusableElements[prev.currentFocusIndex];
+        currentElement.element.style.outline = '';
+        currentElement.element.style.outlineOffset = '';
+      }
+      
       const nextIndex = (prev.currentFocusIndex + 1) % prev.focusableElements.length;
       const nextElement = prev.focusableElements[nextIndex];
       
@@ -186,6 +193,13 @@ export const KeyboardNavigationProvider: React.FC<{ children: ReactNode }> = ({ 
   const navigatePrevious = useCallback(() => {
     setState(prev => {
       if (prev.focusableElements.length === 0) return prev;
+      
+      // Clear outline from current element before moving
+      if (prev.currentFocusIndex >= 0 && prev.focusableElements[prev.currentFocusIndex]) {
+        const currentElement = prev.focusableElements[prev.currentFocusIndex];
+        currentElement.element.style.outline = '';
+        currentElement.element.style.outlineOffset = '';
+      }
       
       const prevIndex = prev.currentFocusIndex <= 0 
         ? prev.focusableElements.length - 1 
@@ -369,16 +383,7 @@ export const KeyboardNavigationProvider: React.FC<{ children: ReactNode }> = ({ 
             // In input fields, let Enter work normally for new lines
             break;
           
-          case 'q':
-          case 'Q':
-            if (!isInInputField) {
-              event.preventDefault();
-              showContextualHelp();
-              return;
-            }
-            break;
-          
-          case 'Escape':
+          case '`':
             event.preventDefault();
             hideContextualHelp();
             toggleNavigationMode();
@@ -386,15 +391,28 @@ export const KeyboardNavigationProvider: React.FC<{ children: ReactNode }> = ({ 
         }
       }
 
+      // Handle contextual help - works from anywhere, any mode
+      if (event.key === '.' && !isInInputField) {
+        event.preventDefault();
+        if (navigationModeRef.current) {
+          showContextualHelp();
+        }
+        return;
+      }
+
       // Handle global shortcuts
-      if (event.key === 'Escape' && !navigationModeRef.current) {
-        // ESC from main root page opens navigation menu
+      if (event.key === '`' && !navigationModeRef.current) {
+        // Backtick from main root page opens navigation menu
         const pathname = window.location.pathname;
         if (pathname === '/') {
           event.preventDefault();
           toggleNavigationMode();
           return;
-        } else if (state.isHelpVisible) {
+        }
+      }
+
+      if (event.key === 'Escape') {
+        if (state.isHelpVisible) {
           toggleHelp();
           return;
         }

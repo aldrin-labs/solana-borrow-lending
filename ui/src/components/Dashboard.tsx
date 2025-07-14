@@ -157,7 +157,8 @@ export const Dashboard: FC = () => {
               <KeyboardShortcutTooltip
                 shortcut={{
                   key: '1',
-                  description: 'Switch to Market Overview tab',
+                  ctrlKey: true,
+                  description: 'Switch to Market Overview tab (Ctrl+1)',
                   category: 'Dashboard',
                 }}
                 action={() => setActiveTab("overview")}
@@ -173,19 +174,29 @@ export const Dashboard: FC = () => {
                     borderColor: activeTab === "overview" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
                   }}
                   onClick={() => setActiveTab("overview")}
+                  data-business-function="Switch to market overview tab showing lending markets, rates, and overall protocol statistics"
+                  aria-label="Market Overview - View lending markets and rates"
                 >
                   <div className="flex items-center gap-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                     </svg>
-                    Market Overview
+                    Market Overview [<span 
+                      className="underline font-semibold" 
+                      style={{ 
+                        textDecorationColor: 'var(--theme-primary)',
+                        textDecorationThickness: '2px',
+                        textUnderlineOffset: '2px'
+                      }}
+                    >1</span>]
                   </div>
                 </button>
               </KeyboardShortcutTooltip>
               <KeyboardShortcutTooltip
                 shortcut={{
                   key: '2',
-                  description: 'Switch to Your Positions tab',
+                  ctrlKey: true,
+                  description: 'Switch to Your Positions tab (Ctrl+2)',
                   category: 'Dashboard',
                 }}
                 action={() => setActiveTab("positions")}
@@ -201,19 +212,29 @@ export const Dashboard: FC = () => {
                     borderColor: activeTab === "positions" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
                   }}
                   onClick={() => setActiveTab("positions")}
+                  data-business-function="View your personal lending positions, including supplied assets, borrowed amounts, health factors, and earnings"
+                  aria-label="Your Positions - View your lending and borrowing positions"
                 >
                   <div className="flex items-center gap-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
-                    Your Positions
+                    Your Positions [<span 
+                      className="underline font-semibold" 
+                      style={{ 
+                        textDecorationColor: 'var(--theme-primary)',
+                        textDecorationThickness: '2px',
+                        textUnderlineOffset: '2px'
+                      }}
+                    >2</span>]
                   </div>
                 </button>
               </KeyboardShortcutTooltip>
               <KeyboardShortcutTooltip
                 shortcut={{
                   key: '3',
-                  description: 'Switch to Analytics tab',
+                  ctrlKey: true,
+                  description: 'Switch to Analytics tab (Ctrl+3)',
                   category: 'Dashboard',
                 }}
                 action={() => setActiveTab("analytics")}
@@ -229,12 +250,21 @@ export const Dashboard: FC = () => {
                     borderColor: activeTab === "analytics" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
                   }}
                   onClick={() => setActiveTab("analytics")}
+                  data-business-function="View detailed analytics including market trends, yield charts, risk metrics, and protocol performance insights"
+                  aria-label="Analytics - View detailed market analytics and insights"
                 >
                   <div className="flex items-center gap-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
-                    Analytics
+                    Analytics [<span 
+                      className="underline font-semibold" 
+                      style={{ 
+                        textDecorationColor: 'var(--theme-primary)',
+                        textDecorationThickness: '2px',
+                        textUnderlineOffset: '2px'
+                      }}
+                    >3</span>]
                   </div>
                 </button>
               </KeyboardShortcutTooltip>

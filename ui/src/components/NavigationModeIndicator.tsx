@@ -96,7 +96,7 @@ export const NavigationModeIndicator: React.FC = () => {
               color: 'var(--theme-textSecondary)',
             }}
           >
-            Q
+            .
           </kbd>
           <span
             className="text-xs"
