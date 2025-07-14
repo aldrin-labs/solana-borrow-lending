@@ -55,7 +55,7 @@ export const LendingDashboard: FC = () => {
           <button
             className={`py-3 px-4 font-medium transition-colors rounded-t-lg ${
               activeTab === "markets"
-                ? "text-white bg-primary border-b-2 border-primary"
+                ? "text-white tab-supply border-b-2"
                 : "text-text-secondary hover:text-white hover:bg-surface"
             }`}
             onClick={() => setActiveTab("markets")}
@@ -67,7 +67,7 @@ export const LendingDashboard: FC = () => {
               <button
                 className={`py-3 px-4 font-medium transition-colors rounded-t-lg ${
                   activeTab === "positions"
-                    ? "text-white bg-primary border-b-2 border-primary"
+                    ? "text-white tab-position border-b-2"
                     : "text-text-secondary hover:text-white hover:bg-surface"
                 }`}
                 onClick={() => setActiveTab("positions")}
@@ -77,7 +77,7 @@ export const LendingDashboard: FC = () => {
               <button
                 className={`py-3 px-4 font-medium transition-colors rounded-t-lg ${
                   activeTab === "analytics"
-                    ? "text-white bg-primary border-b-2 border-primary"
+                    ? "text-white tab-analytics border-b-2"
                     : "text-text-secondary hover:text-white hover:bg-surface"
                 }`}
                 onClick={() => setActiveTab("analytics")}
