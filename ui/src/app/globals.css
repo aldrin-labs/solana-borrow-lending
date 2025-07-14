@@ -346,7 +346,7 @@ body::before {
     cursor: not-allowed;
   }
 
-  /* Dashboard Tab styling with gray textures and high-contrast support */
+  /* Dashboard Tab styling with pixel art polkadot texture and high-contrast support */
   .dashboard-tab {
     position: relative;
     padding: 0.75rem 1rem;
@@ -356,12 +356,13 @@ body::before {
     cursor: pointer;
     border: 1px solid transparent;
     
-    /* Gray textured background */
+    /* Gray pixel art polkadot background */
     background: #F1F5F9;
     background-image: 
-      radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.15) 1px, transparent 0),
+      radial-gradient(circle at 3px 3px, rgba(0, 0, 0, 0.25) 3px, transparent 3px),
+      radial-gradient(circle at 15px 15px, rgba(0, 0, 0, 0.15) 2px, transparent 2px),
       linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(0, 0, 0, 0.05) 100%);
-    background-size: 16px 16px, 100% 100%;
+    background-size: 24px 24px, 24px 24px, 100% 100%;
     
     color: #475569;
     
@@ -388,9 +389,10 @@ body::before {
   .dashboard-tab:hover {
     background: #E2E8F0;
     background-image: 
-      radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.2) 1px, transparent 0),
+      radial-gradient(circle at 3px 3px, rgba(0, 0, 0, 0.35) 3px, transparent 3px),
+      radial-gradient(circle at 15px 15px, rgba(0, 0, 0, 0.25) 2px, transparent 2px),
       linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(0, 0, 0, 0.05) 100%);
-    background-size: 16px 16px, 100% 100%;
+    background-size: 24px 24px, 24px 24px, 100% 100%;
     
     color: #1E293B;
     transform: translateY(-1px);
@@ -418,9 +420,10 @@ body::before {
   .theme-high-contrast .dashboard-tab {
     background: #E5E5E5;
     background-image: 
-      radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.3) 1px, transparent 0),
+      radial-gradient(circle at 4px 4px, rgba(0, 0, 0, 0.5) 4px, transparent 4px),
+      radial-gradient(circle at 16px 16px, rgba(0, 0, 0, 0.3) 3px, transparent 3px),
       linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(0, 0, 0, 0.1) 100%);
-    background-size: 12px 12px, 100% 100%;
+    background-size: 28px 28px, 28px 28px, 100% 100%;
     color: #000000;
     border: 2px solid #CCCCCC;
   }
@@ -428,9 +431,10 @@ body::before {
   .theme-high-contrast .dashboard-tab:hover {
     background: #FFFFFF;
     background-image: 
-      radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.4) 1px, transparent 0),
+      radial-gradient(circle at 4px 4px, rgba(0, 0, 0, 0.6) 4px, transparent 4px),
+      radial-gradient(circle at 16px 16px, rgba(0, 0, 0, 0.4) 3px, transparent 3px),
       linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(0, 0, 0, 0.1) 100%);
-    background-size: 12px 12px, 100% 100%;
+    background-size: 28px 28px, 28px 28px, 100% 100%;
     color: #000000;
     border-color: #666666;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
