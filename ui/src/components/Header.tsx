@@ -190,6 +190,8 @@ export const Header: FC = () => {
                     color: isActive('/') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
                     backgroundColor: isActive('/') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
                   }}
+                  data-business-function="Navigate to the main dashboard showing protocol overview, lending statistics, and market performance metrics"
+                  aria-label="Dashboard - View protocol overview and market statistics"
                 >
                   <HighlightedText text="Dashboard" highlight="D" />
                 </Link>
@@ -212,6 +214,8 @@ export const Header: FC = () => {
                     color: isActive('/lend') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
                     backgroundColor: isActive('/lend') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
                   }}
+                  data-business-function="Access lending markets to deposit assets and earn interest on your cryptocurrency holdings"
+                  aria-label="Lend - Deposit assets to earn interest"
                 >
                   <HighlightedText text="Lend" highlight="L" />
                 </Link>
@@ -234,6 +238,8 @@ export const Header: FC = () => {
                     color: isActive('/borrow') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
                     backgroundColor: isActive('/borrow') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
                   }}
+                  data-business-function="Borrow cryptocurrency against your collateral. Use borrowed funds for trading, liquidity, or other investments while maintaining your asset positions"
+                  aria-label="Borrow - Take loans against your collateral"
                 >
                   <HighlightedText text="Borrow" highlight="B" />
                 </Link>
@@ -256,6 +262,8 @@ export const Header: FC = () => {
                     color: isActive('/farm') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
                     backgroundColor: isActive('/farm') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
                   }}
+                  data-business-function="Participate in yield farming opportunities to maximize returns through liquidity provision and reward token earning"
+                  aria-label="Yield Farm - Earn rewards through liquidity provision"
                 >
                   <HighlightedText text="Yield Farm" highlight="F" />
                 </Link>
@@ -293,6 +301,8 @@ export const Header: FC = () => {
               color: isActive('/') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
               backgroundColor: isActive('/') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
             }}
+            data-business-function="Navigate to the main dashboard showing protocol overview, lending statistics, and market performance metrics"
+            aria-label="Dashboard - View protocol overview and market statistics"
           >
             <HighlightedText text="Dashboard" highlight="D" />
           </Link>
@@ -305,6 +315,8 @@ export const Header: FC = () => {
               color: isActive('/lend') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
               backgroundColor: isActive('/lend') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
             }}
+            data-business-function="Access lending markets to deposit assets and earn interest on your cryptocurrency holdings"
+            aria-label="Lend - Deposit assets to earn interest"
           >
             <HighlightedText text="Lend" highlight="L" />
           </Link>
@@ -317,6 +329,8 @@ export const Header: FC = () => {
               color: isActive('/borrow') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
               backgroundColor: isActive('/borrow') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
             }}
+            data-business-function="Borrow cryptocurrency against your collateral. Use borrowed funds for trading, liquidity, or other investments while maintaining your asset positions"
+            aria-label="Borrow - Take loans against your collateral"
           >
             <HighlightedText text="Borrow" highlight="B" />
           </Link>
@@ -329,6 +343,8 @@ export const Header: FC = () => {
               color: isActive('/farm') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
               backgroundColor: isActive('/farm') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
             }}
+            data-business-function="Participate in yield farming opportunities to maximize returns through liquidity provision and reward token earning"
+            aria-label="Yield Farm - Earn rewards through liquidity provision"
           >
             <HighlightedText text="Yield Farm" highlight="F" />
           </Link>
