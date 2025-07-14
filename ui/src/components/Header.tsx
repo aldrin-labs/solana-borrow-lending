@@ -10,6 +10,36 @@ import { RPCProviderSelector } from "./RPCProviderSelector";
 import { KeyboardShortcutTooltip } from "./KeyboardShortcutTooltip";
 import { useRouter } from "next/navigation";
 
+// Helper component to highlight hotkey letters in button text
+const HighlightedText: FC<{ text: string; highlight: string }> = ({ text, highlight }) => {
+  const highlightIndex = text.toLowerCase().indexOf(highlight.toLowerCase());
+  
+  if (highlightIndex === -1) {
+    return <>{text}</>;
+  }
+  
+  const before = text.slice(0, highlightIndex);
+  const highlighted = text.slice(highlightIndex, highlightIndex + highlight.length);
+  const after = text.slice(highlightIndex + highlight.length);
+  
+  return (
+    <>
+      {before}
+      <span 
+        className="underline font-semibold" 
+        style={{ 
+          textDecorationColor: 'var(--theme-primary)',
+          textDecorationThickness: '2px',
+          textUnderlineOffset: '2px'
+        }}
+      >
+        {highlighted}
+      </span>
+      {after}
+    </>
+  );
+};
+
 // Safe wallet button component with enhanced error handling
 const SafeWalletButton: FC = () => {
   const WalletFallback: React.FC<{ error: Error; reset: () => void }> = ({ error, reset }) => (
@@ -161,7 +191,7 @@ export const Header: FC = () => {
                     backgroundColor: isActive('/') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
                   }}
                 >
-                  Dashboard
+                  <HighlightedText text="Dashboard" highlight="D" />
                 </Link>
               </KeyboardShortcutTooltip>
               <KeyboardShortcutTooltip
@@ -183,7 +213,7 @@ export const Header: FC = () => {
                     backgroundColor: isActive('/lend') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
                   }}
                 >
-                  Lend
+                  <HighlightedText text="Lend" highlight="L" />
                 </Link>
               </KeyboardShortcutTooltip>
               <KeyboardShortcutTooltip
@@ -205,7 +235,7 @@ export const Header: FC = () => {
                     backgroundColor: isActive('/borrow') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
                   }}
                 >
-                  Borrow
+                  <HighlightedText text="Borrow" highlight="B" />
                 </Link>
               </KeyboardShortcutTooltip>
               <KeyboardShortcutTooltip
@@ -227,7 +257,7 @@ export const Header: FC = () => {
                     backgroundColor: isActive('/farm') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
                   }}
                 >
-                  Yield Farm
+                  <HighlightedText text="Yield Farm" highlight="F" />
                 </Link>
               </KeyboardShortcutTooltip>
             </nav>
@@ -264,7 +294,7 @@ export const Header: FC = () => {
               backgroundColor: isActive('/') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
             }}
           >
-            Dashboard
+            <HighlightedText text="Dashboard" highlight="D" />
           </Link>
           <Link
             href="/lend"
@@ -276,7 +306,7 @@ export const Header: FC = () => {
               backgroundColor: isActive('/lend') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
             }}
           >
-            Lend
+            <HighlightedText text="Lend" highlight="L" />
           </Link>
           <Link
             href="/borrow"
@@ -288,7 +318,7 @@ export const Header: FC = () => {
               backgroundColor: isActive('/borrow') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
             }}
           >
-            Borrow
+            <HighlightedText text="Borrow" highlight="B" />
           </Link>
           <Link
             href="/farm"
@@ -300,7 +330,7 @@ export const Header: FC = () => {
               backgroundColor: isActive('/farm') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
             }}
           >
-            Yield Farm
+            <HighlightedText text="Yield Farm" highlight="F" />
           </Link>
         </nav>
 

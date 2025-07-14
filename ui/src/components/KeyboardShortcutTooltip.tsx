@@ -1,7 +1,6 @@
 "use client";
 
 import React, { ReactNode, useEffect, useCallback } from 'react';
-import { InfoTooltip } from './InfoTooltip';
 import { useKeyboardNavigation, KeyboardShortcut } from '@/contexts/KeyboardNavigationContext';
 
 interface KeyboardShortcutTooltipProps {
@@ -9,8 +8,6 @@ interface KeyboardShortcutTooltipProps {
   shortcut: Omit<KeyboardShortcut, 'action'>;
   action: () => void;
   className?: string;
-  position?: 'top' | 'bottom' | 'left' | 'right';
-  showShortcutInTooltip?: boolean;
   element?: string;
 }
 
@@ -19,8 +16,6 @@ export const KeyboardShortcutTooltip: React.FC<KeyboardShortcutTooltipProps> = (
   shortcut,
   action,
   className = '',
-  position = 'top',
-  showShortcutInTooltip = true,
   element,
 }) => {
   const { registerShortcut, setFocusedElement } = useKeyboardNavigation();
@@ -61,33 +56,18 @@ export const KeyboardShortcutTooltip: React.FC<KeyboardShortcutTooltipProps> = (
     action();
   }, [action]);
 
-  const tooltipContent = showShortcutInTooltip ? (
-    <div>
-      <div className="font-semibold mb-1">{shortcut.description}</div>
-      <div className="text-xs opacity-75">
-        Press <kbd className="px-1.5 py-0.5 text-xs font-mono bg-black bg-opacity-20 rounded border">
-          {formatShortcut(shortcut)}
-        </kbd>
-      </div>
-    </div>
-  ) : (
-    shortcut.description
-  );
-
   return (
-    <InfoTooltip content={tooltipContent} position={position}>
-      <div
-        className={`keyboard-shortcut-element ${className}`}
-        tabIndex={0}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        onClick={handleClick}
-        role="button"
-        aria-label={`${shortcut.description}. Keyboard shortcut: ${formatShortcut(shortcut)}`}
-      >
-        {children}
-      </div>
-    </InfoTooltip>
+    <div
+      className={`keyboard-shortcut-element ${className}`}
+      tabIndex={0}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onClick={handleClick}
+      role="button"
+      aria-label={`${shortcut.description}. Keyboard shortcut: ${formatShortcut(shortcut)}`}
+    >
+      {children}
+    </div>
   );
 };
 
