@@ -190,7 +190,7 @@ export const Header: FC = () => {
                     color: isActive('/') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
                     backgroundColor: isActive('/') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
                   }}
-                  data-business-function="Navigate to the main dashboard showing protocol overview, lending statistics, and market performance metrics"
+                  data-business-function="This takes you to the main screen where you can see how much money is in the lending protocol, what interest rates people are getting, and how well everything is performing. Think of it like the homepage that shows you the big picture."
                   aria-label="Dashboard - View protocol overview and market statistics"
                 >
                   <HighlightedText text="Dashboard" highlight="D" />
@@ -214,7 +214,7 @@ export const Header: FC = () => {
                     color: isActive('/lend') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
                     backgroundColor: isActive('/lend') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
                   }}
-                  data-business-function="Access lending markets to deposit assets and earn interest on your cryptocurrency holdings"
+                  data-business-function="This is where you can give your cryptocurrency to others and earn money while you sleep! You deposit your coins, and people who need them pay you interest - like putting money in a savings account that pays much better rates."
                   aria-label="Lend - Deposit assets to earn interest"
                 >
                   <HighlightedText text="Lend" highlight="L" />
@@ -238,7 +238,7 @@ export const Header: FC = () => {
                     color: isActive('/borrow') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
                     backgroundColor: isActive('/borrow') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
                   }}
-                  data-business-function="Borrow cryptocurrency against your collateral. Use borrowed funds for trading, liquidity, or other investments while maintaining your asset positions"
+                  data-business-function="This lets you borrow someone else's cryptocurrency by using your own coins as a promise to pay it back. It's like getting a loan from a bank, but instead of your house as collateral, you use your crypto. Useful when you need cash but don't want to sell your coins."
                   aria-label="Borrow - Take loans against your collateral"
                 >
                   <HighlightedText text="Borrow" highlight="B" />
@@ -262,7 +262,7 @@ export const Header: FC = () => {
                     color: isActive('/farm') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
                     backgroundColor: isActive('/farm') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
                   }}
-                  data-business-function="Participate in yield farming opportunities to maximize returns through liquidity provision and reward token earning"
+                  data-business-function="This is where you can earn extra money by providing your cryptocurrency to special pools that help the platform work smoothly. Think of it like getting paid to be a helper - you provide your coins to make trades possible and get reward tokens in return."
                   aria-label="Yield Farm - Earn rewards through liquidity provision"
                 >
                   <HighlightedText text="Yield Farm" highlight="F" />
@@ -301,7 +301,7 @@ export const Header: FC = () => {
               color: isActive('/') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
               backgroundColor: isActive('/') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
             }}
-            data-business-function="Navigate to the main dashboard showing protocol overview, lending statistics, and market performance metrics"
+            data-business-function="This takes you to the main screen where you can see how much money is in the lending protocol, what interest rates people are getting, and how well everything is performing. Think of it like the homepage that shows you the big picture."
             aria-label="Dashboard - View protocol overview and market statistics"
           >
             <HighlightedText text="Dashboard" highlight="D" />
@@ -315,7 +315,7 @@ export const Header: FC = () => {
               color: isActive('/lend') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
               backgroundColor: isActive('/lend') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
             }}
-            data-business-function="Access lending markets to deposit assets and earn interest on your cryptocurrency holdings"
+            data-business-function="This is where you can give your cryptocurrency to others and earn money while you sleep! You deposit your coins, and people who need them pay you interest - like putting money in a savings account that pays much better rates."
             aria-label="Lend - Deposit assets to earn interest"
           >
             <HighlightedText text="Lend" highlight="L" />
@@ -329,7 +329,7 @@ export const Header: FC = () => {
               color: isActive('/borrow') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
               backgroundColor: isActive('/borrow') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
             }}
-            data-business-function="Borrow cryptocurrency against your collateral. Use borrowed funds for trading, liquidity, or other investments while maintaining your asset positions"
+            data-business-function="This lets you borrow someone else's cryptocurrency by using your own coins as a promise to pay it back. It's like getting a loan from a bank, but instead of your house as collateral, you use your crypto. Useful when you need cash but don't want to sell your coins."
             aria-label="Borrow - Take loans against your collateral"
           >
             <HighlightedText text="Borrow" highlight="B" />
@@ -343,7 +343,7 @@ export const Header: FC = () => {
               color: isActive('/farm') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
               backgroundColor: isActive('/farm') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
             }}
-            data-business-function="Participate in yield farming opportunities to maximize returns through liquidity provision and reward token earning"
+            data-business-function="This is where you can earn extra money by providing your cryptocurrency to special pools that help the platform work smoothly. Think of it like getting paid to be a helper - you provide your coins to make trades possible and get reward tokens in return."
             aria-label="Yield Farm - Earn rewards through liquidity provision"
           >
             <HighlightedText text="Yield Farm" highlight="F" />

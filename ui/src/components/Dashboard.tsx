@@ -174,7 +174,7 @@ export const Dashboard: FC = () => {
                     borderColor: activeTab === "overview" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
                   }}
                   onClick={() => setActiveTab("overview")}
-                  data-business-function="Switch to market overview tab showing lending markets, rates, and overall protocol statistics"
+                  data-business-function="This shows you all the different cryptocurrencies you can lend or borrow, what interest rates they're paying, and how much money is available. It's like a shopping menu for crypto lending - you can see all your options in one place."
                   aria-label="Market Overview - View lending markets and rates"
                 >
                   <div className="flex items-center gap-2">
@@ -212,7 +212,7 @@ export const Dashboard: FC = () => {
                     borderColor: activeTab === "positions" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
                   }}
                   onClick={() => setActiveTab("positions")}
-                  data-business-function="View your personal lending positions, including supplied assets, borrowed amounts, health factors, and earnings"
+                  data-business-function="This is your personal account summary showing exactly what you own, what you've lent out, what you've borrowed, and how much money you're making or owe. Think of it like your bank account statement but for crypto lending."
                   aria-label="Your Positions - View your lending and borrowing positions"
                 >
                   <div className="flex items-center gap-2">
@@ -250,7 +250,7 @@ export const Dashboard: FC = () => {
                     borderColor: activeTab === "analytics" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
                   }}
                   onClick={() => setActiveTab("analytics")}
-                  data-business-function="View detailed analytics including market trends, yield charts, risk metrics, and protocol performance insights"
+                  data-business-function="This shows you fancy charts and graphs about how the markets are doing over time, like stock market charts but for crypto lending. Great for understanding trends and making smarter decisions about when to lend or borrow."
                   aria-label="Analytics - View detailed market analytics and insights"
                 >
                   <div className="flex items-center gap-2">
