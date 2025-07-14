@@ -132,6 +132,9 @@ export const Tooltip: React.FC<TooltipProps> = ({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const lastCalculateRef = useRef<number>(0);
+  const lastShowRef = useRef<number>(0);
+  const lastHideRef = useRef<number>(0);
 
   // Use controlled state if provided
   const isControlled = open !== undefined;
@@ -139,6 +142,13 @@ export const Tooltip: React.FC<TooltipProps> = ({
 
   const calculatePosition = useCallback(() => {
     if (!triggerRef.current || !tooltipRef.current) return;
+
+    // Debounce position calculations to prevent rapid recalculations
+    const debounceMs = 16; // ~60fps
+    if (lastCalculateRef.current && Date.now() - lastCalculateRef.current < debounceMs) {
+      return;
+    }
+    lastCalculateRef.current = Date.now();
 
     try {
       const triggerRect = triggerRef.current.getBoundingClientRect();
@@ -237,19 +247,30 @@ export const Tooltip: React.FC<TooltipProps> = ({
         return;
       }
 
-      setCoords({ x, y });
-      setActualPosition(bestPosition);
+      // Only update if position significantly changed (prevent micro-movements)
+      const threshold = 1;
+      if (Math.abs(coords.x - x) > threshold || Math.abs(coords.y - y) > threshold) {
+        setCoords({ x, y });
+        setActualPosition(bestPosition);
+      }
     } catch (error) {
       console.warn('Tooltip: error calculating position:', error);
     }
-  }, [position, offset]);
+  }, [position, offset, coords.x, coords.y]);
 
   const showTooltip = useCallback(() => {
     if (disabled || isControlled) return;
 
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
+
+    // Prevent rapid show/hide cycles
+    if (lastShowRef.current && Date.now() - lastShowRef.current < 100) {
+      return;
+    }
+    lastShowRef.current = Date.now();
 
     timeoutRef.current = setTimeout(() => {
       setIsVisible(true);
@@ -264,6 +285,12 @@ export const Tooltip: React.FC<TooltipProps> = ({
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+
+    // Prevent rapid show/hide cycles
+    if (lastHideRef.current && Date.now() - lastHideRef.current < 100) {
+      return;
+    }
+    lastHideRef.current = Date.now();
 
     setIsVisible(false);
     onClose?.();
@@ -326,8 +353,20 @@ export const Tooltip: React.FC<TooltipProps> = ({
   useEffect(() => {
     if (visible) {
       calculatePosition();
-      const handleResize = () => calculatePosition();
-      const handleScroll = () => calculatePosition();
+      
+      // Throttle resize and scroll events to prevent excessive recalculations
+      let resizeTimeout: NodeJS.Timeout;
+      let scrollTimeout: NodeJS.Timeout;
+      
+      const handleResize = () => {
+        if (resizeTimeout) clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(calculatePosition, 100);
+      };
+      
+      const handleScroll = () => {
+        if (scrollTimeout) clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(calculatePosition, 50);
+      };
 
       window.addEventListener('resize', handleResize);
       window.addEventListener('scroll', handleScroll, true);
@@ -335,6 +374,8 @@ export const Tooltip: React.FC<TooltipProps> = ({
       return () => {
         window.removeEventListener('resize', handleResize);
         window.removeEventListener('scroll', handleScroll, true);
+        if (resizeTimeout) clearTimeout(resizeTimeout);
+        if (scrollTimeout) clearTimeout(scrollTimeout);
       };
     }
   }, [visible, calculatePosition]);

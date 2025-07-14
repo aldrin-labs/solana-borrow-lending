@@ -150,10 +150,25 @@ export const KeyboardNavigationProvider: React.FC<{ children: ReactNode }> = ({ 
       {
         key: 'k',
         metaKey: true,
-        description: 'Open command palette / keyboard shortcuts help',
+        description: 'Open keyboard shortcuts help (Mac)',
         action: toggleHelp,
         category: 'Global',
-        element: 'help-toggle',
+        element: 'help-toggle-mac',
+      },
+      {
+        key: '/',
+        ctrlKey: true,
+        description: 'Open keyboard shortcuts help (Windows/Linux)',
+        action: toggleHelp,
+        category: 'Global',
+        element: 'help-toggle-ctrl',
+      },
+      {
+        key: 'F1',
+        description: 'Show keyboard shortcuts help',
+        action: toggleHelp,
+        category: 'Global',
+        element: 'help-toggle-f1',
       },
       {
         key: '?',

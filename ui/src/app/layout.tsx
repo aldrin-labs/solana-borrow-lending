@@ -14,6 +14,7 @@ import { QuickActions } from "@/components/QuickActions";
 import { PerformanceInitializer } from "@/components/PerformanceInitializer";
 import { KeyboardNavigationProvider } from "@/contexts/KeyboardNavigationContext";
 import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
+import { HotkeyFloatingButton } from "@/components/HotkeyFloatingButton";
 
 export const metadata: Metadata = {
   title: "MAGA - Make Aldrin Great Again",
@@ -201,6 +202,7 @@ export default function RootLayout({
                         </footer>
                       </div>
                       <KeyboardShortcutsHelp />
+                      <HotkeyFloatingButton />
                     </OnboardingProvider>
                     </KeyboardNavigationProvider>
                   </WalletProviderWrapper>
