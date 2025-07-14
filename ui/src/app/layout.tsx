@@ -12,6 +12,8 @@ import { ClientOnly } from "@/components/ClientOnly";
 import { WebComponentGuard } from "@/components/WebComponentGuard";
 import { QuickActions } from "@/components/QuickActions";
 import { PerformanceInitializer } from "@/components/PerformanceInitializer";
+import { KeyboardNavigationProvider } from "@/contexts/KeyboardNavigationContext";
+import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
 
 export const metadata: Metadata = {
   title: "MAGA - Make Aldrin Great Again",
@@ -173,36 +175,39 @@ export default function RootLayout({
               <RPCProviderProvider>
                 <WalletErrorBoundary>
                   <WalletProviderWrapper>
-                    <OnboardingProvider>
-                    <PWAInstaller />
-                    <Onboarding />
-                    <div className="flex flex-col min-h-screen">
-                      <Header />
-                      <main className="flex-grow pt-6 pb-12 animate-fade-in">
-                        <ErrorBoundary>
-                          {children}
-                        </ErrorBoundary>
-                      </main>
-                      <QuickActions />
-                      <footer className="py-6 border-t transition-all duration-300" 
-                        style={{
-                          backgroundColor: 'var(--theme-surface)',
-                          borderColor: 'var(--theme-border)',
-                        }}>
-                        <div className="container mx-auto px-4 text-center" 
-                          style={{ color: 'var(--theme-textSecondary)' }}>
-                          <p className="text-sm">
-                            © 2025 MAGA - Make Aldrin Great Again. All rights reserved.
-                          </p>
-                        </div>
-                      </footer>
-                    </div>
-                  </OnboardingProvider>
-                </WalletProviderWrapper>
-              </WalletErrorBoundary>
-            </RPCProviderProvider>
-          </ThemeProvider>
-        </ErrorBoundary>
+                    <KeyboardNavigationProvider>
+                      <OnboardingProvider>
+                      <PWAInstaller />
+                      <Onboarding />
+                      <div className="flex flex-col min-h-screen">
+                        <Header />
+                        <main className="flex-grow pt-6 pb-12 animate-fade-in">
+                          <ErrorBoundary>
+                            {children}
+                          </ErrorBoundary>
+                        </main>
+                        <QuickActions />
+                        <footer className="py-6 border-t transition-all duration-300" 
+                          style={{
+                            backgroundColor: 'var(--theme-surface)',
+                            borderColor: 'var(--theme-border)',
+                          }}>
+                          <div className="container mx-auto px-4 text-center" 
+                            style={{ color: 'var(--theme-textSecondary)' }}>
+                            <p className="text-sm">
+                              © 2025 MAGA - Make Aldrin Great Again. All rights reserved.
+                            </p>
+                          </div>
+                        </footer>
+                      </div>
+                      <KeyboardShortcutsHelp />
+                    </OnboardingProvider>
+                    </KeyboardNavigationProvider>
+                  </WalletProviderWrapper>
+                </WalletErrorBoundary>
+              </RPCProviderProvider>
+            </ThemeProvider>
+          </ErrorBoundary>
         </ClientOnly>
       </body>
     </html>

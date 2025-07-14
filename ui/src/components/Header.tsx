@@ -7,6 +7,8 @@ import { usePathname } from "next/navigation";
 import { ThemeSelector } from "./ThemeSelector";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { RPCProviderSelector } from "./RPCProviderSelector";
+import { KeyboardShortcutTooltip } from "./KeyboardShortcutTooltip";
+import { useRouter } from "next/navigation";
 
 // Safe wallet button component with enhanced error handling
 const SafeWalletButton: FC = () => {
@@ -108,6 +110,7 @@ const Breadcrumbs: FC = () => {
 
 export const Header: FC = () => {
   const pathname = usePathname();
+  const router = useRouter();
 
   const isActive = (path: string) => {
     if (path === '/' && pathname === '/') return true;
@@ -139,54 +142,94 @@ export const Header: FC = () => {
             </Link>
             
             <nav className="hidden md:flex space-x-1" role="navigation" aria-label="Main navigation">
-              <Link
-                href="/"
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:bg-opacity-10 focus-visible ${
-                  isActive('/') ? 'text-primary' : ''
-                }`}
-                style={{
-                  color: isActive('/') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
-                  backgroundColor: isActive('/') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
+              <KeyboardShortcutTooltip
+                shortcut={{
+                  key: 'd',
+                  description: 'Go to Dashboard',
+                  category: 'Navigation',
                 }}
+                action={() => router.push('/')}
+                element="nav-dashboard"
               >
-                Dashboard
-              </Link>
-              <Link
-                href="/lend"
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:bg-opacity-10 focus-visible ${
-                  isActive('/lend') ? 'text-primary' : ''
-                }`}
-                style={{
-                  color: isActive('/lend') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
-                  backgroundColor: isActive('/lend') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
+                <Link
+                  href="/"
+                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:bg-opacity-10 focus-visible ${
+                    isActive('/') ? 'text-primary' : ''
+                  }`}
+                  style={{
+                    color: isActive('/') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
+                    backgroundColor: isActive('/') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
+                  }}
+                >
+                  Dashboard
+                </Link>
+              </KeyboardShortcutTooltip>
+              <KeyboardShortcutTooltip
+                shortcut={{
+                  key: 'l',
+                  description: 'Go to Lend',
+                  category: 'Navigation',
                 }}
+                action={() => router.push('/lend')}
+                element="nav-lend"
               >
-                Lend
-              </Link>
-              <Link
-                href="/borrow"
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:bg-opacity-10 focus-visible ${
-                  isActive('/borrow') ? 'text-primary' : ''
-                }`}
-                style={{
-                  color: isActive('/borrow') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
-                  backgroundColor: isActive('/borrow') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
+                <Link
+                  href="/lend"
+                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:bg-opacity-10 focus-visible ${
+                    isActive('/lend') ? 'text-primary' : ''
+                  }`}
+                  style={{
+                    color: isActive('/lend') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
+                    backgroundColor: isActive('/lend') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
+                  }}
+                >
+                  Lend
+                </Link>
+              </KeyboardShortcutTooltip>
+              <KeyboardShortcutTooltip
+                shortcut={{
+                  key: 'b',
+                  description: 'Go to Borrow',
+                  category: 'Navigation',
                 }}
+                action={() => router.push('/borrow')}
+                element="nav-borrow"
               >
-                Borrow
-              </Link>
-              <Link
-                href="/farm"
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:bg-opacity-10 focus-visible ${
-                  isActive('/farm') ? 'text-primary' : ''
-                }`}
-                style={{
-                  color: isActive('/farm') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
-                  backgroundColor: isActive('/farm') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
+                <Link
+                  href="/borrow"
+                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:bg-opacity-10 focus-visible ${
+                    isActive('/borrow') ? 'text-primary' : ''
+                  }`}
+                  style={{
+                    color: isActive('/borrow') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
+                    backgroundColor: isActive('/borrow') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
+                  }}
+                >
+                  Borrow
+                </Link>
+              </KeyboardShortcutTooltip>
+              <KeyboardShortcutTooltip
+                shortcut={{
+                  key: 'f',
+                  description: 'Go to Yield Farm',
+                  category: 'Navigation',
                 }}
+                action={() => router.push('/farm')}
+                element="nav-farm"
               >
-                Yield Farm
-              </Link>
+                <Link
+                  href="/farm"
+                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:bg-opacity-10 focus-visible ${
+                    isActive('/farm') ? 'text-primary' : ''
+                  }`}
+                  style={{
+                    color: isActive('/farm') ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
+                    backgroundColor: isActive('/farm') ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
+                  }}
+                >
+                  Yield Farm
+                </Link>
+              </KeyboardShortcutTooltip>
             </nav>
           </div>
           
