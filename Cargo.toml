@@ -3,4 +3,4 @@ members = [
     "programs/*",
     "cli",
     "cpis"
-]
+, "solana-lending-tui"]
