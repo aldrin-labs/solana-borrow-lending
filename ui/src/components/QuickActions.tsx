@@ -72,7 +72,6 @@ export const QuickActions: FC = () => {
               shortcut={action.shortcut}
               action={action.onClick}
               element={`quick-action-${action.label.toLowerCase()}`}
-              position="left"
             >
               <button
                 className="quick-action-button"
@@ -100,7 +99,6 @@ export const QuickActions: FC = () => {
         }}
         action={() => setIsExpanded(!isExpanded)}
         element="quick-actions-toggle"
-        position="left"
       >
         <button
           className="quick-action-button"

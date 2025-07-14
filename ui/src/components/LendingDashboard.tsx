@@ -26,7 +26,7 @@ export const LendingDashboard: FC = () => {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-      <h1 className="text-3xl font-bold text-white mb-6">Lending</h1>
+      <h1 className="typography-display-2 mb-6">Lending</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatsCard
@@ -50,13 +50,11 @@ export const LendingDashboard: FC = () => {
       </div>
 
       {/* Tab Navigation */}
-      <div className="border-b border-border">
-        <div className="flex space-x-6">
+      <div className="border-b" style={{ borderColor: 'var(--theme-border)' }}>
+        <div className="flex space-x-2">
           <button
-            className={`py-3 px-4 font-medium transition-colors rounded-t-lg ${
-              activeTab === "markets"
-                ? "text-white tab-supply border-b-2"
-                : "text-text-secondary hover:text-white hover:bg-surface"
+            className={`dashboard-tab focus-visible ${
+              activeTab === "markets" ? "active" : ""
             }`}
             onClick={() => setActiveTab("markets")}
           >
@@ -65,20 +63,16 @@ export const LendingDashboard: FC = () => {
           {connected && (
             <>
               <button
-                className={`py-3 px-4 font-medium transition-colors rounded-t-lg ${
-                  activeTab === "positions"
-                    ? "text-white tab-position border-b-2"
-                    : "text-text-secondary hover:text-white hover:bg-surface"
+                className={`dashboard-tab focus-visible ${
+                  activeTab === "positions" ? "active" : ""
                 }`}
                 onClick={() => setActiveTab("positions")}
               >
                 Your Positions
               </button>
               <button
-                className={`py-3 px-4 font-medium transition-colors rounded-t-lg ${
-                  activeTab === "analytics"
-                    ? "text-white tab-analytics border-b-2"
-                    : "text-text-secondary hover:text-white hover:bg-surface"
+                className={`dashboard-tab focus-visible ${
+                  activeTab === "analytics" ? "active" : ""
                 }`}
                 onClick={() => setActiveTab("analytics")}
               >

@@ -14,6 +14,8 @@ import { QuickActions } from "@/components/QuickActions";
 import { PerformanceInitializer } from "@/components/PerformanceInitializer";
 import { KeyboardNavigationProvider } from "@/contexts/KeyboardNavigationContext";
 import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
+import { ContextualTooltip } from "@/components/ContextualTooltip";
+import { NavigationModeIndicator } from "@/components/NavigationModeIndicator";
 
 export const metadata: Metadata = {
   title: "MAGA - Make Aldrin Great Again",
@@ -201,6 +203,8 @@ export default function RootLayout({
                         </footer>
                       </div>
                       <KeyboardShortcutsHelp />
+                      <ContextualTooltip />
+                      <NavigationModeIndicator />
                     </OnboardingProvider>
                     </KeyboardNavigationProvider>
                   </WalletProviderWrapper>

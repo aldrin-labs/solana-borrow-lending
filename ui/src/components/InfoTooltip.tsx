@@ -186,7 +186,7 @@ export const APYTooltip: FC = () => (
     content={
       <div>
         <div className="font-semibold mb-1">Annual Percentage Yield (APY)</div>
-        <div>The effective annual rate of return on your deposit, including compound interest.</div>
+        <div>This tells you how much money you'll make in a year if you lend your crypto here. It includes compound interest, which means you earn money on the money you've already earned! Higher APY = more money for you.</div>
       </div>
     }
   />
@@ -197,7 +197,7 @@ export const UtilizationTooltip: FC = () => (
     content={
       <div>
         <div className="font-semibold mb-1">Utilization Rate</div>
-        <div>The percentage of available liquidity currently being borrowed. Higher utilization typically means higher interest rates.</div>
+        <div>This shows how much of the available money is currently being borrowed. If it's high (like 90%), it means lots of people want to borrow this crypto, so lenders can charge higher interest rates. Think supply and demand!</div>
       </div>
     }
   />
@@ -208,7 +208,7 @@ export const HealthFactorTooltip: FC = () => (
     content={
       <div>
         <div className="font-semibold mb-1">Health Factor</div>
-        <div>A numeric representation of the safety of your deposited assets. Values below 1.0 may result in liquidation.</div>
+        <div>This is like a safety score for your loans. Above 1.0 means you're safe. Below 1.0 means you might lose your collateral (the crypto you put up as security). It's like a warning light in your car - keep it green!</div>
       </div>
     }
   />
@@ -219,7 +219,7 @@ export const CollateralTooltip: FC = () => (
     content={
       <div>
         <div className="font-semibold mb-1">Collateral</div>
-        <div>Assets deposited as security for borrowing. Can be liquidated if health factor drops below 1.0.</div>
+        <div>This is the crypto you put up as a promise when you borrow money. If you can't pay back your loan, the platform can take this collateral to cover the debt. It's like leaving your watch with a friend when you borrow $20.</div>
       </div>
     }
   />

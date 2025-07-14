@@ -96,6 +96,90 @@ export const KeyboardShortcutsHelp: React.FC = () => {
 
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-96">
+          {/* Navigation System Documentation */}
+          <div className="mb-6">
+            <h3 
+              className="text-lg font-medium mb-3"
+              style={{ color: 'var(--theme-textPrimary)' }}
+            >
+              Navigation System
+            </h3>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span 
+                  className="text-sm"
+                  style={{ color: 'var(--theme-textSecondary)' }}
+                >
+                  Enter navigation mode (from homepage)
+                </span>
+                <kbd 
+                  className="px-2 py-1 text-xs font-mono rounded border"
+                  style={{
+                    backgroundColor: 'var(--theme-background)',
+                    borderColor: 'var(--theme-border)',
+                    color: 'var(--theme-textPrimary)',
+                  }}
+                >
+                  `
+                </kbd>
+              </div>
+              <div className="flex items-center justify-between">
+                <span 
+                  className="text-sm"
+                  style={{ color: 'var(--theme-textSecondary)' }}
+                >
+                  Navigate between elements (in navigation mode)
+                </span>
+                <kbd 
+                  className="px-2 py-1 text-xs font-mono rounded border"
+                  style={{
+                    backgroundColor: 'var(--theme-background)',
+                    borderColor: 'var(--theme-border)',
+                    color: 'var(--theme-textPrimary)',
+                  }}
+                >
+                  ↑↓←→
+                </kbd>
+              </div>
+              <div className="flex items-center justify-between">
+                <span 
+                  className="text-sm"
+                  style={{ color: 'var(--theme-textSecondary)' }}
+                >
+                  Show contextual help for selected element
+                </span>
+                <kbd 
+                  className="px-2 py-1 text-xs font-mono rounded border"
+                  style={{
+                    backgroundColor: 'var(--theme-background)',
+                    borderColor: 'var(--theme-border)',
+                    color: 'var(--theme-textPrimary)',
+                  }}
+                >
+                  .
+                </kbd>
+              </div>
+              <div className="flex items-center justify-between">
+                <span 
+                  className="text-sm"
+                  style={{ color: 'var(--theme-textSecondary)' }}
+                >
+                  Activate selected element
+                </span>
+                <kbd 
+                  className="px-2 py-1 text-xs font-mono rounded border"
+                  style={{
+                    backgroundColor: 'var(--theme-background)',
+                    borderColor: 'var(--theme-border)',
+                    color: 'var(--theme-textPrimary)',
+                  }}
+                >
+                  Enter / Ctrl+Enter
+                </kbd>
+              </div>
+            </div>
+          </div>
+
           {Object.entries(groupedShortcuts).map(([category, shortcuts]) => (
             <div key={category} className="mb-6 last:mb-0">
               <h3 
