@@ -869,3 +869,72 @@ body::before {
   background: var(--theme-gradient-error);
   filter: brightness(1.1);
 }
+
+/* Keyboard Navigation Styles */
+.keyboard-shortcut-element {
+  transition: all 0.2s ease;
+}
+
+.keyboard-shortcut-element:focus {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.keyboard-shortcut-element:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-primary) 20%, transparent);
+}
+
+/* Enhanced focus indicators for better keyboard navigation */
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Keyboard shortcut badge styles */
+kbd {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-family: 'JetBrains Mono', 'Source Code Pro', monospace;
+  color: var(--theme-textPrimary);
+  background-color: var(--theme-border);
+  border: 1px solid var(--theme-borderLight);
+  border-radius: 0.25rem;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+}
+
+/* Animation for keyboard shortcuts help modal */
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-enter {
+  animation: modalSlideIn 0.2s ease-out;
+}
+
+/* Keyboard navigation mode indicator */
+body.keyboard-navigation-mode {
+  --focus-ring-color: var(--theme-primary);
+}
+
+body.keyboard-navigation-mode *:focus {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+/* Quick Actions keyboard hints */
+.quick-action-button:focus-visible {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-primary) 30%, transparent);
+}

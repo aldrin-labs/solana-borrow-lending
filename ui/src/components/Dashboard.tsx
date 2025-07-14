@@ -2,6 +2,7 @@
 
 import { FC, useState, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { MarketOverview } from "./MarketOverview";
 import { UserPositions } from "./UserPositions";
 import { StatsCard } from "./StatsCard";
@@ -12,6 +13,7 @@ import { LoadingSpinner } from "./LoadingSpinner";
 import { SkeletonLoader, StatsSkeleton } from "./SkeletonLoader";
 import { CollapsibleSection, DetailedAnalyticsSection } from "./CollapsibleSection";
 import { InfoTooltip } from "./InfoTooltip";
+import { KeyboardShortcutTooltip } from "./KeyboardShortcutTooltip";
 
 export const Dashboard: FC = () => {
   const { connected } = useWallet();
@@ -152,60 +154,90 @@ export const Dashboard: FC = () => {
           {/* Enhanced Tabbed Interface */}
           <div className="border-b pb-6 mb-6" style={{ borderColor: 'var(--theme-border)' }}>
             <div className="flex flex-wrap gap-2">
-              <button
-                className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 focus-visible ${
-                  activeTab === "overview" ? "border" : "hover:bg-opacity-10"
-                }`}
-                style={{
-                  color: activeTab === "overview" ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
-                  backgroundColor: activeTab === "overview" ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
-                  borderColor: activeTab === "overview" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
+              <KeyboardShortcutTooltip
+                shortcut={{
+                  key: '1',
+                  description: 'Switch to Market Overview tab',
+                  category: 'Dashboard',
                 }}
-                onClick={() => setActiveTab("overview")}
+                action={() => setActiveTab("overview")}
+                element="tab-overview"
               >
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  Market Overview
-                </div>
-              </button>
-              <button
-                className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 focus-visible ${
-                  activeTab === "positions" ? "border" : "hover:bg-opacity-10"
-                }`}
-                style={{
-                  color: activeTab === "positions" ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
-                  backgroundColor: activeTab === "positions" ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
-                  borderColor: activeTab === "positions" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
+                <button
+                  className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 focus-visible ${
+                    activeTab === "overview" ? "border" : "hover:bg-opacity-10"
+                  }`}
+                  style={{
+                    color: activeTab === "overview" ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
+                    backgroundColor: activeTab === "overview" ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
+                    borderColor: activeTab === "overview" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
+                  }}
+                  onClick={() => setActiveTab("overview")}
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    Market Overview
+                  </div>
+                </button>
+              </KeyboardShortcutTooltip>
+              <KeyboardShortcutTooltip
+                shortcut={{
+                  key: '2',
+                  description: 'Switch to Your Positions tab',
+                  category: 'Dashboard',
                 }}
-                onClick={() => setActiveTab("positions")}
+                action={() => setActiveTab("positions")}
+                element="tab-positions"
               >
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  Your Positions
-                </div>
-              </button>
-              <button
-                className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 focus-visible ${
-                  activeTab === "analytics" ? "border" : "hover:bg-opacity-10"
-                }`}
-                style={{
-                  color: activeTab === "analytics" ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
-                  backgroundColor: activeTab === "analytics" ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
-                  borderColor: activeTab === "analytics" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
+                <button
+                  className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 focus-visible ${
+                    activeTab === "positions" ? "border" : "hover:bg-opacity-10"
+                  }`}
+                  style={{
+                    color: activeTab === "positions" ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
+                    backgroundColor: activeTab === "positions" ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
+                    borderColor: activeTab === "positions" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
+                  }}
+                  onClick={() => setActiveTab("positions")}
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    Your Positions
+                  </div>
+                </button>
+              </KeyboardShortcutTooltip>
+              <KeyboardShortcutTooltip
+                shortcut={{
+                  key: '3',
+                  description: 'Switch to Analytics tab',
+                  category: 'Dashboard',
                 }}
-                onClick={() => setActiveTab("analytics")}
+                action={() => setActiveTab("analytics")}
+                element="tab-analytics"
               >
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  Analytics
-                </div>
-              </button>
+                <button
+                  className={`py-3 px-4 rounded-lg font-medium transition-all duration-200 focus-visible ${
+                    activeTab === "analytics" ? "border" : "hover:bg-opacity-10"
+                  }`}
+                  style={{
+                    color: activeTab === "analytics" ? 'var(--theme-primary)' : 'var(--theme-textSecondary)',
+                    backgroundColor: activeTab === "analytics" ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : 'transparent',
+                    borderColor: activeTab === "analytics" ? 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' : 'transparent',
+                  }}
+                  onClick={() => setActiveTab("analytics")}
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Analytics
+                  </div>
+                </button>
+              </KeyboardShortcutTooltip>
             </div>
           </div>
 
@@ -279,9 +311,31 @@ export const Dashboard: FC = () => {
               Connect your wallet to view your positions and interact with the lending protocol
             </p>
             <div className="space-y-4">
-              <button className="btn-primary w-full focus-visible">
-                Connect Wallet
-              </button>
+              <KeyboardShortcutTooltip
+                shortcut={{
+                  key: 'w',
+                  description: 'Connect Wallet',
+                  category: 'Wallet',
+                }}
+                action={() => {
+                  // Trigger wallet connection by simulating click on WalletMultiButton
+                  const walletButton = document.querySelector('[data-testid="wallet-adapter-button-trigger"]') as HTMLElement;
+                  if (walletButton) {
+                    walletButton.click();
+                  } else {
+                    // Fallback: try to find any wallet button
+                    const fallbackButton = document.querySelector('.wallet-adapter-button') as HTMLElement;
+                    if (fallbackButton) {
+                      fallbackButton.click();
+                    }
+                  }
+                }}
+                element="connect-wallet"
+              >
+                <button className="btn-primary w-full focus-visible">
+                  Connect Wallet
+                </button>
+              </KeyboardShortcutTooltip>
               <p className="typography-body-sm" style={{ color: 'var(--theme-textMuted)' }}>
                 Supports all major Solana wallets including Phantom, Solflare, and more
               </p>
