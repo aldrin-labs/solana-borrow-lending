@@ -25,6 +25,16 @@
   --theme-success: #2F855A;
   --theme-warning: #D69E2E;
   --theme-error: #C53030;
+  
+  /* Tab-specific theme colors for better UX */
+  --theme-tab-borrow: #D69E2E;
+  --theme-tab-borrow-dark: #B7791F;
+  --theme-tab-position: #C53030;
+  --theme-tab-position-dark: #9B2C2C;
+  --theme-tab-analytics: #2B6CB0;
+  --theme-tab-analytics-dark: #2A5A96;
+  --theme-tab-supply: #2F855A;
+  --theme-tab-supply-dark: #276749;
   --theme-textPrimary: #1A202C;
   --theme-textSecondary: #2D3748;
   --theme-textMuted: #718096;
@@ -334,6 +344,47 @@ body::before {
   .btn-connect:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  /* Tab styling with semantic colors */
+  .tab-borrow {
+    background: var(--theme-tab-borrow);
+    border-color: var(--theme-tab-borrow);
+  }
+  
+  .tab-borrow:hover:not(.active) {
+    background: var(--theme-tab-borrow-dark);
+    background: color-mix(in srgb, var(--theme-tab-borrow) 20%, var(--theme-surface));
+  }
+  
+  .tab-supply {
+    background: var(--theme-tab-supply);
+    border-color: var(--theme-tab-supply);
+  }
+  
+  .tab-supply:hover:not(.active) {
+    background: var(--theme-tab-supply-dark);
+    background: color-mix(in srgb, var(--theme-tab-supply) 20%, var(--theme-surface));
+  }
+  
+  .tab-position {
+    background: var(--theme-tab-position);
+    border-color: var(--theme-tab-position);
+  }
+  
+  .tab-position:hover:not(.active) {
+    background: var(--theme-tab-position-dark);
+    background: color-mix(in srgb, var(--theme-tab-position) 20%, var(--theme-surface));
+  }
+  
+  .tab-analytics {
+    background: var(--theme-tab-analytics);
+    border-color: var(--theme-tab-analytics);
+  }
+  
+  .tab-analytics:hover:not(.active) {
+    background: var(--theme-tab-analytics-dark);
+    background: color-mix(in srgb, var(--theme-tab-analytics) 20%, var(--theme-surface));
   }
   
   /* Theme-aware input styling */
