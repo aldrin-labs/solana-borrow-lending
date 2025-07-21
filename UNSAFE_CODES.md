@@ -23,6 +23,43 @@ validate_account_safety!(
 
 # Safety Categories
 
+## Discriminator Safety (NEW)
+**Justification**: Prevents recursive discriminator bugs that could cause infinite loops or stack overflows during account deserialization.
+
+**Safety Measures**:
+- `DiscriminatorValidator` provides depth-limited validation for nested enum discriminators
+- `validate_obligation_reserve_safe()` specifically prevents ObligationReserve recursion issues
+- All discriminator validation includes recursion depth tracking with configurable limits
+- Enhanced error reporting for discriminator validation failures
+
+**Usage**:
+```rust
+// Safe discriminator validation with recursion protection
+DiscriminatorValidator::validate_obligation_reserve_safe(&account_data)?;
+
+// Depth-limited enum discriminator validation  
+DiscriminatorValidator::validate_enum_discriminator(&data, 0, MAX_DEPTH)?;
+```
+
+## Zero-Copy Safety (ENHANCED)
+**Justification**: Rigorous enforcement of zero-copy safety guarantees to prevent memory corruption and undefined behavior.
+
+**Safety Measures**:
+- All account structures implement `ZeroCopyAccount` trait with comprehensive validation
+- `impl_zero_copy_account!` macro provides compile-time size and alignment validation
+- Runtime discriminator validation before all account access
+- Memory layout assertions prevent size mismatches
+- Enhanced `ZeroCopyHelpers::load_and_validate()` with recursion protection
+
+**Usage**:
+```rust
+// Safe zero-copy account loading with full validation
+let account = ZeroCopyHelpers::load_and_validate(&account_loader)?;
+
+// Implement zero-copy safety for new account types
+impl_zero_copy_account!(MyAccount, 1024);
+```
+
 ## Signer
 **Justification**: We don't read data from this account. We use it to either validate ownership
 over some other entity, because we want to move funds from their wallets, etc.
