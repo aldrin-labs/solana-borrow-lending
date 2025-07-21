@@ -884,4 +884,62 @@ mod tests {
         let pos = BinarySearchHelpers::upper_bound(&data, &6, |a, b| a.cmp(b));
         assert_eq!(pos, 3); // Position where 6 would be inserted
     }
+    
+    #[test]
+    fn test_zero_copy_account_implementation() {
+        // Test that our zero-copy account implementations work correctly
+        // We can't easily test the actual account types without the full dependency setup,
+        // but we can test the macro expansion logic
+        
+        // Test that size validation works in the macro
+        #[derive(Default)]
+        struct TestAccount {
+            data: [u8; 100],
+        }
+        
+        // This should compile without issues
+        impl_zero_copy_account!(TestAccount, 100);
+        
+        // Verify the space calculation
+        assert_eq!(TestAccount::space(), 100);
+        
+        // Verify discriminator is consistent
+        let disc1 = TestAccount::discriminator();
+        let disc2 = TestAccount::discriminator();
+        assert_eq!(disc1, disc2, "Discriminator should be stable");
+        assert_eq!(disc1.len(), 8, "Discriminator should be 8 bytes");
+    }
+    
+    #[test]
+    fn test_memory_layout_safety() {
+        // Test memory layout validation
+        #[derive(Default)]
+        struct TestStruct {
+            field1: u64,
+            field2: u32,
+            field3: [u8; 12],
+        }
+        
+        // This should succeed since the struct is 24 bytes and properly aligned
+        impl_zero_copy_account!(TestStruct, 24);
+        
+        assert_eq!(TestStruct::space(), 24);
+        assert_eq!(std::mem::size_of::<TestStruct>(), 24);
+        assert!(std::mem::align_of::<TestStruct>() <= 8);
+    }
+    
+    #[test] 
+    fn test_obligation_reserves_validation_safety() {
+        use crate::models::obligation::{Obligation, ObligationReserve};
+        
+        // Create a default obligation with empty reserves
+        let obligation = Obligation::default();
+        
+        // This should pass since all reserves are Empty by default
+        assert!(obligation.validate_reserves_safe().is_ok());
+        
+        // Test with manual reserve validation
+        let empty_reserve = ObligationReserve::Empty;
+        assert!(DiscriminatorValidator::validate_obligation_reserve_direct(&empty_reserve).is_ok());
+    }
 }
