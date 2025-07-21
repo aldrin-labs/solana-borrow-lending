@@ -26,8 +26,8 @@
 // 5. VALIDATION UTILITIES: Use ZeroCopyHelpers::load_and_validate() for all
 //    account loading to ensure comprehensive safety checks are performed.
 //
-// TEMPORARY ALLOWANCES (minimal, targeted usage only):
-#![allow(unaligned_references, renamed_and_removed_lints, safe_packed_borrows)]
+// TARGETED ALLOWANCES (specific legacy compatibility only):
+#![allow(unaligned_references)]
 
 #[cfg(test)]
 #[macro_use]

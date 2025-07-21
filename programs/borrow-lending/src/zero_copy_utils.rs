@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::models::obligation::{ObligationLiquidity, ObligationCollateral, ObligationReserve};
 use std::mem;
 
 /// Trait for zero-copy structures to provide consistent space calculation
@@ -31,28 +32,30 @@ pub trait ZeroCopyAccount: anchor_lang::ZeroCopy {
     /// This function prevents recursive discriminator validation by tracking depth
     /// and failing fast if the recursion limit is exceeded.
     fn validate_discriminator_safe(data: &[u8], depth: u8) -> Result<()> {
-        const MAX_DISCRIMINATOR_DEPTH: u8 = 10;
-        
-        if depth > MAX_DISCRIMINATOR_DEPTH {
+        if depth > crate::zero_copy_utils::DiscriminatorValidator::config::DEFAULT_MAX_DEPTH {
             msg!(
                 "Discriminator validation depth exceeded maximum of {}",
-                MAX_DISCRIMINATOR_DEPTH
+                crate::zero_copy_utils::DiscriminatorValidator::config::DEFAULT_MAX_DEPTH
             );
             return Err(ErrorCode::AccountDataSizeMismatch.into());
         }
         
         if data.len() < 8 {
-            msg!("Account data too small for discriminator validation");
+            msg!("Account data too small for discriminator validation: {} bytes", data.len());
             return Err(ErrorCode::AccountDataSizeMismatch.into());
         }
         
         let expected_discriminator = Self::discriminator();
         let actual_discriminator: [u8; 8] = data[0..8].try_into()
-            .map_err(|_| ErrorCode::AccountDataSizeMismatch)?;
+            .map_err(|e| {
+                msg!("Failed to extract discriminator from account data: {:?}", e);
+                ErrorCode::AccountDataSizeMismatch
+            })?;
             
         if actual_discriminator != expected_discriminator {
             msg!(
-                "Discriminator mismatch: expected {:?}, got {:?}",
+                "Discriminator mismatch for {}: expected {:?}, got {:?}",
+                std::any::type_name::<Self>(),
                 expected_discriminator,
                 actual_discriminator
             );
@@ -305,9 +308,45 @@ impl ZeroCopyHelpers {
 /// 
 /// This addresses the recursive discriminator bug where nested enum structures
 /// could cause infinite recursion during validation or deserialization.
+/// 
+/// # Purpose
+/// The DiscriminatorValidator provides safe, depth-limited validation for
+/// enum discriminators to prevent recursive parsing bugs that could cause
+/// infinite loops or stack overflows during account deserialization.
+/// 
+/// # Key Features
+/// - **Recursion Protection**: Enforces configurable depth limits to prevent infinite loops
+/// - **Complete Validation**: Validates both discriminator bytes and inner structure sizes
+/// - **Performance Optimized**: Avoids expensive serialization for validation
+/// - **Error Transparency**: Provides detailed error messages for debugging
+/// 
+/// # Usage
+/// ```rust
+/// // Validate with default depth limits
+/// DiscriminatorValidator::validate_obligation_reserve_safe(&data)?;
+/// 
+/// // Validate with custom depth limits
+/// DiscriminatorValidator::validate_enum_discriminator(&data, 0, custom_max_depth)?;
+/// ```
 pub struct DiscriminatorValidator;
 
 impl DiscriminatorValidator {
+    /// Configuration constants for discriminator validation.
+    /// These can be adjusted based on specific use case requirements.
+    pub mod config {
+        /// Default maximum recursion depth for general enum validation
+        pub const DEFAULT_MAX_DEPTH: u8 = 10;
+        
+        /// Conservative depth limit for obligation reserve validation
+        pub const OBLIGATION_RESERVE_MAX_DEPTH: u8 = 5;
+        
+        /// Maximum depth for complex nested structures
+        pub const COMPLEX_STRUCTURE_MAX_DEPTH: u8 = 15;
+        
+        /// Minimum discriminator data size (1 byte for enum discriminator)
+        pub const MIN_DISCRIMINATOR_SIZE: usize = 1;
+    }
+
     /// Validate nested enum discriminators with explicit depth tracking.
     /// 
     /// # Safety
@@ -315,6 +354,7 @@ impl DiscriminatorValidator {
     /// - Tracking validation depth to prevent infinite recursion
     /// - Validating enum variants before accessing inner data
     /// - Ensuring termination conditions are met for nested structures
+    /// - Checking complete structure layout, not just discriminator bytes
     /// 
     /// # Parameters
     /// * `data` - Raw bytes to validate
@@ -327,29 +367,67 @@ impl DiscriminatorValidator {
     ) -> Result<()> {
         if depth > max_depth {
             msg!(
-                "Enum discriminator validation exceeded maximum depth {} at level {}",
+                "Enum discriminator validation exceeded maximum depth {} at level {}. \
+                This could indicate a recursive structure or malformed data.",
                 max_depth,
                 depth
             );
             return Err(ErrorCode::AccountDataSizeMismatch.into());
         }
         
-        if data.is_empty() {
-            msg!("Cannot validate discriminator on empty data");
+        if data.len() < Self::config::MIN_DISCRIMINATOR_SIZE {
+            msg!(
+                "Cannot validate discriminator: data size {} is below minimum required {}",
+                data.len(),
+                Self::config::MIN_DISCRIMINATOR_SIZE
+            );
             return Err(ErrorCode::AccountDataSizeMismatch.into());
         }
         
         // For Anchor's BorshSerialize enums, the discriminator is typically the first byte
         let discriminator = data[0];
         
-        // Validate the discriminator is within expected bounds
-        // This prevents accessing invalid memory regions
+        // Enhanced validation: check discriminator bounds AND ensure sufficient data
+        // for the complete structure, not just the discriminator byte
         match discriminator {
             // ObligationReserve variants: Empty(0), Liquidity(1), Collateral(2)
-            0..=2 => Ok(()),
+            0 => {
+                // Empty variant requires only the discriminator byte
+                if data.len() < 1 {
+                    msg!("Empty variant requires at least 1 byte for discriminator");
+                    return Err(ErrorCode::AccountDataSizeMismatch.into());
+                }
+                Ok(())
+            },
+            1 => {
+                // Liquidity variant requires discriminator + ObligationLiquidity size
+                let required_size = 1 + std::mem::size_of::<ObligationLiquidity>();
+                if data.len() < required_size {
+                    msg!(
+                        "Liquidity variant requires {} bytes, got {}",
+                        required_size,
+                        data.len()
+                    );
+                    return Err(ErrorCode::AccountDataSizeMismatch.into());
+                }
+                Ok(())
+            },
+            2 => {
+                // Collateral variant requires discriminator + ObligationCollateral size
+                let required_size = 1 + std::mem::size_of::<ObligationCollateral>();
+                if data.len() < required_size {
+                    msg!(
+                        "Collateral variant requires {} bytes, got {}",
+                        required_size,
+                        data.len()
+                    );
+                    return Err(ErrorCode::AccountDataSizeMismatch.into());
+                }
+                Ok(())
+            },
             _ => {
                 msg!(
-                    "Invalid enum discriminator: {} is not in valid range 0-2",
+                    "Invalid enum discriminator: {} is not in valid range 0-2 for ObligationReserve",
                     discriminator
                 );
                 Err(ErrorCode::AccountDataSizeMismatch.into())
@@ -362,44 +440,52 @@ impl DiscriminatorValidator {
     /// # Safety
     /// This addresses the specific recursive discriminator pattern in ObligationReserve
     /// where nested structures could cause parsing to recurse indefinitely.
+    /// 
+    /// # Performance
+    /// This method validates the discriminator and structure layout directly without
+    /// expensive serialization, making it suitable for hot-path validation.
     pub fn validate_obligation_reserve_safe(data: &[u8]) -> Result<()> {
-        const MAX_OBLIGATION_RESERVE_DEPTH: u8 = 5;
-        
         if data.is_empty() {
-            return Ok(()); // Empty is a valid variant
+            return Ok(()); // Empty is a valid variant (Empty = no data)
         }
         
-        // Validate the enum discriminator
-        Self::validate_enum_discriminator(data, 0, MAX_OBLIGATION_RESERVE_DEPTH)?;
-        
-        let discriminator = data[0];
-        match discriminator {
-            0 => {
-                // Empty variant - no inner data to validate
+        // Use configurable depth limit for obligation reserves
+        Self::validate_enum_discriminator(data, 0, Self::config::OBLIGATION_RESERVE_MAX_DEPTH)
+    }
+    
+    /// Validate an ObligationReserve instance directly without serialization.
+    /// 
+    /// This is a performance-optimized validation that avoids the expensive
+    /// serialization step while still providing comprehensive safety checks.
+    pub fn validate_obligation_reserve_direct(reserve: &ObligationReserve) -> Result<()> {
+        match reserve {
+            ObligationReserve::Empty => {
+                // Empty variant is always valid
                 Ok(())
             }
-            1 => {
-                // Liquidity variant - validate inner ObligationLiquidity
-                if data.len() < 1 + std::mem::size_of::<ObligationLiquidity>() {
-                    msg!("Insufficient data for ObligationLiquidity variant");
-                    return Err(ErrorCode::AccountDataSizeMismatch.into());
+            ObligationReserve::Liquidity { inner } => {
+                // Validate the inner liquidity structure
+                if inner.borrowed_amount.is_negative() {
+                    msg!("Invalid liquidity: borrowed_amount cannot be negative");
+                    return Err(ErrorCode::InvalidAmount.into());
                 }
-                // Additional validation for inner structure would go here
-                Ok(())
-            }
-            2 => {
-                // Collateral variant - validate inner ObligationCollateral  
-                if data.len() < 1 + std::mem::size_of::<ObligationCollateral>() {
-                    msg!("Insufficient data for ObligationCollateral variant");
-                    return Err(ErrorCode::AccountDataSizeMismatch.into());
+                if inner.market_value.is_negative() {
+                    msg!("Invalid liquidity: market_value cannot be negative");
+                    return Err(ErrorCode::InvalidAmount.into());
                 }
-                // Additional validation for inner structure would go here
                 Ok(())
             }
-            _ => {
-                // This should never happen due to earlier validation
-                msg!("Unexpected discriminator value: {}", discriminator);
-                Err(ErrorCode::AccountDataSizeMismatch.into())
+            ObligationReserve::Collateral { inner } => {
+                // Validate the inner collateral structure
+                if inner.deposited_amount.is_negative() {
+                    msg!("Invalid collateral: deposited_amount cannot be negative");
+                    return Err(ErrorCode::InvalidAmount.into());
+                }
+                if inner.market_value.is_negative() {
+                    msg!("Invalid collateral: market_value cannot be negative");
+                    return Err(ErrorCode::InvalidAmount.into());
+                }
+                Ok(())
             }
         }
     }
@@ -420,16 +506,19 @@ macro_rules! impl_zero_copy_account {
             }
             
             fn discriminator() -> [u8; 8] {
-                // For zero-copy accounts, calculate discriminator based on type name
-                use std::collections::hash_map::DefaultHasher;
-                use std::hash::{Hash, Hasher};
+                // Use a stable discriminator calculation approach
+                // This ensures consistent discriminators across platforms and Rust versions
+                use anchor_lang::solana_program::hash::{hash, Hash};
                 
-                let mut hasher = DefaultHasher::new();
-                stringify!($struct_name).hash(&mut hasher);
-                let hash = hasher.finish();
+                // Calculate discriminator using account name with stable prefix
+                // This matches the pattern used by Anchor for account discriminators
+                let account_name = format!("account:{}", stringify!($struct_name));
+                let hash_result: Hash = hash(account_name.as_bytes());
                 
-                // Convert to 8-byte array
-                hash.to_le_bytes()
+                // Take first 8 bytes of the hash for discriminator
+                let mut discriminator = [0u8; 8];
+                discriminator.copy_from_slice(&hash_result.to_bytes()[..8]);
+                discriminator
             }
         }
         
@@ -464,44 +553,77 @@ macro_rules! impl_zero_copy_account {
 
 /// Macro for documenting and validating AccountInfo safety requirements.
 /// 
-/// This macro generates both documentation and runtime validation code
-/// to replace manual `/// CHECK: UNSAFE_CODES.md#...` patterns with
-/// explicit safety guarantees.
+/// This macro generates runtime validation code to replace manual 
+/// `/// CHECK: UNSAFE_CODES.md#...` patterns with explicit safety guarantees.
 /// 
 /// # Usage
 /// ```rust
 /// validate_account_safety!(
 ///     account_info,
-///     owner = Some(&token_program::ID),
+///     owner = &token_program::ID,
 ///     reason = "Token program validates this account's validity"
 /// );
 /// ```
 #[macro_export]
 macro_rules! validate_account_safety {
+    ($account:expr, reason = $reason:literal) => {
+        {
+            // Simple validation with just reason
+            crate::zero_copy_utils::ZeroCopyHelpers::validate_account_info_safety(
+                $account,
+                None,
+                None,
+                None,
+            )
+        }
+    };
+    ($account:expr, owner = $owner:expr, reason = $reason:literal) => {
+        {
+            // Validate with owner check
+            crate::zero_copy_utils::ZeroCopyHelpers::validate_account_info_safety(
+                $account,
+                Some($owner),
+                None,
+                None,
+            )
+        }
+    };
+    ($account:expr, key = $key:expr, reason = $reason:literal) => {
+        {
+            // Validate with key check
+            crate::zero_copy_utils::ZeroCopyHelpers::validate_account_info_safety(
+                $account,
+                None,
+                Some($key),
+                None,
+            )
+        }
+    };
+    ($account:expr, min_balance = $min_balance:expr, reason = $reason:literal) => {
+        {
+            // Validate with minimum balance check
+            crate::zero_copy_utils::ZeroCopyHelpers::validate_account_info_safety(
+                $account,
+                None,
+                None,
+                Some($min_balance),
+            )
+        }
+    };
     (
         $account:expr,
-        $(owner = $owner:expr,)?
-        $(key = $key:expr,)?
-        $(min_balance = $min_balance:expr,)?
+        owner = $owner:expr,
+        key = $key:expr,
         reason = $reason:literal
     ) => {
         {
-            // Generate compile-time documentation
-            concat!(
-                "SAFETY: ", $reason, "\n",
-                "This account is validated at runtime for: ",
-                $(concat!("owner=", stringify!($owner), " "),)?
-                $(concat!("key=", stringify!($key), " "),)?
-                $(concat!("min_balance=", stringify!($min_balance), " "),)?
-            );
-            
-            // Perform runtime validation
+            // Validate with owner and key checks
             crate::zero_copy_utils::ZeroCopyHelpers::validate_account_info_safety(
                 $account,
-                None $(.or($owner))?,
-                None $(.or($key))?,
-                None $(.or($min_balance))?,
-            )?;
+                Some($owner),
+                Some($key),
+                None,
+            )
         }
     };
 }
@@ -687,7 +809,7 @@ mod tests {
     
     #[test]
     fn test_discriminator_validation_safety() {
-        // Test valid ObligationReserve discriminators
+        // Test valid ObligationReserve discriminators with byte validation
         let empty_data = vec![0u8]; // Empty variant
         assert!(DiscriminatorValidator::validate_obligation_reserve_safe(&empty_data).is_ok());
         
@@ -701,24 +823,47 @@ mod tests {
         let invalid_data = vec![255u8; 100];
         assert!(DiscriminatorValidator::validate_obligation_reserve_safe(&invalid_data).is_err());
         
-        // Test insufficient data
+        // Test insufficient data for liquidity variant
         let insufficient_data = vec![1u8]; // Liquidity variant but not enough data
         assert!(DiscriminatorValidator::validate_obligation_reserve_safe(&insufficient_data).is_err());
+        
+        // Test direct validation of actual ObligationReserve instances
+        let empty_reserve = ObligationReserve::Empty;
+        assert!(DiscriminatorValidator::validate_obligation_reserve_direct(&empty_reserve).is_ok());
     }
     
     #[test]
     fn test_recursion_depth_protection() {
         let data = vec![1u8; 100];
         
-        // Should succeed at low depth
-        assert!(DiscriminatorValidator::validate_enum_discriminator(&data, 0, 10).is_ok());
+        // Should succeed at low depth with configurable limits
+        assert!(DiscriminatorValidator::validate_enum_discriminator(
+            &data, 
+            0, 
+            DiscriminatorValidator::config::DEFAULT_MAX_DEPTH
+        ).is_ok());
         
-        // Should fail when depth exceeds maximum
-        assert!(DiscriminatorValidator::validate_enum_discriminator(&data, 11, 10).is_err());
+        // Should fail when depth exceeds configured maximum  
+        assert!(DiscriminatorValidator::validate_enum_discriminator(
+            &data, 
+            DiscriminatorValidator::config::DEFAULT_MAX_DEPTH + 1, 
+            DiscriminatorValidator::config::DEFAULT_MAX_DEPTH
+        ).is_err());
         
         // Should handle empty data safely
         let empty_data = vec![];
-        assert!(DiscriminatorValidator::validate_enum_discriminator(&empty_data, 0, 10).is_err());
+        assert!(DiscriminatorValidator::validate_enum_discriminator(
+            &empty_data, 
+            0, 
+            DiscriminatorValidator::config::DEFAULT_MAX_DEPTH
+        ).is_err());
+        
+        // Test with different depth limits
+        assert!(DiscriminatorValidator::validate_enum_discriminator(
+            &data, 
+            0, 
+            DiscriminatorValidator::config::OBLIGATION_RESERVE_MAX_DEPTH
+        ).is_ok());
     }
     
     #[test]

@@ -149,22 +149,18 @@ impl Obligation {
     /// Safely validate obligation reserves array to prevent recursive discriminator bugs.
     /// 
     /// # Safety
-    /// This function validates each reserve in the array using the enhanced discriminator
-    /// validation to prevent infinite recursion or malformed data from causing crashes.
+    /// This function validates each reserve in the array using enhanced direct validation
+    /// to prevent infinite recursion or malformed data from causing crashes.
+    /// 
+    /// # Performance
+    /// Uses direct validation instead of expensive serialization for optimal performance
+    /// in hot-path validation scenarios.
     pub fn validate_reserves_safe(&self) -> Result<()> {
         for (index, reserve) in self.reserves.iter().enumerate() {
-            // Serialize the reserve to bytes for validation
-            let mut reserve_bytes = Vec::new();
-            reserve.try_serialize(&mut reserve_bytes)
-                .map_err(|_| {
-                    msg!("Failed to serialize reserve at index {}", index);
-                    ErrorCode::AccountDataSizeMismatch
-                })?;
-            
-            // Validate using our safe discriminator validator
-            DiscriminatorValidator::validate_obligation_reserve_safe(&reserve_bytes)
-                .map_err(|_| {
-                    msg!("Reserve validation failed at index {}", index);
+            // Use direct validation instead of expensive serialization
+            DiscriminatorValidator::validate_obligation_reserve_direct(reserve)
+                .map_err(|e| {
+                    msg!("Reserve validation failed at index {}: {:?}", index, e);
                     ErrorCode::AccountDataSizeMismatch
                 })?;
         }
